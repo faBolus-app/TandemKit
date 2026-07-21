@@ -13,3 +13,6 @@ DerivedData/
 # Oracle build artifacts (submodule builds its own jar; don't commit binaries)
 *.jar
 vendor/pumpx2-oracle/**/build/
+
+# Local scratch/scan output (not part of the source tree)
+/scratch_reads*.txt
