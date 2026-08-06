@@ -1,0 +1,23 @@
+{
+  "originHash" : "1c5cc692d5b566f4cb4a1a3c4d796b488c9a67a4b1f8fa6f16a8522d7a8150fc",
+  "pins" : [
+    {
+      "identity" : "loopkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/LoopKit/LoopKit.git",
+      "state" : {
+        "revision" : "a5beee96d8e0770fc6999372a73ea5f523351a43"
+      }
+    },
+    {
+      "identity" : "swiftcharts",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/ivanschuetz/SwiftCharts",
+      "state" : {
+        "branch" : "master",
+        "revision" : "c354c1945bb35a1f01b665b22474f6db28cba4a2"
+      }
+    }
+  ],
+  "version" : 3
+}

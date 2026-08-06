@@ -1,0 +1,47 @@
+name: LoopKit driver (non-blocking)
+
+# Builds + tests the OPTIONAL PumpX2LoopKit driver (integrations/PumpX2LoopKit), a LoopKit
+# `PumpManager` conformance layered above the parity-verified PumpX2Messages core. LoopKit is iOS-only
+# and HealthKit-bearing, so this driver is a SEPARATE package, intentionally excluded from the root
+# Package.swift and the byte-exact oracle-parity job.
+#
+# This lane is `continue-on-error: true` — exactly like the ConnectIQ/Garmin SDK wall. It is ALLOWED to
+# be red or skipped and MUST NEVER gate a merge or the oracle job. The authoritative local check is
+# `xcodebuild -scheme PumpX2LoopKit -destination 'generic/platform=iOS' test`.
+
+on:
+  push:
+    branches: [main, experimental]
+    paths:
+      - 'integrations/PumpX2LoopKit/**'
+      - '.github/workflows/loopkit-driver.yml'
+  pull_request:
+    paths:
+      - 'integrations/PumpX2LoopKit/**'
+      - '.github/workflows/loopkit-driver.yml'
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    continue-on-error: true # non-blocking: never gates a merge or the oracle job
+    defaults:
+      run:
+        working-directory: integrations/PumpX2LoopKit
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.app || sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Build the driver for iOS (compiles against LoopKit)
+        run: xcodebuild -scheme PumpX2LoopKit -destination 'generic/platform=iOS' build
+
+      - name: Unit tests on a simulator (best-effort)
+        run: |
+          UDID=$(xcrun simctl list devices available | grep 'iPhone' | grep -oE '[0-9A-Fa-f-]{36}' | head -1)
+          if [ -z "$UDID" ]; then echo "no iPhone simulator available on this runner; skipping the test run"; exit 0; fi
+          echo "using simulator $UDID"
+          xcodebuild -scheme PumpX2LoopKit -destination "id=$UDID" test

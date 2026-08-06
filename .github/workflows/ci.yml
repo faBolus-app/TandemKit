@@ -30,6 +30,17 @@ jobs:
       - name: swift build
         run: swift build
 
+      - name: Guard — the oracle graph stays LoopKit-free
+        # The optional PumpX2LoopKit driver (integrations/PumpX2LoopKit) links LoopKit, which is
+        # iOS-only and HealthKit-bearing. It must NEVER enter the root package graph, or this
+        # dependency-free byte-exact oracle build would change. Fail loudly if it ever leaks in.
+        run: |
+          if swift package show-dependencies --format json | grep -qi loopkit; then
+            echo "::error::LoopKit leaked into the root PumpX2Kit dependency graph — the oracle-parity build must stay dependency-free."
+            exit 1
+          fi
+          echo "root dependency graph is LoopKit-free ✓"
+
       - name: swift test (byte-exact oracle parity)
         env:
           # OracleRunner finds the JAR at the default vendor path; point it at CI's JDK.
