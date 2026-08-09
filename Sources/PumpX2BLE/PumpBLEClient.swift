@@ -16,6 +16,22 @@ public protocol PumpBLEClientDelegate: AnyObject {
     func pumpClient(_ client: PumpBLEClient, didError error: Error)
 }
 
+/// B3(b) TEST SEAM — the minimal `CBCentralManager` surface `PumpBLEClient` actually uses. `CBCentralManager`
+/// satisfies it unchanged (the empty conformance below), so injecting the real manager is behavior-preserving
+/// by construction — if this compiles, the production path is untouched. A unit test injects a fake to
+/// branch-test the connection lifecycle (scan timeout, retrieve-vs-scan) without CoreBluetooth/hardware,
+/// which a macOS test host can't run (TCC-aborted at scan — see the class note).
+protocol PumpCentral: AnyObject {
+    var state: CBManagerState { get }
+    func scanForPeripherals(withServices serviceUUIDs: [CBUUID]?, options: [String: Any]?)
+    func stopScan()
+    func connect(_ peripheral: CBPeripheral, options: [String: Any]?)
+    func retrievePeripherals(withIdentifiers identifiers: [UUID]) -> [CBPeripheral]
+    func retrieveConnectedPeripherals(withServices serviceUUIDs: [CBUUID]) -> [CBPeripheral]
+    func cancelPeripheralConnection(_ peripheral: CBPeripheral)
+}
+extension CBCentralManager: PumpCentral {}
+
 /// Core Bluetooth central for the Tandem pump. Platform-agnostic (iOS + watchOS): imports
 /// CoreBluetooth only. Mirrors the connection flow of upstream `TandemBluetoothHandler`:
 /// scan for the pump service → connect → discover characteristics → request MTU → enable
@@ -124,7 +140,7 @@ public final class PumpBLEClient: NSObject {
         didSet { if state != oldValue { notify { $0.pumpClient(self, didChange: self.state) } } }
     }
 
-    private var central: CBCentralManager!
+    private var central: PumpCentral!
     private var peripheral: CBPeripheral?
     /// Discovered pump characteristics keyed by our `Characteristic` enum.
     private var characteristics: [Characteristic: CBCharacteristic] = [:]
@@ -150,16 +166,25 @@ public final class PumpBLEClient: NSObject {
         self.central = CBCentralManager(delegate: self, queue: .main, options: options)
     }
 
+    /// B3(b) TEST SEAM ONLY — inject a fake `PumpCentral` so the connection lifecycle (scan timeout,
+    /// retrieve-vs-scan) can be branch-tested without CoreBluetooth/hardware. Never used in production
+    /// (the real path is `init(restoreIdentifier:)`, which builds a real `CBCentralManager`).
+    init(central: PumpCentral) {
+        super.init()
+        self.central = central
+    }
+
     // MARK: - Public API
 
     public func startScan() {
         wasScanning = true
         guard central.state == .poweredOn else { state = mapCentralState(central.state); return }
         state = .scanning
-        central.scanForPeripherals(withServices: [CBUUID(nsuuid: ServiceUUID.pumpService)])
+        central.scanForPeripherals(withServices: [CBUUID(nsuuid: ServiceUUID.pumpService)], options: nil)
+        armScanTimeout()   // §5.2.4 (B3b): recover a KNOWN-pump scan that never discovers, without teardown
     }
 
-    public func stopScan() { wasScanning = false; central.stopScan() }
+    public func stopScan() { wasScanning = false; cancelScanTimeout(); central.stopScan() }
 
     public func connect(_ peripheral: CBPeripheral) {
         stopScan()
@@ -218,6 +243,43 @@ public final class PumpBLEClient: NSObject {
     private var pendingRetrieveId: UUID?
     private static let reconnectBackoff: [TimeInterval] = [5, 10, 20, 30]
 
+    // MARK: Scan timeout (§5.2.4 / B3b)
+    /// A separate one-shot timer (NOT the reconnect watchdog) that fires when a scan for a KNOWN pump
+    /// finds nothing within the window. It exists because once `startScan()` latches `.scanning`, nothing
+    /// else re-kicks recovery — the watchdog is armed only by disconnect / fail-to-connect. Kept distinct
+    /// from `reconnectWatchdog` so the two can't invalidate each other.
+    private var scanTimeout: Timer?
+    /// How long a known-pump scan may run before we escalate to the reconnect recovery ladder. A minimal
+    /// bound — long enough to discover a nearby pump, short enough to escape a latched scan.
+    private static let scanTimeoutSeconds: TimeInterval = 30
+
+    /// Arm the scan timeout (called from `startScan`). Replaces any prior one so re-scans re-arm cleanly.
+    private func armScanTimeout() {
+        scanTimeout?.invalidate()
+        scanTimeout = Timer.scheduledTimer(withTimeInterval: Self.scanTimeoutSeconds, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.scanTimedOut() }
+        }
+    }
+
+    private func cancelScanTimeout() { scanTimeout?.invalidate(); scanTimeout = nil }
+
+    /// §5.2.4: a scan that never discovers the pump must recover WITHOUT tearing down — teardown/rebuild
+    /// cycles are the CAUSE of the stuck-scanning state. So this does NOT `stopScan` or cancel the pending
+    /// connect; it just starts the reconnect recovery ladder (re-resolve + rescan on jittered backoff),
+    /// and ONLY when that ladder isn't already running (arming it while it runs would reset the backoff to
+    /// step 0). Scoped to a KNOWN-pump scan (`reconnectTargetId != nil`) — a first-time PAIRING scan (no
+    /// target) is left to run exactly as before.
+    /// Internal (not private) so a unit test can fire it without waiting out the real 30 s timer.
+    func scanTimedOut() {
+        guard state == .scanning, !intentionalDisconnect,
+              reconnectTargetId != nil, reconnectWatchdog == nil else { return }
+        startReconnectWatchdog()
+    }
+
+    /// B3(b) test accessor — whether the reconnect recovery ladder is currently armed. Read-only; lets a
+    /// test assert the scan-timeout escalated to recovery without exposing the timer itself.
+    var reconnectWatchdogArmedForTesting: Bool { reconnectWatchdog != nil }
+
     /// A reconnect delay with additive jitter (up to +50%) applied to a fixed ladder step. Without it,
     /// a phone and pump both retrying/advertising on fixed intervals can lock into a beat pattern where
     /// their scan and advertise windows repeatedly miss, stalling recovery; the jitter breaks that
@@ -235,6 +297,7 @@ public final class PumpBLEClient: NSObject {
     public func disconnect() {
         intentionalDisconnect = true
         cancelReconnectWatchdog()
+        cancelScanTimeout()
         if let p = peripheral { central.cancelPeripheralConnection(p) }
     }
 
@@ -550,6 +613,7 @@ extension PumpBLEClient: CBPeripheralDelegate {
         guard characteristics[.currentStatus] != nil, characteristics[.authorization] != nil else { return }
         guard !requestedNotify.isEmpty, requestedNotify.isSubset(of: confirmedNotifying) else { return }
         cancelReconnectWatchdog()   // link fully re-established
+        cancelScanTimeout()         // B3b: no scan in flight once ready
         state = .ready
         notify { $0.pumpClientDidBecomeReady(self) }
     }
