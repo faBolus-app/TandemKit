@@ -197,4 +197,102 @@ import PumpX2Messages
         _ = coord.ingest(frame: [0x31, 2, 0], on: .control)
         _ = try await b.value
     }
+
+    // MARK: - D2 (Addendum G): txId correlation
+
+    /// Fail-closed default: a fresh coordinator correlates by opcode FIFO (the `main` reference path).
+    @MainActor @Test func defaultCorrelationModeIsOpcodeFIFO() {
+        #expect(PumpTransactionCoordinator().correlationMode == .opcodeFIFO)
+    }
+
+    /// The core reorder win: two reads sharing the SAME opcode but distinct txIds resolve to their OWN
+    /// frame even when the pump replies out of order. FIFO would give the first-arriving frame to the
+    /// oldest transaction (a mis-attribution); txId-match keys on the echoed `frame[1]`.
+    @MainActor @Test func txIdMatchResolvesOutOfOrderSameOpcodeReads() async throws {
+        let coord = PumpTransactionCoordinator()
+        coord.correlationMode = .txIdMatch
+        let a = await launchAndRegister(coord, on: .currentStatus, opCode: 0x03, txId: 1)
+        let b = await launchAndRegister(coord, on: .currentStatus, opCode: 0x03, txId: 2)
+        #expect(coord.inFlightCount == 2)
+        // The txId-2 reply arrives FIRST → must resolve `b`, not the oldest (`a`).
+        #expect(coord.ingest(frame: [0x03, 2, 0xBB], on: .currentStatus))
+        #expect(try await b.value == [0x03, 2, 0xBB])
+        #expect(coord.inFlightCount == 1)
+        #expect(coord.ingest(frame: [0x03, 1, 0xAA], on: .currentStatus))
+        #expect(try await a.value == [0x03, 1, 0xAA])
+    }
+
+    /// A rejected control write is answered with op-77 echoing the FAILING request's txId. txId-match
+    /// accepts it as a terminal reply for the matching transaction (77 ≠ the expected opcode, but the
+    /// txId matches), so the write resolves with the NACK frame instead of hanging to its deadline.
+    @MainActor @Test func txIdMatchAcceptsOp77NackByTxId() async throws {
+        let coord = PumpTransactionCoordinator()
+        coord.correlationMode = .txIdMatch
+        let task = await launchAndRegister(coord, on: .control, opCode: 0x1C, txId: 3)
+        #expect(coord.ingest(frame: [77, 3, 2, 0x1C, 3], on: .control))   // op-77, txId 3
+        let frame = try await task.value
+        #expect(frame.first == 77 && frame[1] == 3)
+        #expect(coord.inFlightCount == 0)
+    }
+
+    /// An unsolicited stream frame is NEVER consumed by a pending transaction — even one that happens to
+    /// share the pending's txId — because its opcode is neither the expected response nor a NACK (77). It
+    /// is routed to the delegate (ingest returns false), and the awaiting read stays in flight.
+    @MainActor @Test func txIdMatchNeverConsumesUnsolicitedStreamFrame() async throws {
+        let coord = PumpTransactionCoordinator()
+        coord.correlationMode = .txIdMatch
+        let task = await launchAndRegister(coord, on: .control, opCode: 0x03, txId: 5)
+        #expect(coord.ingest(frame: [129, 5, 0], on: .control) == false)   // op-129 stream, same txId 5
+        #expect(coord.inFlightCount == 1)
+        #expect(coord.ingest(frame: [0x03, 5, 0], on: .control))           // its real reply resolves it
+        _ = try await task.value
+    }
+
+    /// txId is a `UInt8`; the wire counter wraps 255 → 0. Two in-flight reads straddling the wrap stay
+    /// distinct. (A same-txId collision needs 256 concurrent transactions — impossible with delivery
+    /// serialized to one in-flight command and only a handful of reads.)
+    @MainActor @Test func txIdMatchDistinguishesWraparoundTxIds() async throws {
+        let coord = PumpTransactionCoordinator()
+        coord.correlationMode = .txIdMatch
+        let hi = await launchAndRegister(coord, on: .currentStatus, opCode: 0x03, txId: 255)
+        let lo = await launchAndRegister(coord, on: .currentStatus, opCode: 0x03, txId: 0)
+        #expect(coord.ingest(frame: [0x03, 0, 0xB0], on: .currentStatus))
+        #expect(try await lo.value == [0x03, 0, 0xB0])
+        #expect(coord.ingest(frame: [0x03, 255, 0xAA], on: .currentStatus))
+        #expect(try await hi.value == [0x03, 255, 0xAA])
+    }
+
+    /// txId correlation must NOT relax delivery-class serialization: a bolus is still never pipelined, so
+    /// a second `serialized` command is rejected `.busy` before writing, exactly as under opcode FIFO.
+    /// This is the load-bearing safety invariant of D2 (delivery stays 1-in-flight in BOTH modes).
+    @MainActor @Test func txIdMatchStillSerializesDelivery() async throws {
+        let coord = PumpTransactionCoordinator()
+        coord.correlationMode = .txIdMatch
+        var writes = 0
+        let first = Task { @MainActor in
+            try await coord.perform(expectedResponseOn: .control, opCode: 0x10, deadline: 5,
+                                    serialized: true) { writes += 1; return 1 }
+        }
+        while !coord.hasSerializedInFlight { await Task.yield() }
+        #expect(writes == 1)
+        await #expect(throws: PumpTransactionCoordinator.TxError.busy) {
+            try await coord.perform(expectedResponseOn: .control, opCode: 0x11, deadline: 5,
+                                    serialized: true) { writes += 1; return 2 }
+        }
+        #expect(writes == 1)
+        _ = coord.ingest(frame: [0x10, 1, 0], on: .control)
+        _ = try await first.value
+    }
+
+    /// A frame too short to carry a txId byte cannot be correlated in txId-match mode — treated as
+    /// unsolicited (routed to the delegate), never mis-attributed to a pending transaction.
+    @MainActor @Test func txIdMatchTreatsFrameWithoutTxIdAsUnsolicited() async throws {
+        let coord = PumpTransactionCoordinator()
+        coord.correlationMode = .txIdMatch
+        let task = await launchAndRegister(coord, on: .control, opCode: 0x03, txId: 7)
+        #expect(coord.ingest(frame: [0x03], on: .control) == false)
+        #expect(coord.inFlightCount == 1)
+        #expect(coord.ingest(frame: [0x03, 7, 0], on: .control))
+        _ = try await task.value
+    }
 }
