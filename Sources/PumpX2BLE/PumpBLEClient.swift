@@ -121,6 +121,30 @@ public final class PumpBLEClient: NSObject {
         return try await body()
     }
 
+    /// The pump product family, for the D2 (Addendum G) txId-correlation allowlist. The KIT owns the
+    /// allowlist; the caller supplies only the identified family (it owns the BLE-name → model
+    /// classification), so the kit never guesses a model.
+    public enum PumpFamily: Sendable, Equatable {
+        /// t:slim X2 — hardware-confirmed to echo the request txId in an inbound frame's `frame[1]`.
+        case tslim
+        /// Mobi — txId-echo unconfirmed; stays on the FIFO reference path.
+        case mobi
+        /// Not yet identified — fail-closed to FIFO.
+        case unknown
+    }
+
+    /// Apply the D2 txId-correlation allowlist for the connected pump (Addendum G, `experimental` only).
+    ///
+    /// The allowlist is **all t:slim, and ONLY t:slim**: a t:slim enables `.txIdMatch`; Mobi and any
+    /// unidentified pump stay on `.opcodeFIFO` (the `main` reference path). The kit enforces that mapping
+    /// here, so a caller cannot accidentally enable txId correlation for a Mobi. The mode is reset to
+    /// `.opcodeFIFO` on every disconnect/error/restore by `failClosed`, so this must be called AFTER each
+    /// (re)identification. Correlation mode never relaxes delivery-class serialization (a bolus is never
+    /// pipelined), so this only ever affects how concurrent READ replies are disambiguated.
+    public func setPumpFamily(_ family: PumpFamily) {
+        transactions.correlationMode = (family == .tslim) ? .txIdMatch : .opcodeFIFO
+    }
+
     /// Pure authorization decision (PX-02), separated from readiness/transport so it is deterministically
     /// testable and cannot be masked by `.notReady`. Returns the exact `.writeBlocked` error a policy
     /// would raise for `message`, or `nil` if the policy permits it. `send()` consults this first.
@@ -428,6 +452,10 @@ public final class PumpBLEClient: NSObject {
     /// left `.allowDelivery` standing into the next connection.
     private func failClosed(resumePending: Bool) {
         writePolicy = .readOnly
+        // D2 (Addendum G): revert to the FIFO reference correlation on EVERY link change, exactly like the
+        // write policy. A relaunched/reconnected central must be re-told the pump family before txId
+        // correlation resumes — a fresh connection can never inherit a prior connection's elevated mode.
+        transactions.correlationMode = .opcodeFIFO
         if resumePending { transactions.failAll(.connectionLost) }
     }
 
