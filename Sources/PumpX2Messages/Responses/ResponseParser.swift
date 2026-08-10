@@ -48,6 +48,16 @@ public enum ResponseParser {
                 expectedSize: (p.variableSize || p.stream) ? nil : p.size,
                 signed: p.signed)
         }
+        // Register a response under an OVERRIDDEN characteristic (its build/size/signed rules unchanged).
+        // Used for an opcode the pump reuses across characteristics. Additive: a NEW (characteristic,
+        // opcode) key that no existing dispatch or oracle vector reaches, so byte-parity is untouched.
+        func add<M: ResponseMessage>(_ type: M.Type, on characteristic: Characteristic) {
+            let p = M.props
+            r[Key(characteristic: characteristic, opCode: p.opCode)] = Registration(
+                make: { M(cargo: $0) },
+                expectedSize: (p.variableSize || p.stream) ? nil : p.size,
+                signed: p.signed)
+        }
         // CURRENT_STATUS reads
         add(ApiVersionResponse.self)
         add(NonControlIQIOBResponse.self)
@@ -117,6 +127,10 @@ public enum ResponseParser {
         add(UnknownMobiOpcode110Response.self)
         add(TempRateResponse.self)
         add(ErrorResponse.self)
+        // D2 (Addendum G): the same op-77 error reply also arrives on CONTROL when a signed control write
+        // is NACKed (echoing the failing request's txId). Register the control variant so it decodes as an
+        // ErrorResponse instead of `unknownOpcode`. Additive new key — the currentStatus variant is untouched.
+        add(ErrorResponse.self, on: .control)
         // AUTHORIZATION — legacy (V1 / 16-char) pairing replies. The modern JPAKE pairing replies
         // (op 33/35/37/39/41) are parsed inline by PairingCoordinator and are intentionally NOT
         // registered here; these two are registered for oracle parity + reuse.

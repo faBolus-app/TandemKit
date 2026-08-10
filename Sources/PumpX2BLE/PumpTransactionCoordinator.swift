@@ -39,6 +39,34 @@ public final class PumpTransactionCoordinator {
         case busy
     }
 
+    /// How `ingest` correlates an inbound frame to a pending transaction (Addendum G / D2). The mode is a
+    /// property (not a per-call arg) because it is a per-connection policy, set once the pump family is
+    /// identified and reset fail-closed on every link change (see `PumpBLEClient.setPumpFamily`).
+    public enum CorrelationMode: Sendable, Equatable {
+        /// Correlate to the OLDEST pending transaction awaiting this `(characteristic, opCode)`. The only
+        /// mode on `main` and the fail-closed default. Safe *because* delivery is serialized to one
+        /// in-flight command, but a pump that reorders two same-opcode reads mis-attributes their frames.
+        case opcodeFIFO
+        /// Correlate by the wire txId the pump ECHOES in `frame[1]` — resolve the pending whose
+        /// `(characteristic, txId)` matches AND whose opCode is either the expected response opCode OR 77
+        /// (the pump's error/NACK reply, which echoes the failing request's txId). A bijection: each txId
+        /// maps to exactly one outstanding transaction, so out-of-order same-opcode reads resolve
+        /// correctly. Experimental, t:slim-only (hardware-confirmed echo); Mobi is unconfirmed → FIFO.
+        /// Does NOT relax delivery-class serialization: a bolus is still never pipelined, so this only
+        /// ever affects concurrent READS.
+        case txIdMatch
+    }
+
+    /// The pump's generic error/NACK opcode. A failed request is answered with op 77 carrying the FAILING
+    /// request's txId (hardware-confirmed on t:slim), so `.txIdMatch` accepts it as a terminal reply for
+    /// the matching transaction — letting a rejected control write resolve instead of timing out.
+    public static let errorOpCode: UInt8 = 77
+
+    /// Inbound-frame correlation policy. Fail-closed default `.opcodeFIFO` (the `main` reference path);
+    /// elevated to `.txIdMatch` only for an allowlisted pump and reset on every link change, exactly like
+    /// `PumpBLEClient.writePolicy`.
+    public var correlationMode: CorrelationMode = .opcodeFIFO
+
     private struct Pending {
         let id: UInt64
         let expectedCharacteristic: Characteristic
@@ -116,19 +144,35 @@ public final class PumpTransactionCoordinator {
     /// `(characteristic, opCode)`, that transaction resolves and this returns `true` (the frame was
     /// consumed). Returns `false` if no transaction awaited it (the caller should route it elsewhere,
     /// e.g. an unsolicited stream/status frame to a delegate).
-    // R3-D FOLLOW-UP (needs the bench): correlation here is by `(characteristic, opCode)` FIFO. The wire
-    // txId is `frame[1]`, and each `Pending` retains the request `txId`, so a STRICTER match
-    // (`… && frame[1] == entry.txId`) would let two identical in-flight opcodes coexist safely and drop
-    // the delivery-class serialization above. That upgrade is gated on confirming — on real hardware —
-    // that a Tandem response reliably ECHOES the request txId in `frame[1]`; neither the code nor the
-    // vendored oracle establishes it, and matching on a txId the pump does not echo would fail EVERY
-    // correlation. Until then, delivery-class serialization is the safe closure. See WIP-REGISTER.md.
+    // R3-D FOLLOW-UP (Addendum G / D2): the STRICTER `frame[1] == entry.txId` match the R3-D note
+    // anticipated now exists behind `correlationMode`. `.txIdMatch` is gated on the hardware finding that a
+    // t:slim response ECHOES the request txId in `frame[1]` (confirmed sequentially on a legacy pump; the
+    // pipelined-bijection proof remains NEEDS-BENCH), and is enabled ONLY for an allowlisted pump via
+    // `PumpBLEClient.setPumpFamily`. `.opcodeFIFO` stays the `main` reference path and the fail-closed
+    // default — matching a txId the pump does not echo would fail EVERY correlation, so a non-t:slim pump
+    // never leaves FIFO. Delivery-class serialization above is KEPT in BOTH modes (a bolus is never
+    // pipelined), so txId correlation only ever disambiguates concurrent READS. See WIP-REGISTER.md.
     @discardableResult
     public func ingest(frame: [UInt8], on characteristic: Characteristic) -> Bool {
         guard let opCode = frame.first else { return false }
-        guard let idx = pending.firstIndex(where: {
-            $0.expectedCharacteristic == characteristic && $0.expectedOpCode == opCode
-        }) else { return false }
+        let matchIndex: Int?
+        switch correlationMode {
+        case .opcodeFIFO:
+            matchIndex = pending.firstIndex {
+                $0.expectedCharacteristic == characteristic && $0.expectedOpCode == opCode
+            }
+        case .txIdMatch:
+            // Need the txId byte to correlate; a frame shorter than [opCode, txId] can't be matched and is
+            // treated as unsolicited (routed to the delegate), never mis-attributed.
+            guard frame.count >= 2 else { return false }
+            let txId = frame[1]
+            matchIndex = pending.firstIndex {
+                $0.expectedCharacteristic == characteristic
+                    && $0.txId == txId
+                    && ($0.expectedOpCode == opCode || opCode == Self.errorOpCode)
+            }
+        }
+        guard let idx = matchIndex else { return false }
         let entry = pending[idx]
         resolve(id: entry.id, with: .success(frame))
         return true

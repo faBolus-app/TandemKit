@@ -175,6 +175,27 @@ import Testing
         #expect(m.requestCodeId == 159 && m.errorCodeId == 3 && m.isInvalidParameter)
     }
 
+    /// D2 (Addendum G): the op-77 error reply also dispatches on `.control` (a NEW additive registry key).
+    /// A rejected control write is NACKed with op-77 echoing the failing request; registering the control
+    /// variant lets that decode as an ErrorResponse (reading requestCodeId@0/errorCodeId@1, tolerating the
+    /// larger control cargo) instead of throwing `unknownOpcode`. The pre-existing currentStatus variant
+    /// still dispatches unchanged — proving the addition is purely additive (byte-parity untouched).
+    @Test func op77ErrorDispatchesOnControlAndCurrentStatus() throws {
+        func frame(_ op: UInt8, _ cargo: [UInt8]) -> [UInt8] {
+            let body: [UInt8] = [op, 0x01, UInt8(cargo.count)] + cargo
+            return body + Bytes.calculateCRC16(body)
+        }
+        // Control variant: failing opcode 0x1C, errorCodeId 3 (INVALID_PARAMETER), plus trailing control
+        // context the tolerant size check ignores.
+        let ctl = try ResponseParser.parse(frame: frame(77, [0x1C, 3] + [UInt8](repeating: 0, count: 24)),
+                                           characteristic: .control)
+        #expect((ctl.message as? ErrorResponse)?.requestCodeId == 0x1C)
+        #expect((ctl.message as? ErrorResponse)?.isInvalidParameter == true)
+        // Pre-existing currentStatus variant unchanged.
+        let cs = try ResponseParser.parse(frame: frame(77, [159, 3]), characteristic: .currentStatus)
+        #expect((cs.message as? ErrorResponse)?.requestCodeId == 159)
+    }
+
     /// CONTROL_STREAM state responses (A3): dispatch on .controlStream + offsets. Also exercises the
     /// characteristic-aware parser for opcodes that only exist on CONTROL_STREAM.
     @Test func controlStreamStateResponses() throws {
