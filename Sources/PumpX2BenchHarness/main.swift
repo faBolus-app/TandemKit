@@ -63,6 +63,12 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     var isPaired = false
     /// The comprehensive `probe` sequence is launched once (on first pair) and survives reconnects.
     var probeStarted = false
+    /// op-77 NACK txId-echo sub-probe state (Addendum G / P1a). While `nackProbeActive`, the ErrorResponse
+    /// delegate case records the pump's ECHOED txId (frame[1], surfaced as `parsed.txId`) so the sub-probe
+    /// can assert it equals the failing request's SENT txId. UNVALIDATED until bench hardware (see the probe
+    /// header block above `probeTxIdMatch`).
+    var nackProbeActive = false
+    var nackProbeEchoedTxId: UInt8?
     /// Control-IQ closed-loop state (from ControlIQInfoV1) — decides the temp-basal (needs OFF) vs
     /// SetModes (needs ON) preconditions when interpreting the Mobi-only write probes.
     var ciqClosedLoopEnabled: Bool?
@@ -365,11 +371,44 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         }
     }
 
-    /// txId-match probe (B7, READ-ONLY): does the pump echo the request txId in the response frame?
+    // MARK: - txId correlation probes (Addendum G / P1a — PIPELINED same-opcode bijection)
+    //
+    // ⚠️⚠️  UNVALIDATED BENCH PROBE — NEEDS PHYSICAL PUMP HARDWARE.  ⚠️⚠️
+    //
+    // Everything below is EXECUTABLE-ONLY infrastructure that has NEVER been run against a real pump. It
+    // must be validated on hardware before ANY weight is placed on its verdict: a legacy API-2.5 t:slim
+    // (P1b) AND a newer JPAKE pump (P2). It GATES NOTHING automatically — it only prints observations and
+    // PASS/FAIL for a human to read; nothing in the kit consumes its result. It does NOT enable
+    // `.txIdMatch` (it never calls `setPumpFamily`), so the coordinator stays on the fail-closed
+    // `.opcodeFIFO` default throughout. DELIVERY-CLASS SERIALIZATION STAYS IN FORCE regardless of
+    // correlation mode: a bolus is NEVER pipelined; every read here is `serialized: false`, so these
+    // probes only ever exercise concurrent READS.
+    //
+    // WHY PIPELINED: the pre-existing SEQUENTIAL echo check (step 2a) only proves the pump echoes a
+    // request's txId when exactly ONE read is outstanding — it says nothing about the case that actually
+    // matters. Step 2b fires N same-opcode reads CONCURRENTLY (all outstanding before any reply is
+    // consumed) and asserts a STRICT txId BIJECTION: every reply maps to exactly one originating request,
+    // no cross-attribution, none dropped, none consumed twice. That is precisely the hardware property the
+    // coordinator's `.txIdMatch` mode relies on to be safe under reordering. Because the kit stays on
+    // `.opcodeFIFO` here, the bijection is computed at the HARNESS level from the sent/echoed txIds — it
+    // proves the property `.txIdMatch` WOULD depend on, without turning `.txIdMatch` on.
+
+    /// How many same-opcode reads to hold outstanding at once for the pipelined bijection probe.
+    private static let pipelineDepth = 4
+
+    /// Phase 2 entry: sequential echo baseline (pre-existing) → PIPELINED bijection (2b) → op-77 NACK echo (2c).
     private func probeTxIdMatch() async {
-        print("\n--- Phase 2: txId-match probe (B7, read-only) ---")
-        guard let rop = InsulinStatusRequest.props.responseOpCode else { return }
-        var samples: [(UInt8, UInt8)] = []
+        print("\n--- Phase 2: txId correlation probes (Addendum G / P1a) ---")
+        // Prominent RUNTIME banner (mirrors the code-comment header above): this probe is UNVALIDATED.
+        print("  ⚠️ UNVALIDATED bench probe — never run on hardware. Validate on a legacy API-2.5 t:slim (P1b)")
+        print("     AND a JPAKE pump (P2). It GATES NOTHING, does NOT enable txIdMatch, and delivery-class")
+        print("     serialization stays in force (all reads here are non-serialized; a bolus is never pipelined).")
+
+        guard let rop = InsulinStatusRequest.props.responseOpCode else { print("  ⏭️  no responseOpCode for InsulinStatus"); return }
+
+        // (2a) Sequential echo baseline — ONE read outstanding at a time (proves echo, NOT bijection).
+        print("\n  [2a] sequential echo baseline (one read outstanding at a time)")
+        var seq: [(UInt8, UInt8)] = []
         for _ in 0..<4 {
             guard await awaitPaired() else { break }
             var reqTx: UInt8 = 0
@@ -378,12 +417,119 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
                     expectedResponseOn: .currentStatus, opCode: rop, deadline: 10, serialized: false
                 ) { let tx = try self.client.send(InsulinStatusRequest()); reqTx = tx; return tx }
             }
-            if let f = frame, f.count > 1 { samples.append((reqTx, f[1])) }
+            if let f = frame, f.count > 1 { seq.append((reqTx, f[1])) }
             else { _ = await awaitPaired() }
         }
-        let echoed = !samples.isEmpty && samples.allSatisfy { $0.0 == $0.1 }
-        print("  exchanges: \(samples.map { "req=\($0.0)→resp=\($0.1)" }.joined(separator: ", "))")
-        print("  → txId echoed by pump on read responses: \(echoed ? "YES" : "NO/partial") (\(samples.count) samples)")
+        let seqEchoed = !seq.isEmpty && seq.allSatisfy { $0.0 == $0.1 }
+        print("    exchanges: \(seq.map { "req=\($0.0)→resp=\($0.1)" }.joined(separator: ", "))")
+        print("    → sequential txId echo: \(seqEchoed ? "YES" : "NO/partial") (\(seq.count) samples)")
+
+        // (2b) PIPELINED same-opcode bijection — the new proof.
+        await probePipelinedTxIdBijection(responseOpCode: rop)
+
+        // (2c) op-77 NACK txId echo (best-effort; legacy-firmware specific).
+        await probeNackTxIdMatch()
+    }
+
+    /// One outstanding NON-serialized read via the coordinator's REAL transport path
+    /// (`transactions.perform` → `client.send` → CoreBluetooth). Returns the txId we SENT and the frame the
+    /// coordinator resolved to THIS call (`frame[1]` is the pump's echoed txId). `serialized: false` so
+    /// several can be outstanding at once — delivery-class serialization is never relaxed here.
+    private func pipelinedReadOnce(responseOpCode rop: UInt8) async -> (UInt8, [UInt8]?) {
+        var sentTx: UInt8 = 0
+        do {
+            let frame = try await client.transactions.perform(
+                expectedResponseOn: .currentStatus, opCode: rop, deadline: 10, serialized: false
+            ) { let tx = try self.client.send(InsulinStatusRequest()); sentTx = tx; return tx }
+            return (sentTx, frame)
+        } catch {
+            return (sentTx, nil)
+        }
+    }
+
+    /// (2b) PIPELINED same-opcode bijection: hold `pipelineDepth` non-serialized reads of the SAME opcode
+    /// outstanding at once, then assert a STRICT txId bijection between the requests we sent and the txIds
+    /// the pump echoes back. Drives the real transport under the fail-closed `.opcodeFIFO` default; the
+    /// bijection is evaluated HERE (harness level) from the sent/echoed txIds. UNVALIDATED — bench only.
+    private func probePipelinedTxIdBijection(responseOpCode rop: UInt8) async {
+        let depth = Self.pipelineDepth
+        print("\n  [2b] PIPELINED bijection: \(depth) concurrent same-opcode reads (all outstanding before any reply)")
+        guard await awaitPaired() else { print("    ⏭️  not paired"); return }
+
+        // Launch all `depth` reads as main-actor tasks BEFORE awaiting any. Enqueuing every task before the
+        // first suspension guarantees each `send()` (the coordinator's synchronous `write` thunk) runs
+        // before the main actor is free to process the first inbound reply — so all reads are truly
+        // outstanding simultaneously (a real pipelined scenario), NOT awaited one-before-the-next.
+        let samples: [(sent: UInt8, echoed: UInt8?)] = await client.withWritePolicy(.readOnly) {
+            var tasks: [Task<(UInt8, [UInt8]?), Never>] = []
+            for _ in 0..<depth {
+                tasks.append(Task { @MainActor in await self.pipelinedReadOnce(responseOpCode: rop) })
+            }
+            var out: [(sent: UInt8, echoed: UInt8?)] = []
+            for t in tasks {
+                let (sent, frame) = await t.value
+                out.append((sent: sent, echoed: (frame?.count ?? 0) > 1 ? frame?[1] : nil))
+            }
+            return out
+        }
+
+        print("    exchanges: \(samples.map { s in "req=\(s.sent)→\(s.echoed.map { "resp=\($0)" } ?? "no-reply")" }.joined(separator: ", "))")
+
+        // Bijection assertions — all evaluated at the harness level from the sent/echoed txIds:
+        let sentTxIds = samples.map { $0.sent }
+        let echoedTxIds = samples.compactMap { $0.echoed }
+        let allReplied = echoedTxIds.count == samples.count
+        let sentDistinct = Set(sentTxIds).count == sentTxIds.count
+        let echoedDistinct = Set(echoedTxIds).count == echoedTxIds.count
+        let noForeign = echoedTxIds.allSatisfy { Set(sentTxIds).contains($0) }
+        let bijection = allReplied && sentDistinct && echoedDistinct && noForeign
+            && Set(echoedTxIds) == Set(sentTxIds)
+        // FIFO-order diagnostic: did each call resolve to the frame echoing ITS OWN sent txId? If not, the
+        // replies arrived out of order under `.opcodeFIFO` — the exact case where FIFO mis-attributes but
+        // `.txIdMatch` would still be correct. NOT a failure of the bijection; it is WHY txId correlation
+        // exists. A PASS on the bijection with a NO here is the strongest evidence for enabling `.txIdMatch`.
+        let inOrder = samples.allSatisfy { $0.echoed == $0.sent }
+
+        func line(_ ok: Bool, _ label: String) { print("    \(ok ? "✅ PASS" : "❌ FAIL"): \(label)") }
+        line(allReplied,     "all \(depth) reads received a reply with a txId (\(echoedTxIds.count)/\(depth))")
+        line(sentDistinct,   "sent txIds are distinct")
+        line(echoedDistinct, "echoed txIds are distinct (no reply consumed by two requests)")
+        line(noForeign,      "every echoed txId belongs to an outstanding request (no cross-attribution)")
+        line(bijection,      "STRICT BIJECTION: sent txIds ↔ echoed txIds, one-to-one")
+        print("    ⓘ FIFO in-order arrival: \(inOrder ? "YES (opcodeFIFO happened to be safe on this run)" : "NO (out-of-order → txIdMatch REQUIRED for correct correlation)")")
+        print("    → PIPELINED bijection verdict: \(bijection ? "PASS" : "FAIL")  [UNVALIDATED — bench hardware only; gates nothing]")
+    }
+
+    /// (2c) op-77 NACK txId echo (READ-ONLY, best-effort). Sends a request the pump REJECTS and asserts the
+    /// op-77 ErrorResponse echoes the FAILING request's txId — the property that lets `.txIdMatch`'s
+    /// `errorOpCode` branch resolve a NACK by txId instead of timing out. Sent WITHOUT `perform` so the
+    /// op-77 frame (which, under the `.opcodeFIFO` default, would NOT match the read's response opcode)
+    /// reaches the delegate, where the echoed txId is captured. Legacy-firmware specific: `CurrentEgvGuiDataV2`
+    /// is NACKed (op-77) and DROPS the link on a legacy API-2.5 t:slim, but a modern JPAKE pump ANSWERS it
+    /// normally — in which case no op-77 is observed and step 2b already covered that firmware's bijection.
+    private func probeNackTxIdMatch() async {
+        print("\n  [2c] op-77 NACK txId echo (best-effort; legacy-firmware specific)")
+        guard await awaitPaired() else { print("    ⏭️  not paired"); return }
+        nackProbeActive = true
+        nackProbeEchoedTxId = nil
+        defer { nackProbeActive = false }
+        // Read-only (default policy permits reads). No `perform`: with no pending, the op-77 frame is routed
+        // to the delegate, which records `parsed.txId` (the echoed txId) into `nackProbeEchoedTxId`.
+        let sent = try? client.send(CurrentEgvGuiDataV2Request())
+        // Wait briefly for the op-77 (or a normal response, on a modern pump) before the pump drops the link.
+        let waitDeadline = Date().addingTimeInterval(10)
+        while nackProbeEchoedTxId == nil && Date() < waitDeadline {
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+        if let s = sent, let e = nackProbeEchoedTxId {
+            let ok = (s == e)
+            print("    \(ok ? "✅ PASS" : "❌ FAIL"): op-77 NACK echoed txId \(e) \(ok ? "==" : "!=") failing-request txId \(s)  [UNVALIDATED]")
+        } else if sent != nil {
+            print("    ⓘ no op-77 NACK observed (pump answered normally on this firmware) — NACK-echo not exercised; step 2b applies")
+        } else {
+            print("    ⏭️  could not send the NACK-inducing request")
+        }
+        _ = await awaitPaired()   // the legacy pump drops the link after op-77 — recover before Phase 3
     }
 
     /// The full no-cartridge/no-CGM probe: signing time → read sweep → txId-match → signed-write
@@ -485,6 +631,9 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
                 print("ℹ️ [hardware] capability bitmask = 0x\(String(m.featureBitmask, radix: 16)) "
                     + "· controlIQSupported(bit1024)=\(m.controlIQSupported)")
             case let m as ErrorResponse:
+                // P1a (Addendum G): during the op-77 NACK sub-probe, capture the pump's ECHOED txId so the
+                // sub-probe can assert it equals the failing request's sent txId. `parsed.txId` == frame[1].
+                if nackProbeActive { nackProbeEchoedTxId = parsed.txId }
                 // Attribute the error to the read that triggered it via the echoed txId (this legacy
                 // pump zeroes requestCodeId, so the cargo alone can't name the read).
                 let who = pollTxMap[parsed.txId] ?? "unknown"
