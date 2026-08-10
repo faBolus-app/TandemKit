@@ -65,7 +65,12 @@ public final class PumpTransactionCoordinator {
     /// Inbound-frame correlation policy. Fail-closed default `.opcodeFIFO` (the `main` reference path);
     /// elevated to `.txIdMatch` only for an allowlisted pump and reset on every link change, exactly like
     /// `PumpBLEClient.writePolicy`.
-    public var correlationMode: CorrelationMode = .opcodeFIFO
+    ///
+    /// `internal(set)` so the allowlist is enforced by the TYPE SYSTEM, not by convention: an out-of-module
+    /// caller can read the mode but cannot write it, so `PumpBLEClient.setPumpFamily` (which refuses any
+    /// non-`.tslim` family) and `failClosed` are the ONLY things that can select `.txIdMatch`. An app
+    /// therefore cannot bypass the allowlist to put a Mobi/unknown pump into txId correlation.
+    public internal(set) var correlationMode: CorrelationMode = .opcodeFIFO
 
     private struct Pending {
         let id: UInt64
