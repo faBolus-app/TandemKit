@@ -191,4 +191,79 @@ import PumpX2Messages
 
         client.disconnect()
     }
+
+    /// SECOND regression this fix targets — found via FRESH on-device evidence gathered AFTER the ladder
+    /// fix above had already landed and been verified (`.planning/debug/pump-pairing-loop.md`,
+    /// 2026-08-11): `maybeBecomeReady()` used to reset `reconnectAttempts`/`reconnectExhausted` the
+    /// INSTANT `.ready` was reached, unconditionally. On-device diagnostics showed the peer can accept
+    /// the connection and drop it again (`CBErrorDomain` code 7) in under a second, repeatedly — each
+    /// such cycle nominally "succeeded" (it did reach `.ready`), so the ladder reset every time and
+    /// `maxReconnectAttempts` never fired: this specific flap looped indefinitely despite the ceiling
+    /// existing. `readyHeldLongEnoughToResetLadder`/`consumeReadyStabilityAndMaybeReset` close that gap by
+    /// requiring the link to have held `.ready` for `readyStabilityWindow` before trusting it as a real
+    /// recovery.
+    @Test func briefReadyDoesNotResetLadderButLongReadyDoes() {
+        #expect(!PumpBLEClient.readyHeldLongEnoughToResetLadder(heldFor: 0))
+        #expect(!PumpBLEClient.readyHeldLongEnoughToResetLadder(heldFor: 0.9))
+        #expect(!PumpBLEClient.readyHeldLongEnoughToResetLadder(heldFor: 2.999))
+        #expect(PumpBLEClient.readyHeldLongEnoughToResetLadder(heldFor: 3))    // exactly at the window
+        #expect(PumpBLEClient.readyHeldLongEnoughToResetLadder(heldFor: 28))   // on-device "healthy" cycle length
+    }
+
+    /// A peer that repeatedly reaches `.ready` and drops again WITHIN the stability window must still
+    /// climb the ladder to the ceiling instead of resetting to step 0 every cycle — the exact defect this
+    /// fix closes. `readySinceForTesting` + `consumeReadyStabilityAndMaybeReset()` simulate what
+    /// `didDisconnectPeripheral` does on a real drop, without needing a live `.ready` transition (which
+    /// requires a real `CBPeripheral` — see the class doc).
+    @Test func briefReadyRepeatedlyDoesNotDefeatTheCeiling() {
+        let fake = FakeCentral()
+        let client = PumpBLEClient(central: fake)
+        let delegate = RecordingDelegate()
+        client.delegate = delegate
+        client.connectKnownPeripheral(identifier: UUID())
+        client.scanTimedOut()
+        #expect(client.reconnectWatchdogArmedForTesting)
+
+        for expected in 1...PumpBLEClient.maxReconnectAttemptsForTesting {
+            // This cycle momentarily "reaches ready" (readySince set to now), then drops immediately —
+            // well under `readyStabilityWindow` — exactly like the on-device flap.
+            client.readySinceForTesting = Date()
+            client.consumeReadyStabilityAndMaybeReset()          // what the drop handler calls
+            #expect(client.reconnectAttemptsForTesting == expected - 1)   // NOT reset by the brief "ready"
+            client.reconnectTick()
+            #expect(client.reconnectAttemptsForTesting == expected)
+            #expect(client.state != .reconnectExhausted)
+        }
+
+        // One more brief ready-then-drop, then the ceiling tick — must give up, not keep flapping forever.
+        client.readySinceForTesting = Date()
+        client.consumeReadyStabilityAndMaybeReset()
+        client.reconnectTick()
+        #expect(client.state == .reconnectExhausted)
+        #expect(delegate.errors.contains(.reconnectLoopDetected))
+
+        client.disconnect()
+    }
+
+    /// The inverse: a connection that genuinely HOLDS `.ready` for >= `readyStabilityWindow` before
+    /// dropping IS trusted as a real recovery and resets the ladder — matches the on-device "healthy
+    /// ~28s cycle" pattern seen alongside the flap, which must keep resetting normally. Only the
+    /// sub-second flap should be denied a reset, not every drop after a success.
+    @Test func longHeldReadyStillResetsTheLadder() {
+        let fake = FakeCentral()
+        let client = PumpBLEClient(central: fake)
+        client.connectKnownPeripheral(identifier: UUID())
+        client.scanTimedOut()
+        client.reconnectTick()
+        client.reconnectTick()
+        #expect(client.reconnectAttemptsForTesting == 2)
+
+        // Simulate a connection that held `.ready` for a full 28s (the on-device healthy-cycle length)
+        // before dropping — well past `readyStabilityWindow`.
+        client.readySinceForTesting = Date().addingTimeInterval(-28)
+        client.consumeReadyStabilityAndMaybeReset()
+        #expect(client.reconnectAttemptsForTesting == 0)   // genuine recovery — ladder resets as before
+
+        client.disconnect()
+    }
 }
