@@ -322,6 +322,50 @@ public final class PumpBLEClient: NSObject {
     /// that keeps accepting-then-dropping (e.g. still held by the official t:connect app, or a closed
     /// pairing window) can't spin the app indefinitely.
     private static let maxReconnectAttempts = 8
+    /// Minimum time the link must have HELD `.ready` before a subsequent drop counts as a genuine
+    /// recovery that resets the ladder (`reconnectAttempts`/`reconnectExhausted`). `maybeBecomeReady()`
+    /// used to reset both the INSTANT `.ready` was reached, unconditionally — but on-device evidence
+    /// (`.planning/debug/pump-pairing-loop.md`, 2026-08-11) shows the peer can accept the connection and
+    /// drop it again (`CBErrorDomain` code 7) in under a second, repeatedly. Each such cycle nominally
+    /// "succeeded" (it did reach `.ready`), so the ladder reset every time and `maxReconnectAttempts`
+    /// never fired — this specific flap looped indefinitely despite the ceiling existing. A hold of at
+    /// least this long is trusted as a real recovery; a same-instant re-drop is not, and now still counts
+    /// toward the ceiling. Exposed as a pure decision (`readyHeldLongEnoughToResetLadder`) so the
+    /// threshold itself is unit-testable without a live `.ready` transition (which needs a real
+    /// `CBPeripheral` — see the class doc).
+    private static let readyStabilityWindow: TimeInterval = 3
+    /// When the link most recently reached `.ready`, so the NEXT disconnect can tell a genuine recovery
+    /// from an accept-then-immediately-drop flap. Set in `maybeBecomeReady()`; consumed (and cleared) by
+    /// `consumeReadyStabilityAndMaybeReset()` on the following disconnect/fail-to-connect.
+    private var readySince: Date?
+
+    /// Pure decision mirroring `jitteredDelay`'s testability: given how long the link had been `.ready`
+    /// before this drop, was it held long enough to trust as a real recovery?
+    static func readyHeldLongEnoughToResetLadder(heldFor duration: TimeInterval) -> Bool {
+        duration >= readyStabilityWindow
+    }
+
+    /// Consume `readySince`: if the link had been ready long enough (`readyStabilityWindow`), this was a
+    /// genuine recovery — reset the ladder exactly like a fresh success always has. Otherwise leave
+    /// `reconnectAttempts`/`reconnectExhausted` untouched so a repeated instant flap still climbs toward
+    /// `maxReconnectAttempts` instead of resetting to step 0 on every drop. Internal (not private) so a
+    /// unit test can simulate "a disconnect just happened after being ready for N seconds" by setting
+    /// `readySinceForTesting` and calling this directly — the same workaround the class already uses for
+    /// `reconnectTick()`/`scanTimedOut()` (a live `.ready` transition needs a real `CBPeripheral`).
+    func consumeReadyStabilityAndMaybeReset() {
+        defer { readySince = nil }
+        guard let since = readySince,
+              Self.readyHeldLongEnoughToResetLadder(heldFor: Date().timeIntervalSince(since)) else { return }
+        reconnectAttempts = 0
+        reconnectExhausted = false
+    }
+
+    /// Test seam — see `consumeReadyStabilityAndMaybeReset()`. Setting this simulates "the link reached
+    /// `.ready` this long ago" without needing a real `CBPeripheral`.
+    var readySinceForTesting: Date? {
+        get { readySince }
+        set { readySince = newValue }
+    }
 
     // MARK: Scan timeout (§5.2.4 / B3b)
     /// A separate one-shot timer (NOT the reconnect watchdog) that fires when a scan for a KNOWN pump
@@ -418,6 +462,7 @@ public final class PumpBLEClient: NSObject {
         reconnectWatchdog?.invalidate(); reconnectWatchdog = nil
         reconnectAttempts = 0
         reconnectExhausted = false
+        readySince = nil   // a fresh user-initiated connect discards any stale stability window
     }
 
     /// Internal (not private) so a unit test can fire ladder ticks directly — no real Timer wait, and no
@@ -655,6 +700,11 @@ extension PumpBLEClient: CBCentralManagerDelegate {
             characteristics.removeAll()
             reassembly.removeAll()
             failClosed(resumePending: true)   // PX-04/PX-08: policy → .readOnly, resume all waiters
+            // Was the link that just dropped a genuine recovery (held `.ready` >= `readyStabilityWindow`),
+            // or an accept-then-immediately-drop flap? Only the former resets the ladder — see
+            // `readyStabilityWindow`'s doc. Must run before the `reconnectExhausted` check below, since a
+            // long-held `.ready` (e.g. a stray late reconnect after exhaustion) can flip it back to false.
+            consumeReadyStabilityAndMaybeReset()
             if let error {
                 // D-03/D-06: domain+code are stable machine tokens, not PHI → .public, so they survive to
                 // a pulled logarchive alongside the app-side CBError capture. `localizedDescription` can
@@ -694,6 +744,9 @@ extension PumpBLEClient: CBCentralManagerDelegate {
                                            error: Error?) {
         MainActor.assumeIsolated {
             failClosed(resumePending: true)   // PX-04/PX-08: never leave policy elevated or a waiter hung
+            // Defensive/symmetry with `didDisconnectPeripheral` — normally already consumed (and cleared)
+            // by the disconnect that preceded this failed reconnect attempt; harmless no-op if so.
+            consumeReadyStabilityAndMaybeReset()
             if let error { notify { $0.pumpClient(self, didError: error) } }
             // Retry unless the user disconnected. As in `didDisconnectPeripheral`, the retry itself is
             // throttled through the reconnect ladder (`startReconnectWatchdog` → `reconnectTick`), not
@@ -756,8 +809,14 @@ extension PumpBLEClient: CBPeripheralDelegate {
         guard state != .ready else { return }
         guard characteristics[.currentStatus] != nil, characteristics[.authorization] != nil else { return }
         guard !requestedNotify.isEmpty, requestedNotify.isSubset(of: confirmedNotifying) else { return }
-        cancelReconnectWatchdog()   // link fully re-established
+        // NOTE: deliberately NOT `cancelReconnectWatchdog()` here — that would reset
+        // `reconnectAttempts`/`reconnectExhausted` the instant `.ready` is reached, before we know the
+        // link will actually hold (see `readyStabilityWindow`'s doc: a flapping peer can reach `.ready`
+        // and drop again in under a second, every cycle). No pending retry needs to fire while ready,
+        // though, so invalidate the watchdog TIMER without touching the attempt count.
+        reconnectWatchdog?.invalidate(); reconnectWatchdog = nil
         cancelScanTimeout()         // B3b: no scan in flight once ready
+        readySince = Date()         // starts the stability window `consumeReadyStabilityAndMaybeReset` checks
         state = .ready
         notify { $0.pumpClientDidBecomeReady(self) }
     }
