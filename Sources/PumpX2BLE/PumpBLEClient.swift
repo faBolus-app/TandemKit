@@ -14,6 +14,21 @@ public protocol PumpBLEClientDelegate: AnyObject {
     /// concatenated packet payloads (opcode/txId/len/cargo/…/crc), ready for parsing.
     func pumpClient(_ client: PumpBLEClient, didReceiveFrame frame: [UInt8], on characteristic: Characteristic)
     func pumpClient(_ client: PumpBLEClient, didError error: Error)
+    /// D-05: fired from `scheduleNextReconnectAttempt()` every time the reconnect ladder schedules a
+    /// throttled attempt — including a silently-failed attempt that never reaches a `didChange`/`didError`
+    /// state edge. `attempt` is the CONSECUTIVE-drop counter (`reconnectAttempts`, not reset on every
+    /// drop — see its doc); `delay` is the jittered backoff actually armed for this attempt. This is the
+    /// only way the count/backoff — which otherwise lives only in this class's private state — leaves the
+    /// kit, so a host can record it for diagnostics without the kit taking on any logging concern itself.
+    func pumpClient(_ client: PumpBLEClient, willRetryReconnect attempt: Int, after delay: TimeInterval)
+}
+
+/// Default no-op for `willRetryReconnect` — every conformer that doesn't care about the reconnect
+/// ladder's internals (today: `WatchPumpClient` and the PumpX2Kit test/bench-harness conformers) keeps
+/// compiling unchanged; only a conformer that wants the signal overrides it.
+@MainActor
+public extension PumpBLEClientDelegate {
+    func pumpClient(_ client: PumpBLEClient, willRetryReconnect attempt: Int, after delay: TimeInterval) {}
 }
 
 /// B3(b) TEST SEAM — the minimal `CBCentralManager` surface `PumpBLEClient` actually uses. `CBCentralManager`
@@ -371,6 +386,7 @@ public final class PumpBLEClient: NSObject {
     private func scheduleNextReconnectAttempt() {
         let base = Self.reconnectBackoff[min(reconnectAttempts, Self.reconnectBackoff.count - 1)]
         let delay = Self.jitteredDelay(base: base)   // break phone↔pump fixed-interval lockstep (group C)
+        notify { $0.pumpClient(self, willRetryReconnect: self.reconnectAttempts, after: delay) }   // D-05
         reconnectWatchdog?.invalidate()
         reconnectWatchdog = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated { self?.reconnectTick() }
