@@ -25,6 +25,12 @@ public final class PumpBLEConnection: TandemPumpConnection {
             return .connecting
         case .disconnected:
             return .disconnected
+        case .reconnectExhausted:
+            // The kit's reconnect ladder gave up without reaching `.ready` (a flapping peer during
+            // pairing). The link is down exactly like `.disconnected`; the driver has no notion of
+            // "stop auto-retrying" today, so this maps 1:1 rather than introducing a new driver-facing
+            // state.
+            return .disconnected
         case .poweredOff, .unauthorized, .unsupported, .resetting, .unknown:
             return .unavailable
         }

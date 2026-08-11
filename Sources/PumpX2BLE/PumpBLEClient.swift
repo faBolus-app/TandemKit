@@ -49,6 +49,13 @@ public final class PumpBLEClient: NSObject {
     public enum State: Equatable, Sendable {
         case poweredOff, unauthorized, unsupported, resetting, unknown
         case idle, scanning, connecting, discovering, ready, disconnected
+        /// The reconnect backoff ladder was exhausted (`maxReconnectAttempts`) without ever reaching
+        /// `.ready` — the peer kept accepting-then-dropping the link (classic during pairing: the
+        /// official t:connect app still holds the pump, or the pump's pairing/GATT window closed).
+        /// Automatic retry is suspended so a flapping peer can't spin the app forever; the caller should
+        /// surface a "pairing is looping — cancel on the pump / retry" state. A fresh user-initiated
+        /// `connect(_:)` / `connectKnownPeripheral(identifier:)` clears this and restarts the ladder.
+        case reconnectExhausted
     }
 
     public enum ClientError: Error, Equatable {
@@ -57,6 +64,9 @@ public final class PumpBLEClient: NSObject {
         case writeFailed(Characteristic)
         /// A message was refused by the current `writePolicy`.
         case writeBlocked(policy: WritePolicy, opcode: UInt8)
+        /// The reconnect ladder hit `maxReconnectAttempts` without reaching `.ready` — surfaced alongside
+        /// `State.reconnectExhausted` so a delegate that only observes `didError` still sees it.
+        case reconnectLoopDetected
     }
 
     /// Graded write safety. Governs which outgoing messages `send()` permits — a defense-in-
@@ -230,6 +240,7 @@ public final class PumpBLEClient: NSObject {
     /// Additive — the existing scan/connect/restore paths are unchanged.
     public func connectKnownPeripheral(identifier id: UUID) {
         intentionalDisconnect = false
+        cancelReconnectWatchdog()   // genuinely new pairing/reconnect intent — restart the ladder at 0
         reconnectTargetId = id
         guard central.state == .poweredOn else { pendingRetrieveId = id; return }
         resolveOrScan(id)
@@ -259,13 +270,26 @@ public final class PumpBLEClient: NSObject {
     /// app has to be force-quit. The watchdog re-resolves the peripheral by identifier (and rescans as
     /// a last resort) on escalating backoff until we're `.ready` again or the user disconnects.
     private var reconnectWatchdog: Timer?
+    /// Count of CONSECUTIVE reconnect cycles initiated since the last `.ready` (or a fresh
+    /// user-initiated `connect`/`connectKnownPeripheral`). Unlike the pre-fix version, this is NOT reset
+    /// on every disconnect — only on success or a genuinely new pairing/connect call — so a flapping
+    /// peer actually climbs `reconnectBackoff` instead of restarting at step 0 on every drop.
     private var reconnectAttempts = 0
+    /// Set once `reconnectAttempts` exceeds `maxReconnectAttempts` without reaching `.ready`. While true,
+    /// automatic reconnect is suspended (`startReconnectWatchdog` becomes a no-op) — see `State.reconnectExhausted`.
+    private var reconnectExhausted = false
     /// Identifier of the peripheral we're trying to keep/recover, so we can re-resolve or re-target it.
     private var reconnectTargetId: UUID?
     /// A cold-launch `connectKnownPeripheral(identifier:)` that arrived before Bluetooth was powered on;
     /// the retrieve is deferred to `centralManagerDidUpdateState` once the central reports `.poweredOn`.
     private var pendingRetrieveId: UUID?
     private static let reconnectBackoff: [TimeInterval] = [5, 10, 20, 30]
+    /// Ceiling on consecutive reconnect cycles before giving up and surfacing `.reconnectExhausted`
+    /// instead of retrying forever. At the ladder's top step (30s, +≤50% jitter) this is roughly 3
+    /// minutes of continued, throttled retrying — enough grace for a transient flap, bounded so a peer
+    /// that keeps accepting-then-dropping (e.g. still held by the official t:connect app, or a closed
+    /// pairing window) can't spin the app indefinitely.
+    private static let maxReconnectAttempts = 8
 
     // MARK: Scan timeout (§5.2.4 / B3b)
     /// A separate one-shot timer (NOT the reconnect watchdog) that fires when a scan for a KNOWN pump
@@ -303,6 +327,11 @@ public final class PumpBLEClient: NSObject {
     /// B3(b) test accessor — whether the reconnect recovery ladder is currently armed. Read-only; lets a
     /// test assert the scan-timeout escalated to recovery without exposing the timer itself.
     var reconnectWatchdogArmedForTesting: Bool { reconnectWatchdog != nil }
+    /// Test accessor — the current consecutive-attempt count, so a test can assert it escalates across
+    /// ticks instead of resetting to 0 on every simulated drop (the fast-path-reconnect-loop regression).
+    var reconnectAttemptsForTesting: Int { reconnectAttempts }
+    /// Test accessor for the ceiling, so a test doesn't hardcode the constant separately.
+    static var maxReconnectAttemptsForTesting: Int { maxReconnectAttempts }
 
     /// A reconnect delay with additive jitter (up to +50%) applied to a fixed ladder step. Without it,
     /// a phone and pump both retrying/advertising on fixed intervals can lock into a beat pattern where
@@ -325,11 +354,17 @@ public final class PumpBLEClient: NSObject {
         if let p = peripheral { central.cancelPeripheralConnection(p) }
     }
 
-    /// Arm (or restart) the reconnect watchdog. No-op if the user disconnected.
-    private func startReconnectWatchdog() {
-        guard !intentionalDisconnect else { return }
+    /// Arm the reconnect ladder if it isn't already running. No-op if the user disconnected or the
+    /// ladder is already `.reconnectExhausted` (cleared only by a fresh `connect`/`connectKnownPeripheral`
+    /// via `cancelReconnectWatchdog`). Deliberately does NOT reset `reconnectAttempts` and does NOT
+    /// re-arm an already-running watchdog: this is called from EVERY disconnect/fail-to-connect, so
+    /// resetting here is exactly the bug this fixes — it would let a flapping peer hold the ladder at
+    /// step 0 (or restart its currently-pending delay) forever instead of escalating.
+    /// Internal (not private) so a unit test can call it directly to simulate a repeated/late disconnect
+    /// arriving mid-ladder or after exhaustion, without a real CBPeripheral.
+    func startReconnectWatchdog() {
+        guard !intentionalDisconnect, !reconnectExhausted, reconnectWatchdog == nil else { return }
         reconnectTargetId = peripheral?.identifier ?? reconnectTargetId
-        reconnectAttempts = 0
         scheduleNextReconnectAttempt()
     }
 
@@ -345,14 +380,33 @@ public final class PumpBLEClient: NSObject {
     private func cancelReconnectWatchdog() {
         reconnectWatchdog?.invalidate(); reconnectWatchdog = nil
         reconnectAttempts = 0
+        reconnectExhausted = false
     }
 
-    private func reconnectTick() {
+    /// Internal (not private) so a unit test can fire ladder ticks directly — no real Timer wait, and no
+    /// CBPeripheral needed for the "no handle" branch (rescans), which is exactly the path a FakeCentral
+    /// test exercises.
+    func reconnectTick() {
         // Recovered or the user took over → stop.
         guard !intentionalDisconnect, state != .ready else { cancelReconnectWatchdog(); return }
         // Bluetooth off → wait for `centralManagerDidUpdateState`, but keep the watchdog armed.
         guard central.state == .poweredOn else { scheduleNextReconnectAttempt(); return }
         reconnectAttempts += 1
+        if reconnectAttempts > Self.maxReconnectAttempts {
+            // Ladder exhausted without ever reaching `.ready` (a flapping peer) — stop the automatic
+            // retries and surface it via BOTH the state (for a delegate that keys off `didChange`) and
+            // an error (for one that only observes `didError`). `reconnectExhausted` blocks
+            // `startReconnectWatchdog` from re-arming until a fresh user-initiated connect clears it.
+            reconnectWatchdog?.invalidate(); reconnectWatchdog = nil
+            reconnectExhausted = true
+            // Fully quiesce: cancel any still-pending `central.connect()` from the last attempt so
+            // CoreBluetooth can't silently complete it later and contradict the "gave up" state — mirrors
+            // the cancel `disconnect()` issues for a user-initiated stop.
+            if let p = peripheral { central.cancelPeripheralConnection(p) }
+            state = .reconnectExhausted
+            notify { $0.pumpClient(self, didError: ClientError.reconnectLoopDetected) }
+            return
+        }
         let pumpUUID = CBUUID(nsuuid: ServiceUUID.pumpService)
         // Re-resolve a fresh, valid handle if we lost ours.
         if peripheral == nil, let id = reconnectTargetId {
@@ -565,16 +619,26 @@ extension PumpBLEClient: CBCentralManagerDelegate {
             reassembly.removeAll()
             failClosed(resumePending: true)   // PX-04/PX-08: policy → .readOnly, resume all waiters
             if let error { notify { $0.pumpClient(self, didError: error) } }
-            // Auto-reconnect on an unintended drop (e.g. out of range): a pending connect
-            // persists in CoreBluetooth and completes when the pump comes back in range, in the
-            // foreground or background — no manual "Connect" needed. Go straight to .connecting
-            // (skip a .disconnected flicker) so the UI shows "reconnecting".
+            // Auto-reconnect on an unintended drop (e.g. out of range): re-issuing `central.connect()`
+            // makes CoreBluetooth complete it automatically when the pump comes back in range, in the
+            // foreground or background — no manual "Connect" needed. Go straight to .connecting (skip a
+            // .disconnected flicker) so the UI shows "reconnecting". The actual `central.connect()` call
+            // is now made by `reconnectTick()` after the ladder's jittered delay, NOT here with zero
+            // delay — a peer that keeps accepting-then-dropping the link (pairing-window flap) would
+            // otherwise drive an unthrottled connect/disconnect loop, since `startReconnectWatchdog` no
+            // longer resets `reconnectAttempts` on every drop (that reset was the other half of the bug).
             if !intentionalDisconnect {
                 self.peripheral = peripheral
                 peripheral.delegate = self
-                state = .connecting
-                central.connect(peripheral, options: [CBConnectPeripheralOptionNotifyOnDisconnectionKey: true])
-                startReconnectWatchdog()   // recover if this pending connect stalls
+                if reconnectExhausted {
+                    // Already gave up (e.g. a stray late completion of the connect we cancelled when the
+                    // ceiling hit). Re-confirm the exhausted state rather than flashing `.connecting` with
+                    // no watchdog behind it — `startReconnectWatchdog` would be a no-op here anyway.
+                    state = .reconnectExhausted
+                } else {
+                    state = .connecting
+                    startReconnectWatchdog()   // schedules the throttled reconnect attempt (and recovers a stall)
+                }
             } else {
                 state = .disconnected
             }
@@ -586,11 +650,18 @@ extension PumpBLEClient: CBCentralManagerDelegate {
         MainActor.assumeIsolated {
             failClosed(resumePending: true)   // PX-04/PX-08: never leave policy elevated or a waiter hung
             if let error { notify { $0.pumpClient(self, didError: error) } }
-            // Retry unless the user disconnected: re-issue the (persisting) connect request.
+            // Retry unless the user disconnected. As in `didDisconnectPeripheral`, the retry itself is
+            // throttled through the reconnect ladder (`startReconnectWatchdog` → `reconnectTick`), not
+            // re-issued here with zero delay — see that handler's comment for why.
             if !intentionalDisconnect {
-                state = .connecting
-                central.connect(peripheral, options: [CBConnectPeripheralOptionNotifyOnDisconnectionKey: true])
-                startReconnectWatchdog()
+                self.peripheral = peripheral
+                peripheral.delegate = self
+                if reconnectExhausted {
+                    state = .reconnectExhausted
+                } else {
+                    state = .connecting
+                    startReconnectWatchdog()
+                }
             } else {
                 state = .disconnected
             }
