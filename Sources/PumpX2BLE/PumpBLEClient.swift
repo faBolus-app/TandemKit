@@ -1,6 +1,16 @@
 import Foundation
 @preconcurrency import CoreBluetooth
 import PumpX2Messages
+import os
+
+/// D-06/D-07: fixed, documented literal subsystem/category — NOT `Bundle.main.bundleIdentifier`.
+/// `LocalConfig.xcconfig` (faBolus repo) overrides `APP_BUNDLE_ID` per developer (gitignored), so a
+/// bundle-derived subsystem would silently stop matching the off-device `log show` predicate on another
+/// machine's build. This is the ONLY path to the true `bluetoothd`/HCI disconnect reason CoreBluetooth's
+/// own `CBError` surface cannot reach (see D-03's CBError capture, app-side) — pull with:
+///   `log collect --device-udid <UDID> --last 10m --output ~/fabolus.logarchive`
+///   `log show ~/fabolus.logarchive --predicate 'subsystem == "com.fabolus.app" AND category == "ble"' --info --debug`
+private let bleLog = Logger(subsystem: "com.fabolus.app", category: "ble")
 
 /// Events emitted by `PumpBLEClient`, delivered on the main actor.
 @MainActor
@@ -186,7 +196,14 @@ public final class PumpBLEClient: NSObject {
 
     public weak var delegate: PumpBLEClientDelegate?
     public private(set) var state: State = .unknown {
-        didSet { if state != oldValue { notify { $0.pumpClient(self, didChange: self.state) } } }
+        didSet {
+            if state != oldValue {
+                // D-08: a fixed enum case name is never PHI — .public is safe and necessary for this to
+                // survive to a pulled logarchive (redaction is emit-time and unrecoverable — Pitfall 2).
+                bleLog.log("BLE state → \(String(describing: self.state), privacy: .public)")
+                notify { $0.pumpClient(self, didChange: self.state) }
+            }
+        }
     }
 
     private var central: PumpCentral!
@@ -386,6 +403,10 @@ public final class PumpBLEClient: NSObject {
     private func scheduleNextReconnectAttempt() {
         let base = Self.reconnectBackoff[min(reconnectAttempts, Self.reconnectBackoff.count - 1)]
         let delay = Self.jitteredDelay(base: base)   // break phone↔pump fixed-interval lockstep (group C)
+        // D-08: reconnect attempt# and backoff duration are both non-PHI numerics — .public per the
+        // allowlist, so a flapping-peer pattern is visible in a pulled logarchive without correlating
+        // back to the app-side BLESessionLog.
+        bleLog.log("reconnect attempt=\(self.reconnectAttempts, privacy: .public) delay=\(delay, privacy: .public)s")
         notify { $0.pumpClient(self, willRetryReconnect: self.reconnectAttempts, after: delay) }   // D-05
         reconnectWatchdog?.invalidate()
         reconnectWatchdog = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
@@ -634,7 +655,15 @@ extension PumpBLEClient: CBCentralManagerDelegate {
             characteristics.removeAll()
             reassembly.removeAll()
             failClosed(resumePending: true)   // PX-04/PX-08: policy → .readOnly, resume all waiters
-            if let error { notify { $0.pumpClient(self, didError: error) } }
+            if let error {
+                // D-03/D-06: domain+code are stable machine tokens, not PHI → .public, so they survive to
+                // a pulled logarchive alongside the app-side CBError capture. `localizedDescription` can
+                // occasionally embed a peripheral/device name on some CB error paths → stays .private
+                // (D-08; redaction is emit-time and unrecoverable — Pitfall 2).
+                let ns = error as NSError
+                bleLog.log("disconnect domain=\(ns.domain, privacy: .public) code=\(ns.code, privacy: .public) desc=\(ns.localizedDescription, privacy: .private)")
+                notify { $0.pumpClient(self, didError: error) }
+            }
             // Auto-reconnect on an unintended drop (e.g. out of range): re-issuing `central.connect()`
             // makes CoreBluetooth complete it automatically when the pump comes back in range, in the
             // foreground or background — no manual "Connect" needed. Go straight to .connecting (skip a
