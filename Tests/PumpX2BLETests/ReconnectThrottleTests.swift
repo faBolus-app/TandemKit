@@ -39,12 +39,18 @@ import PumpX2Messages
     /// surfaced without needing a full app-level delegate.
     final class RecordingDelegate: PumpBLEClientDelegate {
         var errors: [PumpBLEClient.ClientError] = []
+        /// D-05: every `willRetryReconnect` call, in order — the attempt# and jittered delay the ladder
+        /// computed for that scheduled attempt.
+        var retries: [(attempt: Int, delay: TimeInterval)] = []
         func pumpClient(_ client: PumpBLEClient, didChange state: PumpBLEClient.State) {}
         func pumpClient(_ client: PumpBLEClient, didDiscover peripheral: CBPeripheral, rssi: Int) {}
         func pumpClientDidBecomeReady(_ client: PumpBLEClient) {}
         func pumpClient(_ client: PumpBLEClient, didReceiveFrame frame: [UInt8], on characteristic: Characteristic) {}
         func pumpClient(_ client: PumpBLEClient, didError error: Error) {
             if let e = error as? PumpBLEClient.ClientError { errors.append(e) }
+        }
+        func pumpClient(_ client: PumpBLEClient, willRetryReconnect attempt: Int, after delay: TimeInterval) {
+            retries.append((attempt, delay))
         }
     }
 
@@ -150,6 +156,38 @@ import PumpX2Messages
         client.connectKnownPeripheral(identifier: target)
         #expect(client.state != .reconnectExhausted)
         #expect(client.reconnectAttemptsForTesting == 0)
+
+        client.disconnect()
+    }
+
+    /// D-05: `willRetryReconnect(attempt:after:)` fires once per scheduled attempt — the initial arm
+    /// (`scanTimedOut` → `startReconnectWatchdog` → `scheduleNextReconnectAttempt`, attempt# still 0) and
+    /// then once more from every throttled `reconnectTick()` up to (but not including) the ceiling tick —
+    /// escalating in lockstep with `reconnectAttemptsForTesting` and matching `reconnectBackoff = [5,10,20,30]`
+    /// (jitter only ever ADDS to the base step, never shortens it).
+    @Test func willRetryReconnectEscalatesAttemptNumberInLockstepWithReconnectAttempts() {
+        let fake = FakeCentral()
+        let client = PumpBLEClient(central: fake)
+        let delegate = RecordingDelegate()
+        client.delegate = delegate
+        client.connectKnownPeripheral(identifier: UUID())
+        client.scanTimedOut()                                     // arms the ladder → willRetryReconnect(attempt: 0, …)
+        #expect(delegate.retries.map(\.attempt) == [0])
+        #expect(delegate.retries.first?.delay ?? 0 >= 5)           // reconnectBackoff[0] == 5, jitter only adds
+
+        for expected in 1...PumpBLEClient.maxReconnectAttemptsForTesting {
+            client.reconnectTick()
+            #expect(client.reconnectAttemptsForTesting == expected)
+        }
+        // Every scheduled attempt (the initial arm plus each throttled tick, before the ceiling) fired
+        // `willRetryReconnect` with the SAME attempt# the ladder itself reports via `reconnectAttemptsForTesting`.
+        #expect(delegate.retries.map(\.attempt) == Array(0...PumpBLEClient.maxReconnectAttemptsForTesting))
+        #expect(delegate.retries.allSatisfy { $0.delay >= 5 })
+
+        // The ceiling tick gives up instead of scheduling another attempt — no extra `willRetryReconnect`.
+        client.reconnectTick()
+        #expect(client.state == .reconnectExhausted)
+        #expect(delegate.retries.count == PumpBLEClient.maxReconnectAttemptsForTesting + 1)
 
         client.disconnect()
     }
