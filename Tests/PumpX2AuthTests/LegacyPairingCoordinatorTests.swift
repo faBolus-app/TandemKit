@@ -48,6 +48,36 @@ import PumpX2Messages
         #expect(coord.authKey == Array(code.utf8))
     }
 
+    /// Reference regression (`PumpChallengeRequestBuilder.createV1`: `int appInstanceId =
+    /// challengeResponse.getAppInstanceId();`): `PumpChallengeRequest` (op18) must carry the
+    /// PUMP-ASSIGNED `appInstanceId` echoed in `CentralChallengeResponse` (op17), NOT this
+    /// coordinator's own op16 value — even when the two differ, and even when the coordinator's own
+    /// value is the non-default 0 (the historic bug: op18 silently reused op16's value/default 0,
+    /// ignoring `resp.appInstanceId` entirely).
+    @Test func pumpChallengeRequestEchoesThePumpAssignedAppInstanceId() throws {
+        let coord = try LegacyPairingCoordinator(pairingCode: code)   // op16 appInstanceId defaults to 0
+        let pumpAssignedId = 517                                      // nonzero, deliberately != 0
+        var pumpChallengeAppInstanceId: Int?
+        coord.onError = { Issue.record("pairing error: \($0)") }
+        coord.onSendRequest = { msg in
+            switch msg {
+            case is CentralChallengeRequest:
+                let respPayload = self.challengeHash + self.hmacKey
+                // appInstanceId(2, LE) + payload — matches CentralChallengeResponse's cargo layout.
+                let cargo = Bytes.firstTwoBytesLittleEndian(pumpAssignedId) + respPayload
+                coord.handle(frame: self.frame(17, cargo))
+            case let m as PumpChallengeRequest:
+                pumpChallengeAppInstanceId = m.appInstanceId
+                coord.handle(frame: self.frame(19, self.withAppId([1])))
+            default:
+                Issue.record("unexpected request: \(type(of: msg))")
+            }
+        }
+        coord.start()
+        #expect(coord.step == .paired)
+        #expect(pumpChallengeAppInstanceId == pumpAssignedId)          // echoed, not op16's default 0
+    }
+
     @Test func rejectsWrongPairingCode() throws {
         let coord = try LegacyPairingCoordinator(pairingCode: code)
         var failure: Error?
