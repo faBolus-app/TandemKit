@@ -32,6 +32,18 @@ import PumpX2Messages
         }
     }
 
+    /// `.planning/debug/pump-pairing-loop.md`: owner tried the pump's 16-char code with and without
+    /// dashes and observed the identical loop both ways — this pins the reason down as an EQUALITY,
+    /// not just "both validate": dashed and undashed forms of the same code must canonicalize to the
+    /// exact same 16-char string (so they produce the identical `CentralChallengeRequest` on the wire),
+    /// ruling dash formatting itself out as a variable in that investigation.
+    @Test func dashedAndUndashedLongCodesCanonicalizeIdentically() throws {
+        let dashed = try PairingAuth.processPairingCode("1234-5678-9012-3456", type: .long16Char)
+        let undashed = try PairingAuth.processPairingCode("1234567890123456", type: .long16Char)
+        #expect(dashed == undashed)
+        #expect(dashed == "1234567890123456")
+    }
+
     @Test func invalidLongCodes() {
         #expect(throws: PairingAuth.PairingError.self) {
             try PairingAuth.processPairingCode("abcd-!fgh-ijkl-mnop")

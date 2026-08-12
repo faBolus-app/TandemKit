@@ -1058,10 +1058,24 @@ public struct CurrentEgvGuiDataV2Response: ResponseMessage {
     /// Tandem's bucket boundaries, so it can disagree with the pump. Retained only so a caller that has
     /// not yet polled `HomeScreenMirrorRequest` has something to fall back on, and it returns `nil`
     /// rather than a fabricated direction whenever the rate is not known.
-    public var trendArrow: String? {
-        guard let r = trendRateIfKnown else { return nil }
-        // Symmetric bands, and no catch-all: previously `default` swallowed everything on the rising
-        // side, so any unclassifiable value became a double-up.
+    public var trendArrow: String? { EgvTrend.arrow(forRate: trendRateIfKnown) }
+    /// EGV status per upstream: 0=INVALID, 1=VALID, 2=LOW, 3=HIGH, 4=UNAVAILABLE.
+    public var hasValidReading: Bool {
+        (egvStatusId == 1 || egvStatusId == 2 || egvStatusId == 3) && cgmReading > 0 && cgmReading < 600
+    }
+}
+
+/// Shared trend-arrow derivation for the V1/V2 EGV responses, which carry identical `trendRate`
+/// semantics. Extracted so the two cannot drift — the bucket boundaries are a guess at Tandem's own,
+/// and having one copy per response struct is exactly how the previously-fixed asymmetric-band defect
+/// (see `CurrentEgvGuiDataV2Response.trendArrow`) got introduced.
+public enum EgvTrend {
+    /// A trend arrow derived client-side from a known trend rate (0.1 mg/dL/min units, already
+    /// validated), or `nil` when the rate is not known — never a fabricated direction.
+    public static func arrow(forRate rate: Double?) -> String? {
+        guard let r = rate else { return nil }
+        // Symmetric bands, and no catch-all: a `default` here previously swallowed everything on the
+        // rising side, so any unclassifiable value became a double-up.
         // |r| >= 3 is "rapid" in BOTH directions. It previously was not: -3.0 matched the single-arrow
         // band while +3.0 fell through to the catch-all double-up.
         switch r {
@@ -1074,10 +1088,6 @@ public struct CurrentEgvGuiDataV2Response: ResponseMessage {
         case 3...:         return "⇈"   // rising rapidly
         default:           return nil   // unreachable for a finite rate; never guess
         }
-    }
-    /// EGV status per upstream: 0=INVALID, 1=VALID, 2=LOW, 3=HIGH, 4=UNAVAILABLE.
-    public var hasValidReading: Bool {
-        (egvStatusId == 1 || egvStatusId == 2 || egvStatusId == 3) && cgmReading > 0 && cgmReading < 600
     }
 }
 
@@ -1575,6 +1585,12 @@ public struct ErrorResponse: ResponseMessage {
     public mutating func parse(_ raw: [UInt8]) { self = ErrorResponse(cargo: raw) }
     /// errorCodeId 3 = INVALID_PARAMETER (then requestCodeId is the opcode that failed).
     public var isInvalidParameter: Bool { errorCodeId == 3 }
+    /// errorCodeId 6 = BAD_OPCODE (reference `ErrorResponse.java`'s `ErrorCode` enum,
+    /// `BAD_OPCODE(6)`) — the pump doesn't recognize/support `requestCodeId`. Added for the
+    /// pump-pairing-loop debug session's op192 (`CurrentEgvGuiDataV2Request`) fix: an older
+    /// t:slim X2 (API < 3.x) replies with this exact error to the newer V2 EGV GUI-data request
+    /// and then tears the BLE link down — see `.planning/debug/pump-pairing-loop.md`.
+    public var isBadOpcode: Bool { errorCodeId == 6 }
 }
 
 // MARK: - Remaining A1 read responses (generated)
@@ -1845,6 +1861,13 @@ public struct CreateHistoryLogResponse: ResponseMessage {
 }
 
 /// Read response. Ported from CurrentEGVGuiDataResponse.java.
+///
+/// The V1 twin of `CurrentEgvGuiDataV2Response` (op 193) — identical 8-byte cargo layout and identical
+/// field semantics, and the ONLY EGV read that older t:slim X2 firmware supports. Older pumps reply to
+/// the V2 request (op 192) with `ErrorResponse`/BAD_OPCODE and then tear the BLE link down; see
+/// `.planning/debug/pump-pairing-loop.md` (on-device capture #6) and `TandemBackend.resolveQueuedRead`,
+/// which substitutes the V1 request for the V2 one on those pumps. The parity helpers below mirror the
+/// V2 struct's exactly so both responses can feed one shared consumer path.
 public struct CurrentEGVGuiDataResponse: ResponseMessage {
     public static let props = MessageProps(opCode: 35, size: 8, type: .response, characteristic: .currentStatus)
     public var cargo: [UInt8]
@@ -1859,9 +1882,36 @@ public struct CurrentEGVGuiDataResponse: ResponseMessage {
         bgReadingTimestampSeconds = Int(Bytes.readUint32(raw, 0))
         cgmReading = Bytes.readShort(raw, 4)
         egvStatusId = Int(raw[6])
-        trendRate = Int(raw[7])
+        // SIGNED, matching both the reference (`CurrentEGVGuiDataResponse.java`: `this.trendRate =
+        // raw[7];` — Java's `byte` sign-extends into the int field) and the V2 twin. This was
+        // previously `Int(raw[7])`, an unsigned read: a falling rate of -0.1 mg/dL/min (0xFF) decoded
+        // as +25.5, i.e. every FALLING trend rendered as RAPIDLY RISING. That is the same defect class
+        // the V2 struct's own `trendRateIsUnavailable` doc comment describes ("app shows double-up when
+        // the pump shows no arrow"), and it was latent only because nothing consumed this response yet.
+        trendRate = Int(Int8(bitPattern: raw[7]))
     }
     public mutating func parse(_ raw: [UInt8]) { self = CurrentEGVGuiDataResponse(cargo: raw) }
+
+    // MARK: - Parity helpers (mirror `CurrentEgvGuiDataV2Response`; see its doc comments for rationale)
+
+    /// `trendRate` is a signed byte in 0.1 mg/dL/min units.
+    public var trendRateMgDlPerMin: Double { Double(trendRate) / 10.0 }
+    /// `true` when `trendRate` is a **sentinel** ("rate unavailable") rather than a real rate.
+    public var trendRateIsUnavailable: Bool {
+        trendRate >= Int(Int8.max) || trendRate <= Int(Int8.min)
+    }
+    /// The trend rate, or `nil` when the pump has no usable rate.
+    public var trendRateIfKnown: Double? {
+        guard hasValidReading, !trendRateIsUnavailable else { return nil }
+        return trendRateMgDlPerMin
+    }
+    /// A trend arrow derived client-side from `trendRate`, or `nil` when the rate is unknown.
+    /// **Prefer `HomeScreenMirrorResponse.cgmTrendArrow`** — see `EgvTrend.arrow(forRate:)`.
+    public var trendArrow: String? { EgvTrend.arrow(forRate: trendRateIfKnown) }
+    /// EGV status per upstream: 0=INVALID, 1=VALID, 2=LOW, 3=HIGH, 4=UNAVAILABLE.
+    public var hasValidReading: Bool {
+        (egvStatusId == 1 || egvStatusId == 2 || egvStatusId == 3) && cgmReading > 0 && cgmReading < 600
+    }
 }
 
 /// Read response. Ported from ExtendedBolusStatusResponse.java.

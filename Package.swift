@@ -34,7 +34,13 @@ let package = Package(
                 .headerSearchPath("include"),
                 .headerSearchPath("../../vendor/mbedtls/include"),
                 .headerSearchPath("../../vendor/mbedtls/library"),
-                .unsafeFlags(["-DMBEDTLS_CONFIG_FILE=\"mbedtls_config_min.h\""]),
+                // D3 (§1.3 version-pin): `.define` instead of `.unsafeFlags(["-D…"])`. SwiftPM forbids
+                // `.unsafeFlags` in any target reached by a URL+version dependency, which is exactly what
+                // blocked pinning PumpX2Kit by version. `.define(_, to:)` emits the identical
+                // `-DMBEDTLS_CONFIG_FILE="mbedtls_config_min.h"` (quotes retained for the `#include`), so
+                // the minimal-config selection is byte-for-byte unchanged. The header-search paths stay —
+                // they resolve inside the package root (vendor/mbedtls is a submodule SwiftPM fetches).
+                .define("MBEDTLS_CONFIG_FILE", to: "\"mbedtls_config_min.h\""),
             ]
         ),
 
