@@ -101,4 +101,58 @@ import Testing
         #expect(m.trendRateIfKnown == 0.4)
         #expect(m.trendArrow == "→")                 // steady
     }
+
+    // MARK: - V1 twin (op 35), used on older firmware that rejects the V2 request (op 192)
+
+    /// Same 8-byte layout as `egv(...)` above, for the V1 response.
+    private func egvV1(reading: Int, status: UInt8, rate: Int8) -> CurrentEGVGuiDataResponse {
+        var cargo = [UInt8](repeating: 0, count: 8)
+        let r = Bytes.firstTwoBytesLittleEndian(reading); cargo[4] = r[0]; cargo[5] = r[1]
+        cargo[6] = status
+        cargo[7] = UInt8(bitPattern: rate)
+        return CurrentEGVGuiDataResponse(cargo: cargo)
+    }
+
+    /// The V1 decoder read `trendRate` UNSIGNED (`Int(raw[7])`) while the reference sign-extends
+    /// (Java `byte`). A falling rate therefore decoded as a large positive one — every FALLING trend
+    /// would have rendered as RAPIDLY RISING once the V1 response was actually consumed. Latent until
+    /// the op192 fix started substituting this response on older pumps.
+    @Test func v1TrendRateIsSigned() {
+        #expect(egvV1(reading: 120, status: 1, rate: -1).trendRate == -1)
+        #expect(egvV1(reading: 120, status: 1, rate: -30).trendRate == -30)
+        #expect(egvV1(reading: 120, status: 1, rate: -30).trendRateMgDlPerMin == -3.0)
+        // The exact misread the unsigned decode produced: 0xFF -> 255 -> +25.5 mg/dL/min.
+        #expect(egvV1(reading: 120, status: 1, rate: -1).trendRate != 255)
+        #expect(egvV1(reading: 120, status: 1, rate: -30).trendArrow == "⇊",
+                "a falling rate must not render as rising")
+    }
+
+    /// The V1 twin must behave identically to V2 for every band, sentinel and validity rule — they
+    /// carry identical cargo semantics and now share `EgvTrend.arrow(forRate:)`, so a divergence here
+    /// would mean an older pump silently gets different trend/validity behaviour than a newer one.
+    @Test func v1MatchesV2ForEveryBandAndSentinel() {
+        for rate: Int8 in [-30, -25, -15, -10, 0, 10, 15, 25, 30, Int8.max, Int8.min] {
+            for status: UInt8 in [0, 1, 2, 3, 4] {
+                let v1 = egvV1(reading: 120, status: status, rate: rate)
+                let v2 = egv(reading: 120, status: status, rate: rate)
+                #expect(v1.hasValidReading == v2.hasValidReading, "status \(status) rate \(rate)")
+                #expect(v1.trendRate == v2.trendRate, "status \(status) rate \(rate)")
+                #expect(v1.trendRateIsUnavailable == v2.trendRateIsUnavailable, "status \(status) rate \(rate)")
+                #expect(v1.trendRateIfKnown == v2.trendRateIfKnown, "status \(status) rate \(rate)")
+                #expect(v1.trendArrow == v2.trendArrow, "status \(status) rate \(rate)")
+            }
+        }
+    }
+
+    /// Boundary neighbours around the validity equivalence class, mirroring the V2 rules.
+    @Test func v1ValidityBoundaries() {
+        #expect(!egvV1(reading: 0, status: 1, rate: 0).hasValidReading)     // reading must be > 0
+        #expect(egvV1(reading: 1, status: 1, rate: 0).hasValidReading)
+        #expect(egvV1(reading: 599, status: 1, rate: 0).hasValidReading)
+        #expect(!egvV1(reading: 600, status: 1, rate: 0).hasValidReading)   // must be < 600
+        #expect(!egvV1(reading: 120, status: 0, rate: 0).hasValidReading)   // INVALID
+        #expect(egvV1(reading: 120, status: 2, rate: 0).hasValidReading)    // LOW
+        #expect(egvV1(reading: 120, status: 3, rate: 0).hasValidReading)    // HIGH
+        #expect(!egvV1(reading: 120, status: 4, rate: 0).hasValidReading)   // UNAVAILABLE
+    }
 }

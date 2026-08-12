@@ -41,6 +41,15 @@ extension PairingCoordinator: PairingCoordinating {}
 /// 16-char pairing code's UTF-8 bytes — NOT a derived secret (JPAKE derives via HKDF; V1 does not;
 /// confirmed in the oracle `PumpStateSupplier`).
 ///
+/// `appInstanceId` on op18 is the value op17's `CentralChallengeResponse` ECHOES back (the reference's
+/// `PumpChallengeRequestBuilder.createV1()`: `int appInstanceId = challengeResponse.getAppInstanceId();`)
+/// — NOT the app's own op16 value. This coordinator's own op16 `appInstanceId` (constructor param,
+/// default 0) is unrelated and unchanged by this: it is this app's OWN identifier, sent once as the
+/// initial challenge; JPAKE, by contrast, hardcodes a literal 0 for every request in the reference
+/// (`JpakeAuthBuilder.java`) and never reads/echoes anything back — `PairingCoordinator`'s matching
+/// static-0 behavior for every JPAKE round is therefore already reference-correct and must NOT be
+/// changed to mirror this.
+///
 /// Pairing traffic is operation-risk `.read` and never touches either delivery software wall.
 public final class LegacyPairingCoordinator: PairingCoordinating {
     public enum Step: Equatable, Sendable { case idle, sentCentral, sentPump, paired, failed }
@@ -91,8 +100,21 @@ public final class LegacyPairingCoordinator: PairingCoordinating {
             guard resp.isValid else { return fail(PairingError.malformedResponse) }
             do {
                 // createV1: pumpChallengeHash = HMAC-SHA1(data = hmacKey, key = pairingCode UTF-8).
+                // appInstanceId: echo back the PUMP-ASSIGNED value from CentralChallengeResponse, not
+                // this coordinator's own (op16) value — matches the vendored jwoglom/pumpX2 reference's
+                // `PumpChallengeRequestBuilder.createV1()` exactly: `int appInstanceId =
+                // challengeResponse.getAppInstanceId();`. Every prior version of this coordinator built
+                // PumpChallengeRequest with `appInstanceId` (the coordinator's own op16 value, default 0)
+                // instead, silently ignoring `resp.appInstanceId` — a real, reference-confirmed
+                // divergence, though on-device evidence (`.planning/debug/pump-pairing-loop.md`, capture
+                // #4) shows it is NOT what causes the post-pair read-drop loop: appInstanceId appears
+                // nowhere in the wire format of any non-pairing (CURRENT_STATUS/CONTROL) message or in
+                // Packetize's packet header, so a wrong value here cannot mis-route a later read; and the
+                // coordinator sent the SAME (wrong) constant on every capture, yet the drop's presence
+                // varied cycle-to-cycle, which a constant input cannot explain. Fixed anyway as a genuine
+                // protocol-parity correctness issue, independent of the loop.
                 let pumpChallenge = try PairingAuth.createV1(
-                    appInstanceId: appInstanceId, hmacKey: resp.hmacKey, pairingCode: processedPairingCode)
+                    appInstanceId: resp.appInstanceId, hmacKey: resp.hmacKey, pairingCode: processedPairingCode)
                 step = .sentPump
                 onSendRequest?(pumpChallenge)
             } catch { fail(error) }
