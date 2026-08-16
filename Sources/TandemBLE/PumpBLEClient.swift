@@ -211,6 +211,19 @@ public final class PumpBLEClient: NSObject {
             : .writeBlocked(policy: writePolicy, opcode: message.opCode)
     }
 
+    /// Pure device/API send-gate decision (D-08), separated from readiness/transport so it is
+    /// deterministically testable and cannot be masked by `.notReady`. Returns `.unsupportedOnDevice`
+    /// when the KNOWN connected pump does not support `message` (wrong family, or a negotiated API below
+    /// the message's `minApi`), or `nil` when it is supported. **Fails open** on an unknown model/api:
+    /// `MessageProps.isSupported` returns `true` for any nil target dimension, so an unidentified pump
+    /// never gates a send — today's send-then-firmware-NACK behavior is preserved. `send()` consults this
+    /// AFTER `authorizationError` (the write-policy interlock stays the first line of defense).
+    public func deviceSupportError(for message: Message) -> ClientError? {
+        message.props.isSupported(onModel: connectedPumpModel, apiVersion: negotiatedApiVersion)
+            ? nil
+            : .unsupportedOnDevice(opcode: message.opCode)
+    }
+
     /// Owns in-flight request/response correlation, deadlines, and fail-closed completion (PX-08).
     /// Callers that need an awaited response use `sendAwaitingResponse`; unsolicited frames (streams,
     /// proactive status) are not consumed here and still reach the delegate.
@@ -552,6 +565,12 @@ public final class PumpBLEClient: NSObject {
         // `.notReady`. `.readOnly` blocks any control/signed/delivery; `.allowNonDelivery` now blocks
         // destructive too (PX-03); `.allowBenignControl` permits only benign ops.
         if let authError = authorizationError(for: message) { throw authError }
+        // Device/API send gate (D-08): refuse — do NOT emit — a message the KNOWN connected pump does not
+        // support (wrong family or a negotiated API below the message's minApi). Checked BEFORE readiness
+        // so a KNOWN-incompatible send can't be masked by `.notReady`; fail-OPEN on an unknown target
+        // (nil model/api ⇒ isSupported == true ⇒ proceed exactly as today). Lives here, above the
+        // coordinator — PumpTransactionCoordinator is untouched (D-05).
+        if let deviceError = deviceSupportError(for: message) { throw deviceError }
         guard state == .ready, let peripheral,
               let cbChar = characteristics[message.characteristic] else {
             throw ClientError.notReady
