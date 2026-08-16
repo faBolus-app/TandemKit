@@ -11,6 +11,25 @@ re-validated before adoption (see the upstream-sync workflow in the plan / READM
 | Pinned commit | `dad3eea2a3f6ae1bb1a6fdc6b3eac37f3ac7132b` |
 | Ported by | Swift port in `Sources/` (hand-ported, not generated) |
 
+## Upstream controlX2 watch
+
+controlX2 ([`jwoglom/controlx2`](https://github.com/jwoglom/controlx2)) is the companion Android
+app — a full app, never vendored or compiled. The recurring drift-detector
+(`.github/workflows/upstream-drift.yml`) tracks it with a lightweight tracked-SHA baseline (not a
+git submodule, unlike pumpx2 above) and measures drift against these values every cycle.
+`dev` is the PRIMARY baseline (upstream's active integration branch, per the owner's
+DEV-BRANCH TRUST RULE); `main` is tracked for reference. See
+[`docs/UPSTREAM-SYNC-RUNBOOK.md`](docs/UPSTREAM-SYNC-RUNBOOK.md) for how to triage a fired drift
+issue and when to advance these values.
+
+| What | Value |
+| --- | --- |
+| Upstream repo | [`jwoglom/controlx2`](https://github.com/jwoglom/controlx2) |
+| Last-reviewed dev commit | `8d3ad3115bd7ac200e8bd16bd372dbc0da58f058` |
+| Last-reviewed main commit | `45e3795bad357472c1ff736dbfd7013e574dd28c` |
+| Reviewed date | 2026-08-16 |
+| Review notes | 09.8-01-SUMMARY.md + WIP-REGISTER.md "09.8-01"/"09.8-02" upstream-sync triage sections (10-commit dev delta, all app/UI-level, surface-only — no protocol-layer content) |
+
 ## Pump firmware
 
 Recorded from the pump's Pump Info screen (2026-07-18). The protocol can break on a

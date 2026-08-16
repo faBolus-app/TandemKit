@@ -53,13 +53,17 @@ not restate or fork those rules.
 **Version-pinning contract (§1.3).** The intended shape is an annotated `vX.Y.Z` tag consumed by
 `url:` + version, with a committed `Package.resolved` and a documented local-path override for dev.
 
-**Status: version-pinning is DECLARED UNMET (owner decision, 2026-08-07).** faBolus consumes this
-package by local path (`faBolus/project.yml` `path: ../TandemKit`), not a URL+version pin, and that
-stays. SwiftPM refuses a URL+version dependency on a package with `.unsafeFlags`, and there are **two**
-sites: `Package.swift:37` (the `-DMBEDTLS_CONFIG_FILE` flag on `CMbedTLSJPAKE` — the real blocker,
-because it is in the closure of the `TandemAuth`/`TandemBLE` products faBolus consumes) and
+**Status: MET (Phase 3, pin bump `6efdd43` → current TandemKit pin `1a09dba`).** faBolus now consumes
+this package via a `url:` + `revision:` pin in `faBolus/project.yml` (with a documented
+`FABOLUS_TANDEM_LOCAL=1` local-path override for day-to-day dev), not an annotated `vX.Y.Z`
+tag+version — the **revision** form, a deliberate D-01 owner override of the tag+version approach,
+because SwiftPM refuses a URL+**version** dependency on a package with `.unsafeFlags` but a
+URL+**revision** dependency is unrestricted. There are still **two** `.unsafeFlags` sites:
+`Package.swift:37` (the `-DMBEDTLS_CONFIG_FILE` flag on `CMbedTLSJPAKE` — the real blocker, because
+it is in the closure of the `TandemAuth`/`TandemBLE` products faBolus consumes) and
 `Package.swift:69` (a harness linker flag on the `TandemBenchHarness` executable, which faBolus does
 not consume). Removing them requires vendoring the Mbed TLS config/headers in-tree and rehoming the 13
 committed `CMbedTLSJPAKE/mbedtls_lib/*.c` symlinks — a build-graph/vendoring refactor gated only by the
-oracle byte-parity + hardware-pairing tests. **That refactor is deferred and is NOT attempted here.**
-Do not fake-satisfy §1.3 with the local path; it is declared unmet on purpose. Tracked as WIP item 8.
+oracle byte-parity + hardware-pairing tests. **That refactor remains deferred** (it is not required
+for §1.3, since the revision-form pin already satisfies the contract) and is NOT attempted here.
+Tracked as WIP item 8.
