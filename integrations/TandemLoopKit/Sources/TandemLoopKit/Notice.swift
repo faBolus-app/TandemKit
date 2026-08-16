@@ -3,12 +3,12 @@ import os.log
 
 /// The safety NOTICE this driver carries with it wherever it is reused.
 ///
-/// PumpX2Kit's saline / NO-GO bench posture is a property of the *faBolus app*, not of a generic
+/// TandemKit's saline / NO-GO bench posture is a property of the *faBolus app*, not of a generic
 /// exported driver — so this library states its own limits explicitly, in the header, the README,
 /// and a one-time runtime log line on manager init (`TandemPumpManager.logNoticeOnce()`).
 public enum TandemLoopKitNotice {
 
-    /// The verbatim notice. Mirrors PumpX2Kit's own top-of-file disclaimer.
+    /// The verbatim notice. Mirrors TandemKit's own top-of-file disclaimer.
     public static let text = """
     TandemLoopKit — UNVERIFIED. This is a reverse-engineered Tandem pump protocol driver. It is \
     NOT FDA-cleared, NOT affiliated with or endorsed by Tandem Diabetes Care or Dexcom, and NOT \

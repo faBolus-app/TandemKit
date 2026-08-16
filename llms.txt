@@ -1,4 +1,4 @@
-# PumpX2Kit — LLM guide
+# TandemKit — LLM guide
 
 > A Swift port of the Tandem t:slim X2 / Mobi Bluetooth protocol (from jwoglom's pumpX2), used by the
 > faBolus app: it builds pump messages, runs the JPAKE pairing/auth, and speaks BLE — verified

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PumpX2Kit SBOM / provenance check — a sibling of faBolus's scripts/check-sbom.sh (P16 §3.1).
+# TandemKit SBOM / provenance check — a sibling of faBolus's scripts/check-sbom.sh (P16 §3.1).
 #
 # Deterministic assertions, all green on a clean tree:
 #   1. docs/SBOM.md exists.

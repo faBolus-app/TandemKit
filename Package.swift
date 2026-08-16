@@ -1,5 +1,5 @@
 // swift-tools-version: 6.0
-// PumpX2Kit — Swift port of the jwoglom/pumpx2 Tandem pump protocol.
+// TandemKit — Swift port of the jwoglom/pumpx2 Tandem pump protocol.
 // Independent, open-source project in development for experimental use; not FDA-cleared.
 // Not affiliated with, endorsed by, or a product of Tandem Diabetes Care or Dexcom.
 import PackageDescription
@@ -36,7 +36,7 @@ let package = Package(
                 .headerSearchPath("../../vendor/mbedtls/library"),
                 // D3 (§1.3 version-pin): `.define` instead of `.unsafeFlags(["-D…"])`. SwiftPM forbids
                 // `.unsafeFlags` in any target reached by a URL+version dependency, which is exactly what
-                // blocked pinning PumpX2Kit by version. `.define(_, to:)` emits the identical
+                // blocked pinning TandemKit by version. `.define(_, to:)` emits the identical
                 // `-DMBEDTLS_CONFIG_FILE="mbedtls_config_min.h"` (quotes retained for the `#include`), so
                 // the minimal-config selection is byte-for-byte unchanged. The header-search paths stay —
                 // they resolve inside the package root (vendor/mbedtls is a submodule SwiftPM fetches).

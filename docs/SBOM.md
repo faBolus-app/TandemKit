@@ -1,11 +1,11 @@
-# Software Bill of Materials (PumpX2Kit)
+# Software Bill of Materials (TandemKit)
 
-Machine-checkable provenance for every third-party / vendored component PumpX2Kit ships or builds
+Machine-checkable provenance for every third-party / vendored component TandemKit ships or builds
 against. [`scripts/check-sbom.sh`](../scripts/check-sbom.sh) fails if a vendored submodule is missing a
 row here, if a license string is outside the SPDX allowlist, or if a source file carries a third-party
 provenance marker that no row backs. It runs as a non-blocking CI job (see `.github/workflows/ci.yml`).
 
-Format per row: component · version/revision · SPDX license · source · how PumpX2Kit uses it.
+Format per row: component · version/revision · SPDX license · source · how TandemKit uses it.
 
 > **Disposition: NO-GO for real insulin delivery.** This inventory is documentation; it changes no
 > delivery, dosing, or alerting behavior.
@@ -14,7 +14,7 @@ Format per row: component · version/revision · SPDX license · source · how P
 
 | Component | Version | License (SPDX) | Source | Usage |
 |---|---|---|---|---|
-| PumpX2Kit (the Swift port) | in-repo | MIT | `Sources/` | Tandem t:slim X2 / Mobi protocol, auth (pairing + HMAC signing), and BLE transport. A hand-written Swift port of jwoglom/pumpx2 (MIT); each ported type's doc-comment cites its Java origin. Covered by the root `LICENSE`. |
+| TandemKit (the Swift port) | in-repo | MIT | `Sources/` | Tandem t:slim X2 / Mobi protocol, auth (pairing + HMAC signing), and BLE transport. A hand-written Swift port of jwoglom/pumpx2 (MIT); each ported type's doc-comment cites its Java origin. Covered by the root `LICENSE`. |
 
 ## Vendored submodules
 
@@ -35,5 +35,5 @@ Format per row: component · version/revision · SPDX license · source · how P
 ## Trademarks
 
 "faBolus" is a trademark of Tia Geri (code is MIT; the name is not licensed). Tandem, t:slim X2, Mobi,
-and Dexcom are trademarks of their respective owners; PumpX2Kit is independent and unaffiliated. See
+and Dexcom are trademarks of their respective owners; TandemKit is independent and unaffiliated. See
 [`../NOTICE.md`](../NOTICE.md) for the full attribution prose.

@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to PumpX2Kit are documented here.
+All notable changes to TandemKit are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -26,7 +26,7 @@ target) and `deprecated/*` (an immovable pre-round-3 snapshot — **not** a supp
 
 ### Notes
 - `safe-baseline/2026-08-04` advanced to the P12 cold-launch retrieve-before-scan commit (#6).
-- Consuming PumpX2Kit as a URL+version SwiftPM dependency remains **UNMET** by owner decision — see
+- Consuming TandemKit as a URL+version SwiftPM dependency remains **UNMET** by owner decision — see
   the §1.3 versioning contract in [`CONTRIBUTING.md`](CONTRIBUTING.md) / [`AGENTS.md`](AGENTS.md) and
   WIP item 8. faBolus continues to consume this package by local path.
 
@@ -45,6 +45,6 @@ target) and `deprecated/*` (an immovable pre-round-3 snapshot — **not** a supp
   bolus was delivered on real hardware**, with every outgoing message byte-exact against the
   jwoglom/pumpx2 `cliparser` oracle. (Annotated tag `v0.1.0`.)
 
-[Unreleased]: https://github.com/faBolus-app/PumpX2Kit/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/faBolus-app/PumpX2Kit/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/faBolus-app/PumpX2Kit/releases/tag/v0.1.0
+[Unreleased]: https://github.com/faBolus-app/TandemKit/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/faBolus-app/TandemKit/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/faBolus-app/TandemKit/releases/tag/v0.1.0

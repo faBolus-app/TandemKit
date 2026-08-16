@@ -34,7 +34,7 @@ public protocol PumpBLEClientDelegate: AnyObject {
 }
 
 /// Default no-op for `willRetryReconnect` — every conformer that doesn't care about the reconnect
-/// ladder's internals (today: `WatchPumpClient` and the PumpX2Kit test/bench-harness conformers) keeps
+/// ladder's internals (today: `WatchPumpClient` and the TandemKit test/bench-harness conformers) keeps
 /// compiling unchanged; only a conformer that wants the signal overrides it.
 @MainActor
 public extension PumpBLEClientDelegate {

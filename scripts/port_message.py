@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-port_message.py — scaffold a Swift PumpX2Kit message from an upstream jwoglom/pumpX2 Java class.
+port_message.py — scaffold a Swift TandemKit message from an upstream jwoglom/pumpX2 Java class.
 
-WHY THIS IS SAFE TO AUTOMATE: PumpX2Kit's `Bytes` helpers were deliberately mirrored 1:1 from the
+WHY THIS IS SAFE TO AUTOMATE: TandemKit's `Bytes` helpers were deliberately mirrored 1:1 from the
 Java library (readShort/readUint32/readUint64/readString/readFloat/toUint32/…), so the `parse()` and
 `buildCargo()` bodies translate almost line-for-line. And every generated message is gated by a
 byte-exact oracle-parity test (scripts/test.sh) — anything mistranslated fails loudly.

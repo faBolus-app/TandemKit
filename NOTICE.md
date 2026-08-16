@@ -1,6 +1,6 @@
 # Attributions
 
-PumpX2Kit is an independent, open-source Swift package, licensed under the MIT License (see
+TandemKit is an independent, open-source Swift package, licensed under the MIT License (see
 `LICENSE`). It is an independent reimplementation — not a fork of, affiliated with, or endorsed by
 the projects below.
 
@@ -17,7 +17,7 @@ git submodule under `vendor/mbedtls` and dual-licensed **Apache-2.0 OR GPL-2.0-o
 submodule; their SPDX headers are retained.
 
 ## Trademarks
-PumpX2Kit is part of the **faBolus™** project; faBolus™ is a trademark of Tia Geri.
+TandemKit is part of the **faBolus™** project; faBolus™ is a trademark of Tia Geri.
 
 Not affiliated with, endorsed by, or a product of **Tandem Diabetes Care** or **Dexcom**. Tandem,
 t:slim X2, Mobi, and Dexcom are trademarks of their respective owners.

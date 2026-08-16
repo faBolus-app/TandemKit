@@ -1,4 +1,4 @@
-# AGENTS.md — PumpX2Kit
+# AGENTS.md — TandemKit
 
 Working notes for AI coding agents (and humans). Companion to [`llms.txt`](llms.txt) (the map). This is
 a Swift port of the Tandem t:slim X2 / Mobi Bluetooth protocol (from jwoglom's pumpX2), consumed by the
@@ -54,7 +54,7 @@ not restate or fork those rules.
 `url:` + version, with a committed `Package.resolved` and a documented local-path override for dev.
 
 **Status: version-pinning is DECLARED UNMET (owner decision, 2026-08-07).** faBolus consumes this
-package by local path (`faBolus/project.yml` `path: ../PumpX2Kit`), not a URL+version pin, and that
+package by local path (`faBolus/project.yml` `path: ../TandemKit`), not a URL+version pin, and that
 stays. SwiftPM refuses a URL+version dependency on a package with `.unsafeFlags`, and there are **two**
 sites: `Package.swift:37` (the `-DMBEDTLS_CONFIG_FILE` flag on `CMbedTLSJPAKE` — the real blocker,
 because it is in the closure of the `PumpX2Auth`/`PumpX2BLE` products faBolus consumes) and

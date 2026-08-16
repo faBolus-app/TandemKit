@@ -1,6 +1,6 @@
-# Contributing to PumpX2Kit
+# Contributing to TandemKit
 
-PumpX2Kit is a **reusable Swift library** for the Tandem t:slim X2 / Mobi Bluetooth protocol — any
+TandemKit is a **reusable Swift library** for the Tandem t:slim X2 / Mobi Bluetooth protocol — any
 project can depend on it (faBolus is one consumer). Contributions are welcome by **PR, not fork**:
 the goal is one well-tested library everyone builds on. All work is for **experimental use only**
 (in development, not FDA-cleared).
@@ -40,7 +40,7 @@ version: an annotated `vX.Y.Z` tag consumed by `url:` + version, with a committe
 and a documented local-path override for development.
 
 **Status: version-pinning is DECLARED UNMET here (owner decision, 2026-08-07).** faBolus consumes this
-package by local path (`faBolus/project.yml` `path: ../PumpX2Kit`), not a URL+version pin, and that
+package by local path (`faBolus/project.yml` `path: ../TandemKit`), not a URL+version pin, and that
 remains the consumption model. SwiftPM refuses a URL+version dependency on a package that uses
 `.unsafeFlags`, and this package has **two** such sites: `Package.swift:37` (`-DMBEDTLS_CONFIG_FILE` on
 `CMbedTLSJPAKE` — the actual blocker, since it is in the closure of the `PumpX2Auth`/`PumpX2BLE`

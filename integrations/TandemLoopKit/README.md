@@ -1,9 +1,9 @@
 # PumpX2LoopKit
 
 A [LoopKit](https://github.com/LoopKit/LoopKit) `PumpManager` driver for Tandem pumps, built on
-**PumpX2Kit**. It is the *reverse direction* from the faBolus app: instead of faBolus commanding the
+**TandemKit**. It is the *reverse direction* from the faBolus app: instead of faBolus commanding the
 pump through its own neutral abstractions, this lets **any LoopKit/Loop-style host drive a Tandem pump
-through PumpX2Kit** — the same reverse-engineered protocol, exposed as an off-the-shelf LoopKit driver.
+through TandemKit** — the same reverse-engineered protocol, exposed as an off-the-shelf LoopKit driver.
 
 > ## ⚠️ UNVERIFIED — NOT FOR REAL INSULIN
 > This is a **reverse-engineered** Tandem pump protocol driver. It is **NOT FDA-cleared**, **NOT**
@@ -13,11 +13,11 @@ through PumpX2Kit** — the same reverse-engineered protocol, exposed as an off-
 
 ## Why this is a separate package
 
-This package is **intentionally not a target of the root `PumpX2Kit/Package.swift`.** LoopKit is an
+This package is **intentionally not a target of the root `TandemKit/Package.swift`.** LoopKit is an
 iOS-15 framework that pulls in HealthKit (and, transitively via `LoopKitUI`, SwiftCharts). Keeping it in
 its own package guarantees:
 
-- `swift build` / `swift test` and the **byte-exact `cliparser` oracle-parity job** in the PumpX2Kit
+- `swift build` / `swift test` and the **byte-exact `cliparser` oracle-parity job** in the TandemKit
   root never resolve, fetch, or compile LoopKit. The pure `PumpX2Messages` core stays zero-dependency
   and cross-platform (iOS/watchOS/macOS).
 - The driver is **iOS-only** and depends only on the zero-external-dependency `LoopKit` *library
@@ -42,7 +42,7 @@ hardware or booted device is required for the unit suite; a simulator destinatio
 
 ## Dependency pinning
 
-- **PumpX2Kit** is consumed by path (`../..`) — required, because PumpX2Kit's `CMbedTLSJPAKE` target
+- **TandemKit** is consumed by path (`../..`) — required, because TandemKit's `CMbedTLSJPAKE` target
   uses `.unsafeFlags`, which SwiftPM forbids in a URL+version dependency but allows via a path dependency.
 - **LoopKit** is pinned by revision (`a5beee96`, the LoopKit PR-599 BLE-heartbeat merge). `Package.resolved`
   locks LoopKit and its transitive SwiftCharts revision so the build is reproducible.

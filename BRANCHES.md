@@ -1,6 +1,6 @@
-# Branch model — PumpX2Kit
+# Branch model — TandemKit
 
-PumpX2Kit uses the **three-branch model** shared by all three faBolus code repos:
+TandemKit uses the **three-branch model** shared by all three faBolus code repos:
 
 | Branch | What it is |
 |---|---|
@@ -14,7 +14,7 @@ The moving last-known-good rollback pointer is the `safe-baseline/*` tag, **not*
 
 The branch policy, the **§1.2 experimental gate**, and the **§1.4 promotion criteria** are defined
 once in [`../faBolus/BRANCHES.md`](../faBolus/BRANCHES.md) and govern all three repos —
-**faBolus**, **PumpX2Kit**, **faBolusGarmin** — in lockstep (§1.3). This stub is a pointer, not a
+**faBolus**, **TandemKit**, **faBolusGarmin** — in lockstep (§1.3). This stub is a pointer, not a
 fork: **do not restate or diverge the rules here.** For contributor workflow and the versioning
 contract see [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`AGENTS.md`](AGENTS.md); for the release
 history see [`CHANGELOG.md`](CHANGELOG.md).

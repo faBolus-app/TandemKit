@@ -1,6 +1,6 @@
 # Third-party components
 
-PumpX2Kit is MIT-licensed first-party software (see [`LICENSE`](LICENSE)). This file is a findable,
+TandemKit is MIT-licensed first-party software (see [`LICENSE`](LICENSE)). This file is a findable,
 by-name index of the third-party and vendored components it builds on. It does **not** replace the
 canonical sources — it points to them:
 

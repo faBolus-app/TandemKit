@@ -3,7 +3,7 @@ import HealthKit
 import LoopKit
 import TandemMessages
 
-/// A LoopKit `PumpManager` for Tandem pumps, built on PumpX2Kit.
+/// A LoopKit `PumpManager` for Tandem pumps, built on TandemKit.
 ///
 /// Follows the LoopKit-ecosystem shape (mirroring OmniBLE): the class declares only `DeviceManager`;
 /// `PumpManager` conformance is added in an extension. Mutable state is guarded by a lock so the
@@ -17,7 +17,7 @@ public final class TandemPumpManager: DeviceManager {
     // MARK: Identity
 
     public static let pluginIdentifier = "TandemPumpX2"
-    public let localizedTitle = "Tandem (PumpX2Kit)"
+    public let localizedTitle = "Tandem (TandemKit)"
 
     // MARK: Transport + state
 

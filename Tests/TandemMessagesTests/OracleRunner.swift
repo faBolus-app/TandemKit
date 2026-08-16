@@ -2,7 +2,7 @@ import Foundation
 
 /// Runs the upstream `cliparser` JAR — the byte-level oracle — and returns the packet hex it
 /// produces for a given message. Swift-produced bytes are asserted equal to this ("byte-exact
-/// or fail"). See `PumpX2Kit/README.md` and Milestone 1a.
+/// or fail"). See `TandemKit/README.md` and Milestone 1a.
 ///
 /// Resolution order (all overridable by env so CI can point at its own build):
 ///   - JDK:  $PUMPX2_JAVA, else Homebrew openjdk@21, else `java` on PATH.
