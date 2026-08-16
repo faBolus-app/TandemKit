@@ -94,7 +94,7 @@ public struct AdditionalBolusRequest: Message {
 
 /// Sets the Dexcom G6 transmitter id (opcode 0xB0 → 0xB1). 16-byte cargo: 6-char string + 10 zero pad.
 public struct SetG6TransmitterIdRequest: Message {
-    public static let props = MessageProps(opCode: 0xB0, size: 16, signed: true, type: .request, characteristic: .control, responseOpCode: 0xB1)
+    public static let props = MessageProps(opCode: 0xB0, size: 16, signed: true, type: .request, characteristic: .control, responseOpCode: 0xB1, minApi: .mobi_v3_5)
     public var cargo: [UInt8]
     public private(set) var txId = ""
     public init() { cargo = [] }

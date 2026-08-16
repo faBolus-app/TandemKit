@@ -8,7 +8,8 @@ import Foundation
 public struct SetTempRateRequest: Message {
     public static let props = MessageProps(
         opCode: 0xA4, size: 6, signed: true, type: .request,
-        characteristic: .control, modifiesInsulinDelivery: true, responseOpCode: 0xA5)
+        characteristic: .control, modifiesInsulinDelivery: true, responseOpCode: 0xA5,
+        supportedDevices: [.mobi], minApi: .mobi_v3_5) // upstream MOBI_ONLY + MOBI_API_V3_5 (D-08)
 
     /// Duration bounds enforced by the pump (durations < 15 min or > 72 h are rejected).
     public static let minMinutes = 15
@@ -44,7 +45,8 @@ public struct SetTempRateRequest: Message {
 public struct StopTempRateRequest: Message {
     public static let props = MessageProps(
         opCode: 0xA6, size: 0, signed: true, type: .request,
-        characteristic: .control, modifiesInsulinDelivery: true, responseOpCode: 0xA7)
+        characteristic: .control, modifiesInsulinDelivery: true, responseOpCode: 0xA7,
+        supportedDevices: [.mobi], minApi: .mobi_v3_5) // upstream MOBI_ONLY + MOBI_API_V3_5 (D-08)
     public var cargo: [UInt8]
     public init() { self.cargo = [] }
     public mutating func parse(_ raw: [UInt8]) { self.cargo = [] }

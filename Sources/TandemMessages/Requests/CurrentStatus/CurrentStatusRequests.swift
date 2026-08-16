@@ -22,9 +22,14 @@ public extension EmptyCurrentStatusRequest {
 
 /// Generates an empty-cargo CURRENT_STATUS request type. `op` is the request opcode; the
 /// response opcode is `op &+ 1` by the even/odd convention.
-private func statusProps(_ op: UInt8) -> MessageProps {
+private func statusProps(_ op: UInt8,
+                         supportedDevices: [PumpModel]? = nil,
+                         minApi: ApiVersion? = nil) -> MessageProps {
+    // Device/API gating (D-08) is additive-optional: the two trailing args default to nil = unrestricted,
+    // so every un-annotated status read stays universally sendable and byte-identical.
     MessageProps(opCode: op, size: 0, type: .request,
-                 characteristic: .currentStatus, responseOpCode: op &+ 1)
+                 characteristic: .currentStatus, responseOpCode: op &+ 1,
+                 supportedDevices: supportedDevices, minApi: minApi)
 }
 
 // Each type is a thin struct: opcode + empty cargo. `init(emptyCargo:)` satisfies the
@@ -45,7 +50,7 @@ public struct InsulinStatusRequest: EmptyCurrentStatusRequest {
     public init(emptyCargo: Void = ()) { self.cargo = [] }
 }
 public struct CurrentBatteryV2Request: EmptyCurrentStatusRequest {
-    public static let props = statusProps(0x90) // -112
+    public static let props = statusProps(0x90, minApi: .v2_5) // -112
     public var cargo: [UInt8] = []
     public init(emptyCargo: Void = ()) { self.cargo = [] }
 }
@@ -75,7 +80,7 @@ public struct CurrentBolusStatusRequest: EmptyCurrentStatusRequest {
     public init(emptyCargo: Void = ()) { self.cargo = [] }
 }
 public struct LastBolusStatusV2Request: EmptyCurrentStatusRequest {
-    public static let props = statusProps(0xA4) // -92
+    public static let props = statusProps(0xA4, minApi: .v2_5) // -92
     public var cargo: [UInt8] = []
     public init(emptyCargo: Void = ()) { self.cargo = [] }
 }
@@ -90,7 +95,7 @@ public struct LastBGRequest: EmptyCurrentStatusRequest {
     public init(emptyCargo: Void = ()) { self.cargo = [] }
 }
 public struct CurrentEgvGuiDataV2Request: EmptyCurrentStatusRequest {
-    public static let props = statusProps(0xC0) // -64; response 0xC1 (193). V2 (newer firmware)
+    public static let props = statusProps(0xC0, minApi: .future) // -64; response 0xC1 (193). V2; upstream minApi API_FUTURE
     public var cargo: [UInt8] = []
     public init(emptyCargo: Void = ()) { self.cargo = [] }
 }
@@ -105,7 +110,7 @@ public struct PumpSettingsRequest: EmptyCurrentStatusRequest {
     public init(emptyCargo: Void = ()) { self.cargo = [] }
 }
 public struct BolusCalcDataSnapshotRequest: EmptyCurrentStatusRequest {
-    public static let props = statusProps(114)
+    public static let props = statusProps(114, minApi: .v2_5)
     public var cargo: [UInt8] = []
     public init(emptyCargo: Void = ()) { self.cargo = [] }
 }
@@ -172,7 +177,7 @@ public struct CGMStatusRequest: EmptyCurrentStatusRequest {
     public init(emptyCargo: Void = ()) { self.cargo = [] }
 }
 public struct CgmStatusV2Request: EmptyCurrentStatusRequest {
-    public static let props = statusProps(0xBE)             // -66; response 0xBF (191)
+    public static let props = statusProps(0xBE, supportedDevices: [.mobi], minApi: .mobi_v3_5) // -66; response 0xBF (191); upstream MOBI_ONLY
     public var cargo: [UInt8] = []
     public init(emptyCargo: Void = ()) { self.cargo = [] }
 }
@@ -196,7 +201,7 @@ public struct LastBolusStatusRequest: EmptyCurrentStatusRequest {
     public static let props = statusProps(48); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }
 }
 public struct LastBolusStatusV3Request: EmptyCurrentStatusRequest {
-    public static let props = statusProps(0xBA); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }
+    public static let props = statusProps(0xBA, minApi: .mobi_v3_5); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }
 }
 public struct TempRateRequest: EmptyCurrentStatusRequest {
     public static let props = statusProps(42); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }
@@ -250,5 +255,5 @@ public struct SecretMenuRequest: EmptyCurrentStatusRequest {
     public static let props = statusProps(0xBC); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }
 }
 public struct UnknownMobiOpcode110Request: EmptyCurrentStatusRequest {
-    public static let props = statusProps(110); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }
+    public static let props = statusProps(110, supportedDevices: [.mobi], minApi: .mobi_v3_5); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }
 }

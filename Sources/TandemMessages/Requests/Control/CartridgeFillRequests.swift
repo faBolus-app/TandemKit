@@ -52,7 +52,8 @@ public struct ExitFillTubingModeRequest: Message {
 public struct FillCannulaRequest: Message {
     public static let props = MessageProps(
         opCode: 0x98, size: 2, signed: true, type: .request,
-        characteristic: .control, modifiesInsulinDelivery: true, responseOpCode: 0x99)
+        characteristic: .control, modifiesInsulinDelivery: true, responseOpCode: 0x99,
+        supportedDevices: [.mobi], minApi: .mobi_v3_5) // upstream MOBI_ONLY + MOBI_API_V3_5 (D-08)
     public var cargo: [UInt8]
     public private(set) var primeSize = 0
     public init() { cargo = [] }
