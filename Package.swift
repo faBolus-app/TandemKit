@@ -5,7 +5,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "PumpX2Kit",
+    name: "TandemKit",
     platforms: [
         .iOS(.v16),
         .watchOS(.v9),
