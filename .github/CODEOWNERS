@@ -8,12 +8,12 @@
 
 # Safety-critical: pairing (JPAKE + legacy V1) and per-command HMAC signing. A wrong byte can
 # misdose insulin; everything here is byte-exact against the cliparser oracle.
-/Sources/PumpX2Auth/           @zgranowitz
+/Sources/TandemAuth/           @zgranowitz
 /Sources/CMbedTLSJPAKE/        @zgranowitz
 
 # The wire format and the Core Bluetooth central + WritePolicy delivery interlock.
-/Sources/PumpX2Messages/       @zgranowitz
-/Sources/PumpX2BLE/            @zgranowitz
+/Sources/TandemMessages/       @zgranowitz
+/Sources/TandemBLE/            @zgranowitz
 
 # The build graph + vendoring + the oracle pin (the §1.3 unsafeFlags/version-pin blocker lives here).
 /Package.swift                 @zgranowitz
