@@ -150,6 +150,32 @@ import Testing
         #expect(msg.currentIsf == 30)
     }
 
+    /// Second vector with a distinct targetBg and an insulinDuration crossing the byte-6
+    /// boundary (400 min = 0x0190, so byte 6 = 0x90 = 144 - a value that would corrupt a
+    /// single-byte targetBg read sharing that byte). Exercises the same pinned-oracle
+    /// (`vendor/pumpx2-oracle` @ dad3eea, pre-PR#102) `buildCargo` construction as the vector
+    /// above, so it confirms currentInsulinDuration/currentIsf decode independently of
+    /// currentTargetBg under the CURRENTLY PINNED oracle's byte-writing scheme.
+    ///
+    /// CAVEAT (09.8-01 Task 1 finding, see WIP-REGISTER.md): this vector does NOT settle
+    /// whether currentTargetBg's OWN offset (byte 5 vs byte 4) matches real pump wire bytes.
+    /// A genuine hardware capture cited in `gh pr diff 102 --repo jwoglom/pumpx2`
+    /// (cargoHex `7017000073002c012800`, pre-existing in upstream's own test suite before
+    /// PR#102) decodes to currentTargetBg=115 only when read from byte 4-5, not byte 5 alone
+    /// (byte[5] in that capture is 0x00). The pinned (pre-fix) oracle's `buildCargo` cannot
+    /// construct that captured-byte-for-byte layout — it always round-trips through this
+    /// repo's own (possibly-wrong) offset-5 assumption — so no `OracleRunner`-based vector can
+    /// resolve this by construction. Recorded as an ADOPTION CANDIDATE, not adopted.
+    @Test func currentActiveIdpValuesResponseParsesAcrossDurationByteBoundary() throws {
+        let packets = try OracleRunner.encode(
+            txId: 25, messageName: "CurrentActiveIdpValuesResponse", json: "[6000, 200, 400, 45]").packets
+        let msg = try #require(try parse(packets).message as? CurrentActiveIdpValuesResponse)
+        #expect(msg.currentCarbRatio == 6000)
+        #expect(msg.currentTargetBg == 200)
+        #expect(msg.currentInsulinDuration == 400)
+        #expect(msg.currentIsf == 45)
+    }
+
     @Test func globalMaxBolusSettingsResponseParses() throws {
         let packets = try OracleRunner.encode(
             txId: 26, messageName: "GlobalMaxBolusSettingsResponse", json: "[25000, 25000]").packets
