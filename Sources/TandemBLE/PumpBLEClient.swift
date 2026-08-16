@@ -89,6 +89,11 @@ public final class PumpBLEClient: NSObject {
         case writeFailed(Characteristic)
         /// A message was refused by the current `writePolicy`.
         case writeBlocked(policy: WritePolicy, opcode: UInt8)
+        /// A message was refused by the device/API send gate (D-08): the KNOWN connected pump does not
+        /// support this opcode (wrong device family, or a negotiated API below the message's `minApi`).
+        /// A refusal, not a delivery outcome — thrown BEFORE any byte is emitted, exactly like
+        /// `writeBlocked`. Only ever raised for a KNOWN-incompatible target; an unknown target fails open.
+        case unsupportedOnDevice(opcode: UInt8)
         /// The reconnect ladder hit `maxReconnectAttempts` without reaching `.ready` — surfaced alongside
         /// `State.reconnectExhausted` so a delegate that only observes `didError` still sees it.
         case reconnectLoopDetected
@@ -178,6 +183,23 @@ public final class PumpBLEClient: NSObject {
     /// pipelined), so this only ever affects how concurrent READ replies are disambiguated.
     public func setPumpFamily(_ family: PumpFamily) {
         transactions.correlationMode = (family == .tslim) ? .txIdMatch : .opcodeFIFO
+    }
+
+    /// The KNOWN connected pump model, or `nil` when unidentified. Input to the device/API send gate
+    /// (D-08); `nil` means the gate fails **open** (send, let firmware NACK), preserving today's behavior.
+    /// Reset to `nil` on every disconnect/error by `failClosed` — a fresh connection re-identifies.
+    public private(set) var connectedPumpModel: PumpModel?
+    /// The negotiated pump API version, or `nil` when not yet negotiated. Input to the device/API send
+    /// gate (D-08); `nil` fails **open**. Reset to `nil` on every disconnect/error by `failClosed`.
+    public private(set) var negotiatedApiVersion: ApiVersion?
+
+    /// Supply the identified device context for the device/API send gate (D-08). The caller owns model
+    /// classification + API negotiation (as with `setPumpFamily`); the kit never guesses. Passing `nil`
+    /// for either keeps that dimension fail-open. Must be called AFTER each (re)identification, since
+    /// `failClosed` clears both on every link change.
+    public func setDeviceContext(model: PumpModel?, apiVersion: ApiVersion?) {
+        connectedPumpModel = model
+        negotiatedApiVersion = apiVersion
     }
 
     /// Pure authorization decision (PX-02), separated from readiness/transport so it is deterministically
@@ -592,6 +614,10 @@ public final class PumpBLEClient: NSObject {
         // write policy. A relaunched/reconnected central must be re-told the pump family before txId
         // correlation resumes — a fresh connection can never inherit a prior connection's elevated mode.
         transactions.correlationMode = .opcodeFIFO
+        // D-08: clear the identified device context so a reconnected/relaunched central re-identifies
+        // before the device/API send gate can refuse anything — fail-OPEN across every link change.
+        connectedPumpModel = nil
+        negotiatedApiVersion = nil
         if resumePending { transactions.failAll(.connectionLost) }
     }
 
