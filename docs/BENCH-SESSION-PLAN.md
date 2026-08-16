@@ -68,6 +68,38 @@ this must be a measured hardware fact before the code changes.
 
 ---
 
+## Objective 4 — Confirm the `CurrentActiveIdpValuesResponse` byte-4 targetBg decode live (09.8-04; D-07)
+
+09.8-04 corrected `CurrentActiveIdpValuesResponse.currentTargetBg` from `Int(raw[5])` (which decoded
+the real capture as 0) to `Bytes.readShort(raw, 4)` — the real hardware capture `7017000073002c012800`
+(cited in `gh pr diff 102 --repo jwoglom/pumpx2`; see WIP-REGISTER "ADOPTION CANDIDATE #1") decodes to
+`currentTargetBg == 115` only at byte 4. This fix landed **capture-backed but NOT oracle-backed** — the
+pinned cliparser oracle is itself defective for this field (its `buildCargo` writes targetBg at byte 5,
+padding at byte 4; the OPPOSITE of the real wire), so no OracleRunner vector can confirm the offset by
+construction. The byte-4 offset is confirmed only on the primary pinned pump; it must be confirmed live.
+
+**Procedure**
+1. Set a distinctive, known IDP target BG on the pump (e.g. 115 mg/dL), then read
+   `CurrentActiveIdpValuesResponse` with the harness logging the raw cargo bytes.
+2. Capture the raw cargo on **BOTH pump families** — `t:slim X2` AND `Mobi` — AND across **more than one
+   t:slim software version** (the layout may be version-dependent, not only family-dependent; the older
+   `[t:slim X2 · API 2.5 · V1/16-char]` bench pump is a second version to capture). Tag every capture with
+   its `[pump family · firmware/SW version · pairing]` per PINNED.md's tagging rule.
+3. For each capture, confirm byte 4 (not byte 5) carries the set target BG, and confirm no capture shows a
+   genuine byte-5 layout.
+
+**Pass/fail (DoD)**
+- The app's decoded `currentTargetBg` equals the target set on the pump screen, on every (pump family,
+  firmware version) captured, decoding from byte 4.
+- If ANY capture shows targetBg at byte 5 (a genuine variant), the decode MUST become variant-aware keyed
+  on `(pump family, firmware version)` — a flat single-offset read is then wrong for some version. Record
+  the variant capture and open the variant-aware fix as its own reviewed PR.
+- Until this objective passes on all captured families/versions, `currentTargetBg` stays experimental-only
+  and gated (see `faBolus/docs/UNVERIFIED-GUESSES.md` entry 7) — NOT trusted for any real-insulin dosing
+  decision. Feeds that faBolus entry's "Verify" step.
+
+---
+
 ## Objective 3 — Mass/accuracy at a larger dose (WIP item 5, first half)
 
 The only delivery validated to date is 0.10 u. Confirm accuracy does not drift at a clinically
