@@ -21,7 +21,7 @@ Format per row: component · version/revision · SPDX license · source · how T
 | Component | Version | License (SPDX) | Source | Usage |
 |---|---|---|---|---|
 | pumpx2-oracle | jwoglom/pumpx2 (© 2022 James Woglom) | MIT | `vendor/pumpx2-oracle` | The `cliparser` byte-parity oracle. **Tests only** — built to a JAR and compared against; never linked into a shipped product. |
-| Mbed TLS | Mbed-TLS/mbedtls v3.6.7 | Apache-2.0 OR GPL-2.0-or-later | `vendor/mbedtls` | EC-JPAKE (secp256r1 / SHA-256) for the modern pairing handshake. Only the EC-JPAKE C sources are compiled — symlinked into `Sources/CMbedTLSJPAKE/mbedtls_lib/` (see `scripts/link-mbedtls.sh`) under a minimal config. Consumed via `PumpX2Auth`; the dual license is honored as **Apache-2.0** (see `NOTICE.md`). |
+| Mbed TLS | Mbed-TLS/mbedtls v3.6.7 | Apache-2.0 OR GPL-2.0-or-later | `vendor/mbedtls` | EC-JPAKE (secp256r1 / SHA-256) for the modern pairing handshake. Only the EC-JPAKE C sources are compiled — symlinked into `Sources/CMbedTLSJPAKE/mbedtls_lib/` (see `scripts/link-mbedtls.sh`) under a minimal config. Consumed via `TandemAuth`; the dual license is honored as **Apache-2.0** (see `NOTICE.md`). |
 
 ## Notes on provenance
 

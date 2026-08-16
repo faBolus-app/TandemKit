@@ -3,15 +3,15 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>com.zgranowitz.PumpX2BenchHarness</string>
+    <string>com.zgranowitz.TandemBenchHarness</string>
     <key>CFBundleName</key>
-    <string>PumpX2BenchHarness</string>
+    <string>TandemBenchHarness</string>
     <key>CFBundleExecutable</key>
-    <string>PumpX2BenchHarness</string>
+    <string>TandemBenchHarness</string>
     <!-- Required or macOS aborts (TCC privacy violation) the instant CoreBluetooth is touched. -->
     <key>NSBluetoothAlwaysUsageDescription</key>
-    <string>PumpX2BenchHarness connects to a Tandem insulin pump over Bluetooth Low Energy to run read-only bench diagnostics.</string>
+    <string>TandemBenchHarness connects to a Tandem insulin pump over Bluetooth Low Energy to run read-only bench diagnostics.</string>
     <key>NSBluetoothPeripheralUsageDescription</key>
-    <string>PumpX2BenchHarness connects to a Tandem insulin pump over Bluetooth Low Energy to run read-only bench diagnostics.</string>
+    <string>TandemBenchHarness connects to a Tandem insulin pump over Bluetooth Low Energy to run read-only bench diagnostics.</string>
 </dict>
 </plist>

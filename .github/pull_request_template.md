@@ -38,4 +38,4 @@ BRANCHES.md.
 ## Hardware
 
 - [ ] Compile-only vs hardware-tested noted. The BLE path is validated on hardware through the
-      `PumpX2BenchHarness` executable, **not** `swift test` (see PINNED.md).
+      `TandemBenchHarness` executable, **not** `swift test` (see PINNED.md).

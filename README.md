@@ -22,10 +22,10 @@ Garmin remotes build on.
 
 | Target | Purpose |
 | --- | --- |
-| `PumpX2Messages` | Message framing, opcodes, request/response models, packetization. Portable, no platform deps. |
-| `PumpX2Auth` | Pairing handshake (legacy CentralChallenge + modern JPAKE) and per-command HMAC signing. **Safety-critical.** |
-| `PumpX2BLE` | Core Bluetooth central: scan / connect / bond / discover / notify. Platform-agnostic (iOS + watchOS). |
-| `PumpX2BenchHarness` | Executable bench/oracle CLI: connect → status → saline bolus → cancel. |
+| `TandemMessages` | Message framing, opcodes, request/response models, packetization. Portable, no platform deps. |
+| `TandemAuth` | Pairing handshake (legacy CentralChallenge + modern JPAKE) and per-command HMAC signing. **Safety-critical.** |
+| `TandemBLE` | Core Bluetooth central: scan / connect / bond / discover / notify. Platform-agnostic (iOS + watchOS). |
+| `TandemBenchHarness` | Executable bench/oracle CLI: connect → status → saline bolus → cancel. |
 
 ## Use it in your project
 
@@ -36,14 +36,14 @@ import the products you need:
 // Package.swift
 .package(url: "https://github.com/faBolus-app/TandemKit.git", from: "0.1.0")
 // then, per target:
-.product(name: "PumpX2Messages", package: "TandemKit"),  // message framing + models
-.product(name: "PumpX2Auth", package: "TandemKit"),      // pairing (JPAKE/legacy) + HMAC signing
-.product(name: "PumpX2BLE", package: "TandemKit"),       // Core Bluetooth transport
+.product(name: "TandemMessages", package: "TandemKit"),  // message framing + models
+.product(name: "TandemAuth", package: "TandemKit"),      // pairing (JPAKE/legacy) + HMAC signing
+.product(name: "TandemBLE", package: "TandemKit"),       // Core Bluetooth transport
 ```
 
 Typical entry points: `PumpBLEClient` (scan/connect/subscribe/write), `PairingCoordinator`
-(JPAKE / legacy pairing), and the request/response types in `PumpX2Messages`. For a worked example
-of driving a full connect → status → bolus → cancel flow, see `PumpX2BenchHarness` and the faBolus
+(JPAKE / legacy pairing), and the request/response types in `TandemMessages`. For a worked example
+of driving a full connect → status → bolus → cancel flow, see `TandemBenchHarness` and the faBolus
 app's `TandemBackend` (which adapts this library to faBolus's `PumpBackend` interface). To build a
 non-faBolus app on it, depend on these products directly — you don't need faBolus. Contributions go
 through PR, not fork; see [`CONTRIBUTING.md`](CONTRIBUTING.md).

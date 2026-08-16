@@ -1,4 +1,4 @@
-# PumpX2LoopKit
+# TandemLoopKit
 
 A [LoopKit](https://github.com/LoopKit/LoopKit) `PumpManager` driver for Tandem pumps, built on
 **TandemKit**. It is the *reverse direction* from the faBolus app: instead of faBolus commanding the
@@ -18,7 +18,7 @@ iOS-15 framework that pulls in HealthKit (and, transitively via `LoopKitUI`, Swi
 its own package guarantees:
 
 - `swift build` / `swift test` and the **byte-exact `cliparser` oracle-parity job** in the TandemKit
-  root never resolve, fetch, or compile LoopKit. The pure `PumpX2Messages` core stays zero-dependency
+  root never resolve, fetch, or compile LoopKit. The pure `TandemMessages` core stays zero-dependency
   and cross-platform (iOS/watchOS/macOS).
 - The driver is **iOS-only** and depends only on the zero-external-dependency `LoopKit` *library
   product* (not `LoopKitUI`), so its own dependency graph stays small.
@@ -31,9 +31,9 @@ the repo but never gates the core.
 Requires a full Xcode toolchain and an iOS SDK (LoopKit does not build for macOS).
 
 ```bash
-cd integrations/PumpX2LoopKit
-xcodebuild -scheme PumpX2LoopKit -destination 'generic/platform=iOS' build
-xcodebuild -scheme PumpX2LoopKit -destination 'generic/platform=iOS' test   # or a booted simulator
+cd integrations/TandemLoopKit
+xcodebuild -scheme TandemLoopKit -destination 'generic/platform=iOS' build
+xcodebuild -scheme TandemLoopKit -destination 'generic/platform=iOS' test   # or a booted simulator
 ```
 
 `swift build` on a macOS host will **not** work — LoopKit declares `platforms: [.iOS("15.0")]` only.

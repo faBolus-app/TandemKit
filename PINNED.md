@@ -26,7 +26,7 @@ vendor changes.
 | S/W Part Number | `1017490 000` |
 | Pairing type | **6-digit JPAKE** (firmware ≫ v7.7) |
 
-**Implication:** pairing uses the modern EC-JPAKE handshake (`PumpX2Auth.JpakeAuth`, mbedTLS
+**Implication:** pairing uses the modern EC-JPAKE handshake (`TandemAuth.JpakeAuth`, mbedTLS
 secp256r1/SHA-256).
 
 ## Spare bench pump — legacy V1 (pre-v7.7), 16-char pairing (added 2026-08-07)
@@ -52,7 +52,7 @@ this needed now exists (`PairingAuth.createV1`, `LegacyPairingCoordinator`, op-1
 > are firmware-scoped; an untagged entry is ambiguous now that two firmware families are on the bench.
 > The 2026-07-18 entries below all refer to the **primary** pump `[t:slim X2 · CIQ+ 7.10.2 · JPAKE]`.
 
-- **2026-07-18 — read-only monitor PASSED on hardware.** `swift run PumpX2BenchHarness monitor`
+- **2026-07-18 — read-only monitor PASSED on hardware.** `swift run TandemBenchHarness monitor`
   against this pump: BLE scan → connect → discover, **6-digit JPAKE pairing succeeded**
   (signing key derived), and status reads parsed correctly. Insulin-remaining (70 u) and
   battery (35%) matched the pump exactly; all state-changing writes stayed blocked (read-only
@@ -79,7 +79,7 @@ this needed now exists (`PairingAuth.createV1`, `LegacyPairingCoordinator`, op-1
 > The 2026-08-07 entries below refer to the **spare legacy** pump
 > `[t:slim X2 · API 2.5 · V1/16-char]` (no cartridge, no CGM).
 
-- **2026-08-07 — 🎯 legacy V1 (16-char) pairing PASSED on hardware.** `PumpX2BenchHarness monitor`
+- **2026-08-07 — 🎯 legacy V1 (16-char) pairing PASSED on hardware.** `TandemBenchHarness monitor`
   (read-only, no cartridge, no CGM) against the spare older pump: BLE scan → connect → **legacy V1
   CentralChallenge→PumpChallenge pairing succeeded** (16-byte signing key derived = the pairing
   code's UTF-8 bytes) and status reads parsed. First validation of the `LegacyPairingCoordinator`
@@ -116,7 +116,7 @@ this needed now exists (`PairingAuth.createV1`, `LegacyPairingCoordinator`, op-1
   which would prove V1 signing works for writes; and the **"Mobi-only" write probes** (ChangeTimeDate /
   temp-basal / SetModes) that the owner wants to empirically test on a t:slim.
 - **2026-08-07 — COMPREHENSIVE probe (reads + signed writes, NO delivery)** `[t:slim X2 · API 2.5 ·
-  V1/16-char]` — `swift run PumpX2BenchHarness probe`. Log: `bench-runs/2026-08-07-*-legacyv1-probe.log`.
+  V1/16-char]` — `swift run TandemBenchHarness probe`. Log: `bench-runs/2026-08-07-*-legacyv1-probe.log`.
   - **Signing:** `signingTimestamp == currentTime` (586953966) ✓ — the signed-write timestamp rule holds on V1.
   - **Read sweep — ALL parse:** profileStatus (8B), globalMaxBolus (4B), basalLimit (8B), **controlIQInfoV1
     `closedLoopEnabled=true`** (Control-IQ IS on this pump), homeScreenMirror (9B), activeIDP (10B),
@@ -166,7 +166,7 @@ this needed now exists (`PairingAuth.createV1`, `LegacyPairingCoordinator`, op-1
   `NSBluetoothAlwaysUsageDescription`, so macOS **TCC-aborts (SIGABRT)** at `startScan()` before any
   pairing (crash report `swiftpm-testing-helper-2026-08-07-094726.ips`). All prior "exit 0" runs of
   that suite only hit the no-hardware skip path. **Hardware validation must go through the
-  `PumpX2BenchHarness` executable** (Info.plist with the Bluetooth usage string embedded via
+  `TandemBenchHarness` executable** (Info.plist with the Bluetooth usage string embedded via
   `-sectcreate __TEXT __info_plist`), run from an **interactive GUI Terminal** (the agent/CI shell
   can't be granted Bluetooth). The runbook/handback instruction to validate via `swift test` is wrong
   for the BLE path. For the repo-owning session: either convert the hardware harness to an
