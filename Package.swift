@@ -1,26 +1,26 @@
 // swift-tools-version: 6.0
-// PumpX2Kit — Swift port of the jwoglom/pumpx2 Tandem pump protocol.
+// TandemKit — Swift port of the jwoglom/pumpx2 Tandem pump protocol.
 // Independent, open-source project in development for experimental use; not FDA-cleared.
 // Not affiliated with, endorsed by, or a product of Tandem Diabetes Care or Dexcom.
 import PackageDescription
 
 let package = Package(
-    name: "PumpX2Kit",
+    name: "TandemKit",
     platforms: [
         .iOS(.v16),
         .watchOS(.v9),
         .macOS(.v13), // for command-line tests + the harness
     ],
     products: [
-        .library(name: "PumpX2Messages", targets: ["PumpX2Messages"]),
-        .library(name: "PumpX2Auth", targets: ["PumpX2Auth"]),
-        .library(name: "PumpX2BLE", targets: ["PumpX2BLE"]),
-        .executable(name: "PumpX2BenchHarness", targets: ["PumpX2BenchHarness"]),
+        .library(name: "TandemMessages", targets: ["TandemMessages"]),
+        .library(name: "TandemAuth", targets: ["TandemAuth"]),
+        .library(name: "TandemBLE", targets: ["TandemBLE"]),
+        .executable(name: "TandemBenchHarness", targets: ["TandemBenchHarness"]),
     ],
     targets: [
         // Portable protocol: framing, opcodes, message models, packetization.
         // No platform dependencies — compiles everywhere.
-        .target(name: "PumpX2Messages"),
+        .target(name: "TandemMessages"),
 
         // Vendored mbedTLS EC-JPAKE (secp256r1/SHA-256), pinned submodule at
         // vendor/mbedtls (v3.6.7, Apache-2.0). The needed mbedTLS .c files are symlinked into
@@ -36,7 +36,7 @@ let package = Package(
                 .headerSearchPath("../../vendor/mbedtls/library"),
                 // D3 (§1.3 version-pin): `.define` instead of `.unsafeFlags(["-D…"])`. SwiftPM forbids
                 // `.unsafeFlags` in any target reached by a URL+version dependency, which is exactly what
-                // blocked pinning PumpX2Kit by version. `.define(_, to:)` emits the identical
+                // blocked pinning TandemKit by version. `.define(_, to:)` emits the identical
                 // `-DMBEDTLS_CONFIG_FILE="mbedtls_config_min.h"` (quotes retained for the `#include`), so
                 // the minimal-config selection is byte-for-byte unchanged. The header-search paths stay —
                 // they resolve inside the package root (vendor/mbedtls is a submodule SwiftPM fetches).
@@ -46,7 +46,7 @@ let package = Package(
 
         // Pairing handshake (legacy CentralChallenge + modern JPAKE) and per-command
         // HMAC signing. Depends on Messages for message shapes and byte helpers.
-        .target(name: "PumpX2Auth", dependencies: ["PumpX2Messages", "CMbedTLSJPAKE"]),
+        .target(name: "TandemAuth", dependencies: ["TandemMessages", "CMbedTLSJPAKE"]),
         // (CMbedTLSJPAKE compiles the vendored mbedTLS EC-JPAKE sources; see above.)
 
         // Core Bluetooth central transport. Platform-agnostic (iOS + watchOS): imports
@@ -56,14 +56,14 @@ let package = Package(
         // delegates hop via `MainActor.assumeIsolated` and `@preconcurrency import CoreBluetooth`
         // lets CB-typed callback params cross into the main-actor closures.
         .target(
-            name: "PumpX2BLE",
-            dependencies: ["PumpX2Messages", "PumpX2Auth"]
+            name: "TandemBLE",
+            dependencies: ["TandemMessages", "TandemAuth"]
         ),
 
         // Oracle/test CLI: connect → status → bolus → cancel.
         .executableTarget(
-            name: "PumpX2BenchHarness",
-            dependencies: ["PumpX2Messages", "PumpX2Auth", "PumpX2BLE"],
+            name: "TandemBenchHarness",
+            dependencies: ["TandemMessages", "TandemAuth", "TandemBLE"],
             // Not a SwiftPM resource — it's embedded into the binary via the linker flag below.
             exclude: ["Info.plist"],
             // Embed an Info.plist carrying NSBluetoothAlwaysUsageDescription into the executable's
@@ -76,25 +76,25 @@ let package = Package(
                     "-Xlinker", "-sectcreate",
                     "-Xlinker", "__TEXT",
                     "-Xlinker", "__info_plist",
-                    "-Xlinker", "Sources/PumpX2BenchHarness/Info.plist",
+                    "-Xlinker", "Sources/TandemBenchHarness/Info.plist",
                 ])
             ]
         ),
 
-        // Tests. The oracle (cliparser) tests live in PumpX2MessagesTests.
-        .testTarget(name: "PumpX2MessagesTests", dependencies: ["PumpX2Messages"]),
-        .testTarget(name: "PumpX2AuthTests", dependencies: ["PumpX2Auth"]),
-        .testTarget(name: "PumpX2BLETests", dependencies: ["PumpX2BLE"]),
+        // Tests. The oracle (cliparser) tests live in TandemMessagesTests.
+        .testTarget(name: "TandemMessagesTests", dependencies: ["TandemMessages"]),
+        .testTarget(name: "TandemAuthTests", dependencies: ["TandemAuth"]),
+        .testTarget(name: "TandemBLETests", dependencies: ["TandemBLE"]),
 
         // Tier-1 hardware bench harness (LOCAL / manual-only, never in public CI). The whole
         // suite is GATED on a real pump + env being present (`HardwareGate.connected`), mirroring
         // the oracle gate `@Suite(.enabled(if: OracleRunner.isAvailable))` — with no pump it SKIPS
         // (stays green), it never fails. Drives the real `PumpBLEClient` behind the two delivery
         // walls (WritePolicy default `.readOnly`; Packetize `actionsAffectingInsulinDeliveryEnabled`).
-        // Run: `swift test --filter PumpX2HardwareTests`.
+        // Run: `swift test --filter TandemHardwareTests`.
         .testTarget(
-            name: "PumpX2HardwareTests",
-            dependencies: ["PumpX2Messages", "PumpX2Auth", "PumpX2BLE"]
+            name: "TandemHardwareTests",
+            dependencies: ["TandemMessages", "TandemAuth", "TandemBLE"]
         ),
     ]
 )

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run the PumpX2Kit test suite from the Command Line Tools (CLT), without full Xcode.
+# Run the TandemKit test suite from the Command Line Tools (CLT), without full Xcode.
 #
 # CONVENIENCE, NOT A NECESSITY. Full Xcode IS installed on the dev machine and in CI
 # (`.github/workflows/ci.yml` runs plain `swift test`), so this wrapper is not required — it is the

@@ -15,7 +15,7 @@ pass/fail and independently loggable back into `PINNED.md`'s Validation log.
   it and treat parity results as firmware-specific.
 - Cartridge filled with **saline**. Confirm on the pump's own screens / t:connect after every step —
   the pump is the source of truth, not the app.
-- `swift run PumpX2BenchHarness` with `PUMPX2_DELIVER_SALINE=1` (the only flag that unblocks writes; it
+- `swift run TandemBenchHarness` with `PUMPX2_DELIVER_SALINE=1` (the only flag that unblocks writes; it
   is off in every CI job — see WIP register item 9).
 - Byte-parity to the cliparser oracle is expected to hold throughout; a divergence is itself a finding.
 

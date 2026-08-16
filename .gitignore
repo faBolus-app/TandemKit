@@ -1,6 +1,6 @@
 # Swift / SPM
 .build/
-# xcodebuild SYMROOT output when PumpX2Kit is built as a dependency (e.g. for a watchOS host)
+# xcodebuild SYMROOT output when TandemKit is built as a dependency (e.g. for a watchOS host)
 build/
 .swiftpm/
 *.xcodeproj

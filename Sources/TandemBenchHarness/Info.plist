@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>com.zgranowitz.TandemBenchHarness</string>
+    <key>CFBundleName</key>
+    <string>TandemBenchHarness</string>
+    <key>CFBundleExecutable</key>
+    <string>TandemBenchHarness</string>
+    <!-- Required or macOS aborts (TCC privacy violation) the instant CoreBluetooth is touched. -->
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>TandemBenchHarness connects to a Tandem insulin pump over Bluetooth Low Energy to run read-only bench diagnostics.</string>
+    <key>NSBluetoothPeripheralUsageDescription</key>
+    <string>TandemBenchHarness connects to a Tandem insulin pump over Bluetooth Low Energy to run read-only bench diagnostics.</string>
+</dict>
+</plist>

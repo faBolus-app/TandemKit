@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to PumpX2Kit are documented here.
+All notable changes to TandemKit are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -19,14 +19,14 @@ target) and `deprecated/*` (an immovable pre-round-3 snapshot — **not** a supp
   `LegacyPairingCoordinator`, op-17/op-19 response parsers, and `PairingAuth.detectType` /
   `LiveSession.beginPairing()` auto-selecting the legacy CentralChallenge→PumpChallenge handshake vs
   the modern 6-digit EC-JPAKE scheme from the pairing code (#8).
-- **Legacy-V1 hardware harness** and bench-validated results (#9): `PumpX2BenchHarness` V1 wiring,
+- **Legacy-V1 hardware harness** and bench-validated results (#9): `TandemBenchHarness` V1 wiring,
   `PumpFirmwareProfile` capture (API version + pump SW + auth scheme), and the 26-byte CONTROL-variant
   `ErrorResponse` (op-77). Validated on a spare t:slim X2 (API 2.5): legacy V1 pairing, a read sweep,
   txId echo, and signed `BolusPermission` acceptance — logged in [`PINNED.md`](PINNED.md).
 
 ### Notes
 - `safe-baseline/2026-08-04` advanced to the P12 cold-launch retrieve-before-scan commit (#6).
-- Consuming PumpX2Kit as a URL+version SwiftPM dependency remains **UNMET** by owner decision — see
+- Consuming TandemKit as a URL+version SwiftPM dependency remains **UNMET** by owner decision — see
   the §1.3 versioning contract in [`CONTRIBUTING.md`](CONTRIBUTING.md) / [`AGENTS.md`](AGENTS.md) and
   WIP item 8. faBolus continues to consume this package by local path.
 
@@ -39,12 +39,12 @@ target) and `deprecated/*` (an immovable pre-round-3 snapshot — **not** a supp
 ## [0.1.0] — 2026-07-18
 
 ### Added
-- **Milestone 1** — the end-to-end pump protocol stack: `PumpX2Messages` (framing, opcodes,
-  request/response models, packetization), `PumpX2Auth` (6-digit EC-JPAKE pairing + per-command HMAC
-  signing, via vendored Mbed TLS), and `PumpX2BLE` (Core Bluetooth central). A signed **0.10 u saline
+- **Milestone 1** — the end-to-end pump protocol stack: `TandemMessages` (framing, opcodes,
+  request/response models, packetization), `TandemAuth` (6-digit EC-JPAKE pairing + per-command HMAC
+  signing, via vendored Mbed TLS), and `TandemBLE` (Core Bluetooth central). A signed **0.10 u saline
   bolus was delivered on real hardware**, with every outgoing message byte-exact against the
   jwoglom/pumpx2 `cliparser` oracle. (Annotated tag `v0.1.0`.)
 
-[Unreleased]: https://github.com/faBolus-app/PumpX2Kit/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/faBolus-app/PumpX2Kit/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/faBolus-app/PumpX2Kit/releases/tag/v0.1.0
+[Unreleased]: https://github.com/faBolus-app/TandemKit/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/faBolus-app/TandemKit/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/faBolus-app/TandemKit/releases/tag/v0.1.0

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-coverage_report.py — diff upstream jwoglom/pumpX2 messages against what PumpX2Kit has ported.
+coverage_report.py — diff upstream jwoglom/pumpX2 messages against what TandemKit has ported.
 
 Keeps the (large) parity program honest: prints, per category (request/response/historyLog), which
-upstream message classes are NOT yet present as Swift types in PumpX2Kit. "Present" = a
+upstream message classes are NOT yet present as Swift types in TandemKit. "Present" = a
 `struct <Name>` (for messages) or the class name appearing in a HistoryLogParser registration.
 
 Usage:
@@ -37,7 +37,7 @@ def java_classes(subdir, exclude_subdirs=()):
 
 
 def swift_symbols():
-    """All `struct <Name>` declared anywhere in PumpX2Kit Sources."""
+    """All `struct <Name>` declared anywhere in TandemKit Sources."""
     names = set()
     src = os.path.join(KIT, "Sources")
     pat = re.compile(r"\bstruct\s+([A-Za-z0-9_]+)")

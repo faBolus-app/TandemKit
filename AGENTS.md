@@ -1,4 +1,4 @@
-# AGENTS.md — PumpX2Kit
+# AGENTS.md — TandemKit
 
 Working notes for AI coding agents (and humans). Companion to [`llms.txt`](llms.txt) (the map). This is
 a Swift port of the Tandem t:slim X2 / Mobi Bluetooth protocol (from jwoglom's pumpX2), consumed by the
@@ -16,18 +16,18 @@ oracle-parity test.** Doing otherwise can silently misdose.
 - Golden regeneration + tooling live under `scripts/` / `tools/` where present.
 
 ## Layout (SPM products)
-- `Sources/PumpX2Messages/` — messages + framing. `Requests/…`, `Responses/Responses.swift`,
+- `Sources/TandemMessages/` — messages + framing. `Requests/…`, `Responses/Responses.swift`,
   `Core/MessageProps.swift` (per-message `opCode`, `size`, `signed`, `characteristic`,
   `modifiesInsulinDelivery`, `responseOpCode`). `ResponseParser` dispatches on **(characteristic,
   opCode)** — opcodes are NOT globally unique.
-- `Sources/PumpX2Auth/` — `PairingCoordinator` (client JPAKE state machine), `JpakeAuth`/
+- `Sources/TandemAuth/` — `PairingCoordinator` (client JPAKE state machine), `JpakeAuth`/
   `EcJpakeContext` (EC-JPAKE via vendored mbedTLS), `Crypto` (HMAC/HKDF).
-- `Sources/PumpX2BLE/` — `PumpBLEClient` (CoreBluetooth central; state restoration; the `WritePolicy`
+- `Sources/TandemBLE/` — `PumpBLEClient` (CoreBluetooth central; state restoration; the `WritePolicy`
   interlock `.readOnly`/`.allowNonDelivery`/`.allowDelivery`).
-- `Tests/PumpX2MessagesTests/` — parity tests (`OracleParityTests`, `ResponseParityTests`, …).
+- `Tests/TandemMessagesTests/` — parity tests (`OracleParityTests`, `ResponseParityTests`, …).
 
 ## How to add a message
-1. Add the request/response under `Sources/PumpX2Messages/…` with correct `MessageProps` (opcode, size,
+1. Add the request/response under `Sources/TandemMessages/…` with correct `MessageProps` (opcode, size,
    `signed`, `characteristic`, `modifiesInsulinDelivery`, `responseOpCode`).
 2. Register the response type in `ResponseParser`.
 3. Add a **byte-exact test from an oracle vector** (encode → compare cargo; parse → compare fields).
@@ -54,11 +54,11 @@ not restate or fork those rules.
 `url:` + version, with a committed `Package.resolved` and a documented local-path override for dev.
 
 **Status: version-pinning is DECLARED UNMET (owner decision, 2026-08-07).** faBolus consumes this
-package by local path (`faBolus/project.yml` `path: ../PumpX2Kit`), not a URL+version pin, and that
+package by local path (`faBolus/project.yml` `path: ../TandemKit`), not a URL+version pin, and that
 stays. SwiftPM refuses a URL+version dependency on a package with `.unsafeFlags`, and there are **two**
 sites: `Package.swift:37` (the `-DMBEDTLS_CONFIG_FILE` flag on `CMbedTLSJPAKE` — the real blocker,
-because it is in the closure of the `PumpX2Auth`/`PumpX2BLE` products faBolus consumes) and
-`Package.swift:69` (a harness linker flag on the `PumpX2BenchHarness` executable, which faBolus does
+because it is in the closure of the `TandemAuth`/`TandemBLE` products faBolus consumes) and
+`Package.swift:69` (a harness linker flag on the `TandemBenchHarness` executable, which faBolus does
 not consume). Removing them requires vendoring the Mbed TLS config/headers in-tree and rehoming the 13
 committed `CMbedTLSJPAKE/mbedtls_lib/*.c` symlinks — a build-graph/vendoring refactor gated only by the
 oracle byte-parity + hardware-pairing tests. **That refactor is deferred and is NOT attempted here.**

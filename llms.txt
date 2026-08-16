@@ -1,4 +1,4 @@
-# PumpX2Kit — LLM guide
+# TandemKit — LLM guide
 
 > A Swift port of the Tandem t:slim X2 / Mobi Bluetooth protocol (from jwoglom's pumpX2), used by the
 > faBolus app: it builds pump messages, runs the JPAKE pairing/auth, and speaks BLE — verified
@@ -8,12 +8,12 @@
 This file is intentionally thin (a map, not a manual) to avoid drifting out of sync. For the real
 working guidance, use:
 
-- **`AGENTS.md`** — canonical working guide: SPM layout (`PumpX2Messages` / `PumpX2Auth` / `PumpX2BLE`),
+- **`AGENTS.md`** — canonical working guide: SPM layout (`TandemMessages` / `TandemAuth` / `TandemBLE`),
   the oracle-parity golden rule, how to add or change a message, and running the tests
   (`./scripts/test.sh`, needs **JDK 21**).
 - **`README.md`** — the modules, using it as a SwiftPM dependency, and the cliparser oracle workflow.
 - **`PINNED.md`** — the pinned upstream commit + the on-hardware validation log.
-- Tests live in `Tests/PumpX2MessagesTests/` (`OracleParityTests`, `ResponseParityTests`,
+- Tests live in `Tests/TandemMessagesTests/` (`OracleParityTests`, `ResponseParityTests`,
   `InitiateBolusExtendedTests`, …).
 
 The one rule that matters most: **never change message bytes without a matching oracle-parity test**,

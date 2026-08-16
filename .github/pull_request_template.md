@@ -1,5 +1,5 @@
 <!--
-PumpX2Kit is the Tandem pump protocol library (messages / auth / BLE). A wrong byte can misdose
+TandemKit is the Tandem pump protocol library (messages / auth / BLE). A wrong byte can misdose
 insulin. Delivery disposition is NO-GO for real insulin; keep it that way unless changing it is this
 PR's explicit subject. Fill in what applies; delete what doesn't. See CONTRIBUTING.md, AGENTS.md, and
 BRANCHES.md.
@@ -38,4 +38,4 @@ BRANCHES.md.
 ## Hardware
 
 - [ ] Compile-only vs hardware-tested noted. The BLE path is validated on hardware through the
-      `PumpX2BenchHarness` executable, **not** `swift test` (see PINNED.md).
+      `TandemBenchHarness` executable, **not** `swift test` (see PINNED.md).

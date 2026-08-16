@@ -1,0 +1,8 @@
+# Build artifacts — Package.resolved IS committed (reproducible LoopKit + SwiftCharts pins).
+# The repo-root .gitignore ignores Package.resolved globally; re-include it for this package.
+!Package.resolved
+.build/
+.build-xc/
+.swiftpm/
+DerivedData/
+*.xcresult
