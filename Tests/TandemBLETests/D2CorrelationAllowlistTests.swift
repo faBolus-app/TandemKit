@@ -135,4 +135,60 @@ import TandemMessages
         #expect(controlKeyCount == 1,
                 "expected exactly one op-77-on-.control key; a second would shadow it (found \(controlKeyCount))")
     }
+
+    // MARK: - Task 3: fail-closed reset + 6-call-site routing guard (D-04 #2 + PLUS, D-05)
+
+    /// Extract a function body by balanced braces, starting at `signature`. Returns the substring between
+    /// the opening `{` that follows the signature and its matching `}` — i.e. exactly what the function
+    /// executes, no sibling code.
+    private static func functionBody(in source: String, signature: String) -> String? {
+        guard let sigRange = source.range(of: signature) else { return nil }
+        guard let openBrace = source[sigRange.upperBound...].firstIndex(of: "{") else { return nil }
+        var depth = 0
+        var i = openBrace
+        while i < source.endIndex {
+            let ch = source[i]
+            if ch == "{" { depth += 1 }
+            else if ch == "}" {
+                depth -= 1
+                if depth == 0 {
+                    let bodyStart = source.index(after: openBrace)
+                    return String(source[bodyStart..<i])
+                }
+            }
+            i = source.index(after: i)
+        }
+        return nil
+    }
+
+    /// D-04 #2 + PLUS / D-05 (fail-closed reset + routing): `failClosed` is `private` and its only runtime
+    /// trigger is the CoreBluetooth disconnect delegate (needs a real peripheral), so there is no unit-test
+    /// seam that reaches it. Use the project's established #filePath-rooted source-scan guard instead — no
+    /// runtime seam is added to the dose-path Source (out of scope, D-01). This guard confirms:
+    ///   (a) the `failClosed` body resets `transactions.correlationMode` back to the FIFO reference mode, so
+    ///       a reconnect can NEVER inherit an elevated `.txIdMatch` (T-09.11-03 stale-state spoofing);
+    ///   (b) EXACTLY six `failClosed(resumePending:)` call sites exist — the six disconnect / failed-connect
+    ///       / restore / error edges all route through the single fail-closed teardown (D-04 PLUS).
+    /// Note: `failClosed` ALSO clears the device context (`connectedPumpModel`/`negotiatedApiVersion`) per
+    /// 09.8-05/D-08; that line coexists with the correlation-mode reset but is out of THIS audit's scope
+    /// (D-01) and is not asserted here. Fault-injection-verified RED-then-green (see 09.11-01-SUMMARY.md).
+    @Test func failClosedResetsModeAndAllSixEdgesRouteThroughIt() throws {
+        guard let source = Self.readSource("Sources/TandemBLE/PumpBLEClient.swift") else {
+            Issue.record("could not resolve PumpBLEClient.swift from #filePath=\(#filePath)")
+            return
+        }
+        // (a) The reset lives INSIDE the failClosed body (not merely somewhere in the file).
+        guard let body = Self.functionBody(in: source, signature: "private func failClosed(resumePending: Bool)") else {
+            Issue.record("could not extract the failClosed(resumePending:) function body by balanced braces")
+            return
+        }
+        #expect(body.contains("transactions.correlationMode = .opcodeFIFO"),
+                "failClosed must reset correlationMode to the FIFO reference mode on every link change (D-04 #2)")
+        // (b) Exactly six CALL SITES (true/false variants; the definition uses `Bool` and is not counted).
+        let trueCalls = source.components(separatedBy: "failClosed(resumePending: true)").count - 1
+        let falseCalls = source.components(separatedBy: "failClosed(resumePending: false)").count - 1
+        let callSites = trueCalls + falseCalls
+        #expect(callSites == 6,
+                "expected exactly six disconnect/restore/error edges routing through failClosed (found \(callSites))")
+    }
 }
