@@ -108,4 +108,65 @@ import TandemMessages
         #expect(coord.ingest(frame: [0x03, 4, 0xAA], on: .control) == false)
         #expect(coord.inFlightCount == 0)
     }
+
+    // MARK: - D-04 #7: shared-txId defined behavior (pathological)
+
+    /// Two pending transactions sharing the SAME (characteristic, txId) — the pathological case a writer
+    /// wrap or bug could theoretically produce — has DEFINED, graceful behavior: ingesting one matching
+    /// frame resolves exactly the OLDEST match (`pending.firstIndex(where:)` scans registration order), the
+    /// second stays in flight, and `inFlightCount` goes 2 → 1. Never both resolve off a single frame.
+    ///
+    /// This collision requires 256 concurrent same-characteristic transactions sharing one wrapped `UInt8`
+    /// txId and is unreachable in practice (delivery is serialized to one in-flight command; reads are a
+    /// handful at a time — see `PumpTransactionCoordinatorTests.txIdMatchDistinguishesWraparoundTxIds`).
+    /// This test pins the graceful degradation of an otherwise-impossible input, not a supported/relied-upon
+    /// mode.
+    @MainActor @Test func txIdMatchSharedTxIdResolvesOldestOnlyDefinedBehavior() async throws {
+        let coord = PumpTransactionCoordinator()
+        coord.correlationMode = .txIdMatch
+        // Both awaiting the SAME opCode + SAME txId on the SAME characteristic — the collision case.
+        let older = await launchAndRegister(coord, on: .control, opCode: 0x03, txId: 6)
+        let newer = await launchAndRegister(coord, on: .control, opCode: 0x03, txId: 6)
+        #expect(coord.inFlightCount == 2)
+
+        // One matching frame arrives — must resolve exactly one (the oldest), never both.
+        #expect(coord.ingest(frame: [0x03, 6, 0xAA], on: .control))
+        let olderFrame = try await older.value
+        #expect(olderFrame == [0x03, 6, 0xAA])
+        #expect(coord.inFlightCount == 1)   // the newer one is still in flight, not double-resolved
+
+        // The still-pending sibling resolves on a subsequent frame of its own.
+        #expect(coord.ingest(frame: [0x03, 6, 0xBB], on: .control))
+        let newerFrame = try await newer.value
+        #expect(newerFrame == [0x03, 6, 0xBB])
+        #expect(coord.inFlightCount == 0)
+    }
+
+    // MARK: - D-04 #8: cancellation-only-own under .txIdMatch
+
+    /// Re-assert `cancellingOneTaskResolvesOnlyThatTransaction` (proven under `.opcodeFIFO` in
+    /// `PumpTransactionCoordinatorTests`) under `.txIdMatch`: cancelling ONE awaiting task resolves ONLY
+    /// that transaction (`.cancelled`); a sibling with a distinct txId keeps awaiting and still resolves
+    /// normally on its own reply — no leaked continuation, no misfire.
+    @MainActor @Test func txIdMatchCancellationResolvesOnlyOwningTransaction() async throws {
+        let coord = PumpTransactionCoordinator()
+        coord.correlationMode = .txIdMatch
+        let a = await launchAndRegister(coord, on: .control, opCode: 0x03, txId: 1)
+        let b = await launchAndRegister(coord, on: .control, opCode: 0x05, txId: 2)
+        #expect(coord.inFlightCount == 2)
+
+        a.cancel()
+        let aResult = await a.result
+        if case .success = aResult { Issue.record("expected the cancelled task to throw") }
+        if case .failure(let error) = aResult {
+            #expect(error as? PumpTransactionCoordinator.TxError == .cancelled)
+        }
+        #expect(coord.inFlightCount == 1)   // only a was resolved
+
+        // b is unaffected — its own reply still resolves it normally.
+        #expect(coord.ingest(frame: [0x05, 2, 0], on: .control))
+        let bFrame = try await b.value
+        #expect(bFrame.first == 0x05)
+        #expect(coord.inFlightCount == 0)
+    }
 }
