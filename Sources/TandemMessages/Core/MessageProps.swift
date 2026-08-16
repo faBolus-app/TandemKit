@@ -43,6 +43,17 @@ public struct MessageProps: Sendable {
     /// Explicit risk override; `nil` derives a fail-safe default (see `operationRisk`).
     private let riskOverride: OperationRisk?
 
+    /// Device/API send-gating metadata (workstream B / D-08), the Swift mirror of upstream's
+    /// `@MessageProps` `supportedDevices=` / `minApi=` tags. Both are **additive-optional** and default
+    /// to `nil` = *unrestricted*, so every existing `MessageProps(...)` call site stays source-compatible
+    /// and every currently-sent message stays sendable byte-for-byte — the change is behavior-preserving
+    /// for supported combos. The values are consumed only by `isSupported(onModel:apiVersion:)`.
+
+    /// The pump families this message is legal to send to; `nil` = every device (unrestricted).
+    public let supportedDevices: [PumpModel]?
+    /// The minimum negotiated API version this message requires; `nil` = no floor (unrestricted).
+    public let minApi: ApiVersion?
+
     public init(
         opCode: UInt8,
         size: Int = 0,
@@ -54,7 +65,9 @@ public struct MessageProps: Sendable {
         modifiesInsulinDelivery: Bool = false,
         risk: OperationRisk? = nil,
         responseOpCode: UInt8? = nil,
-        requestOpCode: UInt8? = nil
+        requestOpCode: UInt8? = nil,
+        supportedDevices: [PumpModel]? = nil,
+        minApi: ApiVersion? = nil
     ) {
         self.opCode = opCode
         self.size = size
@@ -67,6 +80,33 @@ public struct MessageProps: Sendable {
         self.riskOverride = risk
         self.responseOpCode = responseOpCode
         self.requestOpCode = requestOpCode
+        self.supportedDevices = supportedDevices
+        self.minApi = minApi
+    }
+
+    /// Pure device/API compatibility predicate (workstream B / D-08). Decides whether this message is
+    /// legal to send to a target pump identified by `model` + `apiVersion`. **Fail-open by design:**
+    ///
+    /// - Returns `true` when the message declares no restriction (`supportedDevices == nil` and
+    ///   `minApi == nil`) — an un-annotated message stays universally sendable.
+    /// - Returns `true` when the target `model` and/or `apiVersion` is unknown (`nil`) — preserves
+    ///   today's *send-then-firmware-NACK* behavior; only a KNOWN target can trip a declared restriction.
+    /// - Returns `false` **only** when the message DECLARES an incompatibility AND a KNOWN target
+    ///   violates it: a known `model` not in `supportedDevices`, or a known `apiVersion` below `minApi`.
+    ///
+    /// This is deliberately transport-free so the send gate's decision is deterministically testable and
+    /// cannot be masked by connection state (mirrors `PumpBLEClient.authorizationError`).
+    public func isSupported(onModel model: PumpModel?, apiVersion: ApiVersion?) -> Bool {
+        // Unrestricted message ⇒ always supported (behavior-preserving for every un-annotated message).
+        if supportedDevices == nil && minApi == nil { return true }
+        // Fail-open on ANY unknown target dimension: only a FULLY-known (model, apiVersion) target can
+        // trip a declared restriction, preserving today's send-then-firmware-NACK behavior.
+        guard let model, let apiVersion else { return true }
+        // Device restriction violated: the KNOWN model is not in the declared device set.
+        if let supportedDevices, !supportedDevices.contains(model) { return false }
+        // API floor violated: the KNOWN negotiated version is below the declared minimum.
+        if let minApi, apiVersion < minApi { return false }
+        return true
     }
 
     /// The operation-risk class (audit P-01). Uses the explicit `risk:` when a message declares one;
