@@ -82,7 +82,7 @@ public final class PumpBLEConnection: TandemPumpConnection {
         switch e {
         case .notReady: return .notReady
         case .writeBlocked: return .writeBlocked
-        case .unknownCharacteristic, .writeFailed: return .connectionLost
+        case .unknownCharacteristic, .writeFailed, .reconnectLoopDetected: return .connectionLost
         }
     }
 }
