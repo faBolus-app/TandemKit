@@ -59,4 +59,80 @@ import TandemMessages
         client.setPumpFamily(.unknown)
         #expect(client.transactions.correlationMode == .opcodeFIFO)
     }
+
+    // MARK: - Source resolution (mirrors the project's #filePath-rooted source-scan guard pattern)
+
+    /// Resolve the TandemKit repo root by walking up from `#filePath`
+    /// (`<root>/Tests/TandemBLETests/D2CorrelationAllowlistTests.swift`) until the audited coordinator
+    /// source exists. The guards below scan the REAL Sources file so a future edit that alters the
+    /// default path trips the test — no Sources mutation, read-only.
+    private static func repoRootURL() -> URL? {
+        let fm = FileManager.default
+        var probe = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        for _ in 0..<8 {
+            let candidate = probe.appendingPathComponent("Sources/TandemBLE/PumpTransactionCoordinator.swift")
+            if fm.fileExists(atPath: candidate.path) { return probe }
+            probe = probe.deletingLastPathComponent()
+        }
+        return nil
+    }
+
+    private static func readSource(_ relativePath: String) -> String? {
+        guard let root = repoRootURL() else { return nil }
+        return try? String(contentsOf: root.appendingPathComponent(relativePath), encoding: .utf8)
+    }
+
+    // MARK: - Task 2: FIFO byte-identity + parser-additivity structural guards (D-03, D-08)
+
+    /// D-03 (REVERT-trigger gate): the `.opcodeFIFO` branch of `ingest`'s correlation switch must contain
+    /// the EXACT pre-D2 FIFO predicate, and `.txIdMatch` must be a SEPARATE case. The `d128eed` diff only
+    /// wrapped the pre-D2 unconditional predicate in a `switch` and added a distinct `.txIdMatch` branch
+    /// alongside it — the default path is byte-identical. A future edit that alters the `.opcodeFIFO`
+    /// predicate (the blast radius is every faBolus dose-path read, which always runs FIFO) turns this RED;
+    /// that RED is a REVERT-TRIGGER finding, not a step to "fix" the source.
+    @Test func opcodeFifoBranchIsByteIdenticalStructuralGuard() throws {
+        guard let source = Self.readSource("Sources/TandemBLE/PumpTransactionCoordinator.swift") else {
+            Issue.record("could not resolve PumpTransactionCoordinator.swift from #filePath=\(#filePath)")
+            return
+        }
+        // The two branches are distinct switch cases (default path is separated from txId correlation).
+        #expect(source.contains("case .opcodeFIFO:"),
+                "the .opcodeFIFO switch case must exist as the default correlation path")
+        #expect(source.contains("case .txIdMatch:"),
+                "the .txIdMatch branch must be a SEPARATE case, never merged into the default path")
+        // The EXACT pre-D2 FIFO predicate (byte-for-byte from d128eed's parent 0816a12).
+        let fifoPredicate = "$0.expectedCharacteristic == characteristic && $0.expectedOpCode == opCode"
+        #expect(source.contains(fifoPredicate),
+                "the .opcodeFIFO predicate diverged from the pre-D2 FIFO match — REVERT-TRIGGER (D-03)")
+        // The predicate must sit inside the .opcodeFIFO case region, ahead of the .txIdMatch case.
+        if let fifoCaseStart = source.range(of: "case .opcodeFIFO:"),
+           let txCaseStart = source.range(of: "case .txIdMatch:") {
+            let fifoRegion = source[fifoCaseStart.upperBound..<txCaseStart.lowerBound]
+            #expect(fifoRegion.contains(fifoPredicate),
+                    "the FIFO predicate must live in the .opcodeFIFO case region, not the txId branch")
+        } else {
+            Issue.record("could not bound the .opcodeFIFO case region between the two switch cases")
+        }
+    }
+
+    /// D-08: the op-77 error reply is registered on `.control` as a purely ADDITIVE new (characteristic,
+    /// opcode) key. The pre-existing `.currentStatus` op-77 registration (`ErrorResponse.props.characteristic
+    /// == .currentStatus`) is untouched, and there is EXACTLY ONE `.control` override for it (no prior
+    /// `.control` op-77 key is shadowed) — so no wire bytes changed and the parity suites stay green.
+    @Test func op77ControlKeyIsAdditiveNotShadowingStructuralGuard() throws {
+        guard let source = Self.readSource("Sources/TandemMessages/Responses/ResponseParser.swift") else {
+            Issue.record("could not resolve ResponseParser.swift from #filePath=\(#filePath)")
+            return
+        }
+        // The untouched currentStatus variant (ErrorResponse.props default characteristic is .currentStatus).
+        #expect(source.contains("add(ErrorResponse.self)"),
+                "the pre-existing .currentStatus op-77 registration must remain untouched (D-08)")
+        // The additive control-variant key.
+        #expect(source.contains("add(ErrorResponse.self, on: .control)"),
+                "the additive op-77-on-.control registration must be present (D-08)")
+        // Exactly one .control override for ErrorResponse — no shadowing / no duplicate key.
+        let controlKeyCount = source.components(separatedBy: "add(ErrorResponse.self, on: .control)").count - 1
+        #expect(controlKeyCount == 1,
+                "expected exactly one op-77-on-.control key; a second would shadow it (found \(controlKeyCount))")
+    }
 }
