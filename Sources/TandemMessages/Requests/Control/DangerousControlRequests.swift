@@ -15,7 +15,7 @@ public struct ActivateShelfModeRequest: Message {
 
 /// Disconnects the pump BLE session (opcode 0xBE → 0xBF). Empty cargo. Dangerous.
 public struct DisconnectPumpRequest: Message {
-    public static let props = MessageProps(opCode: 0xBE, size: 0, signed: true, type: .request, characteristic: .control, risk: .destructive, responseOpCode: 0xBF)
+    public static let props = MessageProps(opCode: 0xBE, size: 0, signed: true, type: .request, characteristic: .control, risk: .destructive, responseOpCode: 0xBF, minApi: .mobi_v3_5)
     public var cargo: [UInt8]
     public init() { cargo = [] }
     public mutating func parse(_ raw: [UInt8]) { cargo = [] }
@@ -54,7 +54,7 @@ public struct UserInteractionRequest: Message {
 
 /// Preflight for a data stream (opcode 0x82 → 0x83). Cargo: streamType + LE uint16 length + hmac.
 public struct StreamDataPreflightRequest: Message {
-    public static let props = MessageProps(opCode: 0x82, size: 3, signed: true, type: .request, characteristic: .control, responseOpCode: 0x83)
+    public static let props = MessageProps(opCode: 0x82, size: 3, signed: true, type: .request, characteristic: .control, responseOpCode: 0x83, minApi: .future)
     public var cargo: [UInt8]
     public private(set) var streamType = 0, length = 0
     public init() { cargo = [] }

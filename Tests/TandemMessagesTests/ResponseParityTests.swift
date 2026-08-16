@@ -138,6 +138,12 @@ import Testing
         #expect(msg.presentIdpIds == [4, 7])
     }
 
+    /// targetBg is DEFERRED to `ResponseDirectTests.currentActiveIdpValuesCaptureTargetBgAtByte4`.
+    /// The pinned cliparser oracle is DEFECTIVE for this field: its `buildCargo` writes targetBg at
+    /// byte 5 with byte 4 = padding, so once the decode was corrected to the capture-backed
+    /// `Bytes.readShort(raw, 4)` (09.8-04) this oracle vector can no longer validate targetBg by
+    /// construction (it would decode the oracle's byte-5 write as targetBg<<8). carbRatio /
+    /// insulinDuration / ISF are unaffected by the offset fix and are still validated here.
     @Test func currentActiveIdpValuesResponseParses() throws {
         // [carbRatio(1000-inc), targetBg, insulinDuration(min), isf]
         let packets = try OracleRunner.encode(
@@ -145,9 +151,37 @@ import Testing
         let msg = try #require(try parse(packets).message as? CurrentActiveIdpValuesResponse)
         #expect(msg.currentCarbRatio == 10000)
         #expect(msg.carbRatioGramsPerUnit == 10.0)
-        #expect(msg.currentTargetBg == 110)
+        // targetBg NOT asserted here — defective oracle encoding; see ResponseDirectTests capture test.
         #expect(msg.currentInsulinDuration == 300)
         #expect(msg.currentIsf == 30)
+    }
+
+    /// Second vector with a distinct targetBg and an insulinDuration crossing the byte-6
+    /// boundary (400 min = 0x0190, so byte 6 = 0x90 = 144 - a value that would corrupt a
+    /// single-byte targetBg read sharing that byte). Exercises the same pinned-oracle
+    /// (`vendor/pumpx2-oracle` @ dad3eea, pre-PR#102) `buildCargo` construction as the vector
+    /// above, so it confirms currentInsulinDuration/currentIsf decode independently of
+    /// currentTargetBg under the CURRENTLY PINNED oracle's byte-writing scheme.
+    ///
+    /// CAVEAT (09.8-01 Task 1 finding, RESOLVED in 09.8-04; see WIP-REGISTER.md + OWNER-DECISIONS.md
+    /// 2026-08-16): this vector does NOT settle currentTargetBg's OWN offset. A genuine hardware
+    /// capture cited in `gh pr diff 102 --repo jwoglom/pumpx2` (cargoHex `7017000073002c012800`,
+    /// pre-existing in upstream's own test suite before PR#102) decodes to currentTargetBg=115 only
+    /// when read from byte 4 (byte[5] in that capture is 0x00). The pinned oracle's `buildCargo`
+    /// writes targetBg at byte 5 (padding at byte 4), the OPPOSITE of the real wire — so no
+    /// `OracleRunner`-based vector can resolve targetBg by construction. 09.8-04 corrected the read
+    /// to `Bytes.readShort(raw, 4)` and pins targetBg via the capture-based
+    /// `ResponseDirectTests.currentActiveIdpValuesCaptureTargetBgAtByte4`. targetBg is therefore
+    /// DEFERRED here (this vector still validates carbRatio / insulinDuration / ISF, which are
+    /// unaffected by the offset fix — insulinDuration@6 crosses the byte-6 boundary as before).
+    @Test func currentActiveIdpValuesResponseParsesAcrossDurationByteBoundary() throws {
+        let packets = try OracleRunner.encode(
+            txId: 25, messageName: "CurrentActiveIdpValuesResponse", json: "[6000, 200, 400, 45]").packets
+        let msg = try #require(try parse(packets).message as? CurrentActiveIdpValuesResponse)
+        #expect(msg.currentCarbRatio == 6000)
+        // targetBg NOT asserted here — defective oracle encoding; see ResponseDirectTests capture test.
+        #expect(msg.currentInsulinDuration == 400)
+        #expect(msg.currentIsf == 45)
     }
 
     @Test func globalMaxBolusSettingsResponseParses() throws {

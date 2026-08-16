@@ -32,8 +32,9 @@ BRANCHES.md.
 ## Versioning / consumers (§1.3)
 
 - [ ] Public API change → semver note in the PR **and** a `CHANGELOG.md` entry
-- [ ] Aware the URL+version pin contract is **declared UNMET** (`.unsafeFlags`; WIP item 8) — did not
-      silently change how consumers depend on this package
+- [ ] Aware the pin contract is **MET via a `url:`+`revision:` pin** (not an annotated tag+version,
+      due to `.unsafeFlags`; WIP item 8 tracks the deferred refactor that would allow tag+version) —
+      did not silently change how consumers depend on this package
 
 ## Hardware
 

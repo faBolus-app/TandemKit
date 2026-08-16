@@ -89,6 +89,11 @@ public final class PumpBLEClient: NSObject {
         case writeFailed(Characteristic)
         /// A message was refused by the current `writePolicy`.
         case writeBlocked(policy: WritePolicy, opcode: UInt8)
+        /// A message was refused by the device/API send gate (D-08): the KNOWN connected pump does not
+        /// support this opcode (wrong device family, or a negotiated API below the message's `minApi`).
+        /// A refusal, not a delivery outcome — thrown BEFORE any byte is emitted, exactly like
+        /// `writeBlocked`. Only ever raised for a KNOWN-incompatible target; an unknown target fails open.
+        case unsupportedOnDevice(opcode: UInt8)
         /// The reconnect ladder hit `maxReconnectAttempts` without reaching `.ready` — surfaced alongside
         /// `State.reconnectExhausted` so a delegate that only observes `didError` still sees it.
         case reconnectLoopDetected
@@ -180,6 +185,23 @@ public final class PumpBLEClient: NSObject {
         transactions.correlationMode = (family == .tslim) ? .txIdMatch : .opcodeFIFO
     }
 
+    /// The KNOWN connected pump model, or `nil` when unidentified. Input to the device/API send gate
+    /// (D-08); `nil` means the gate fails **open** (send, let firmware NACK), preserving today's behavior.
+    /// Reset to `nil` on every disconnect/error by `failClosed` — a fresh connection re-identifies.
+    public private(set) var connectedPumpModel: PumpModel?
+    /// The negotiated pump API version, or `nil` when not yet negotiated. Input to the device/API send
+    /// gate (D-08); `nil` fails **open**. Reset to `nil` on every disconnect/error by `failClosed`.
+    public private(set) var negotiatedApiVersion: ApiVersion?
+
+    /// Supply the identified device context for the device/API send gate (D-08). The caller owns model
+    /// classification + API negotiation (as with `setPumpFamily`); the kit never guesses. Passing `nil`
+    /// for either keeps that dimension fail-open. Must be called AFTER each (re)identification, since
+    /// `failClosed` clears both on every link change.
+    public func setDeviceContext(model: PumpModel?, apiVersion: ApiVersion?) {
+        connectedPumpModel = model
+        negotiatedApiVersion = apiVersion
+    }
+
     /// Pure authorization decision (PX-02), separated from readiness/transport so it is deterministically
     /// testable and cannot be masked by `.notReady`. Returns the exact `.writeBlocked` error a policy
     /// would raise for `message`, or `nil` if the policy permits it. `send()` consults this first.
@@ -187,6 +209,19 @@ public final class PumpBLEClient: NSObject {
         writePolicy.permits(message.operationRisk)
             ? nil
             : .writeBlocked(policy: writePolicy, opcode: message.opCode)
+    }
+
+    /// Pure device/API send-gate decision (D-08), separated from readiness/transport so it is
+    /// deterministically testable and cannot be masked by `.notReady`. Returns `.unsupportedOnDevice`
+    /// when the KNOWN connected pump does not support `message` (wrong family, or a negotiated API below
+    /// the message's `minApi`), or `nil` when it is supported. **Fails open** on an unknown model/api:
+    /// `MessageProps.isSupported` returns `true` for any nil target dimension, so an unidentified pump
+    /// never gates a send — today's send-then-firmware-NACK behavior is preserved. `send()` consults this
+    /// AFTER `authorizationError` (the write-policy interlock stays the first line of defense).
+    public func deviceSupportError(for message: Message) -> ClientError? {
+        message.props.isSupported(onModel: connectedPumpModel, apiVersion: negotiatedApiVersion)
+            ? nil
+            : .unsupportedOnDevice(opcode: message.opCode)
     }
 
     /// Owns in-flight request/response correlation, deadlines, and fail-closed completion (PX-08).
@@ -530,6 +565,12 @@ public final class PumpBLEClient: NSObject {
         // `.notReady`. `.readOnly` blocks any control/signed/delivery; `.allowNonDelivery` now blocks
         // destructive too (PX-03); `.allowBenignControl` permits only benign ops.
         if let authError = authorizationError(for: message) { throw authError }
+        // Device/API send gate (D-08): refuse — do NOT emit — a message the KNOWN connected pump does not
+        // support (wrong family or a negotiated API below the message's minApi). Checked BEFORE readiness
+        // so a KNOWN-incompatible send can't be masked by `.notReady`; fail-OPEN on an unknown target
+        // (nil model/api ⇒ isSupported == true ⇒ proceed exactly as today). Lives here, above the
+        // coordinator — PumpTransactionCoordinator is untouched (D-05).
+        if let deviceError = deviceSupportError(for: message) { throw deviceError }
         guard state == .ready, let peripheral,
               let cbChar = characteristics[message.characteristic] else {
             throw ClientError.notReady
@@ -592,6 +633,10 @@ public final class PumpBLEClient: NSObject {
         // write policy. A relaunched/reconnected central must be re-told the pump family before txId
         // correlation resumes — a fresh connection can never inherit a prior connection's elevated mode.
         transactions.correlationMode = .opcodeFIFO
+        // D-08: clear the identified device context so a reconnected/relaunched central re-identifies
+        // before the device/API send gate can refuse anything — fail-OPEN across every link change.
+        connectedPumpModel = nil
+        negotiatedApiVersion = nil
         if resumePending { transactions.failAll(.connectionLost) }
     }
 

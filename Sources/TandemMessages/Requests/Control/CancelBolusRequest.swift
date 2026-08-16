@@ -9,7 +9,8 @@ public struct CancelBolusRequest: Message {
         signed: true,
         type: .request,
         characteristic: .control,
-        responseOpCode: 0xA1        // CancelBolusResponse
+        responseOpCode: 0xA1,       // CancelBolusResponse
+        minApi: .v2_5               // upstream API_V2_5 (D-08)
     )
 
     public var cargo: [UInt8]

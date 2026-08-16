@@ -39,17 +39,20 @@ lockstep (§1.3). See the local [`BRANCHES.md`](BRANCHES.md) stub. Do not restat
 version: an annotated `vX.Y.Z` tag consumed by `url:` + version, with a committed `Package.resolved`
 and a documented local-path override for development.
 
-**Status: version-pinning is DECLARED UNMET here (owner decision, 2026-08-07).** faBolus consumes this
-package by local path (`faBolus/project.yml` `path: ../TandemKit`), not a URL+version pin, and that
-remains the consumption model. SwiftPM refuses a URL+version dependency on a package that uses
-`.unsafeFlags`, and this package has **two** such sites: `Package.swift:37` (`-DMBEDTLS_CONFIG_FILE` on
-`CMbedTLSJPAKE` — the actual blocker, since it is in the closure of the `TandemAuth`/`TandemBLE`
-products faBolus consumes) and `Package.swift:69` (a harness linker flag on the `TandemBenchHarness`
-executable, which faBolus does not consume). Removing them means vendoring the Mbed TLS config/headers
-in-tree and rehoming the 13 committed `CMbedTLSJPAKE/mbedtls_lib/*.c` symlinks — a build-graph/vendoring
-refactor guarded only by the oracle byte-parity + hardware-pairing tests. **That refactor is deferred
-and is NOT attempted in this change.** This is declared unmet on purpose (not quietly satisfied by the
-local path). Tracked as WIP-REGISTER item 8.
+**Status: MET (Phase 3, pin bump `6efdd43` → current TandemKit pin `1a09dba`).** faBolus now consumes
+this package via a `url:` + `revision:` pin (`faBolus/project.yml`), with a documented
+`FABOLUS_TANDEM_LOCAL=1` local-path override for development. That is the **revision** form, not an
+annotated `vX.Y.Z` tag+version — a deliberate D-01 owner override of the tag+version approach,
+because SwiftPM refuses a URL+**version** dependency on a package that uses `.unsafeFlags`, but a
+URL+**revision** dependency is unrestricted. This package still has **two** such `.unsafeFlags`
+sites: `Package.swift:37` (`-DMBEDTLS_CONFIG_FILE` on `CMbedTLSJPAKE` — the actual blocker, since it
+is in the closure of the `TandemAuth`/`TandemBLE` products faBolus consumes) and `Package.swift:69`
+(a harness linker flag on the `TandemBenchHarness` executable, which faBolus does not consume).
+Removing them means vendoring the Mbed TLS config/headers in-tree and rehoming the 13 committed
+`CMbedTLSJPAKE/mbedtls_lib/*.c` symlinks — a build-graph/vendoring refactor guarded only by the oracle
+byte-parity + hardware-pairing tests. **That refactor remains deferred** (not required for §1.3,
+since the revision-form pin already satisfies the contract) **and is NOT attempted in this change.**
+Tracked as WIP-REGISTER item 8.
 
 ## Safety
 - The dosing/signing path (`TandemAuth`, bolus/cancel/dismiss requests) is the most safety-critical

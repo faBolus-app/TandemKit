@@ -3,10 +3,24 @@ name: Upstream drift alarm
 # Detects when jwoglom/pumpx2 changes protocol-relevant files vs. our pinned submodule
 # commit. Never auto-merges — for a dosing path, every upstream change is reviewed and
 # re-validated by hand (see README "Staying synced with upstream").
+#
+# EXTENDED (09.8-03): now also watches jwoglom/pumpx2's + jwoglom/controlx2's `dev` branches (the
+# active integration branches upstream authors merge to first) and controlx2's `main`, reports
+# drift as two branch-LINKED tiers, and surfaces every open PR on both repos every cycle as a
+# heads-up — independent of whether anything drifted. See docs/UPSTREAM-SYNC-RUNBOOK.md for the
+# triage steps, the DEV-NOT-TRUSTED rule, and the dev->main promotion rule. Cadence raised from
+# weekly to daily (observed dev velocity: 42+ commits/24h on pumpx2 dev, 09.8-01/09.8-02).
+#   - main tier: pumpx2 main + controlx2 main <-> TandemKit main <-> faBolus main
+#   - dev  tier: pumpx2 dev  + controlx2 dev  <-> TandemKit dev  <-> faBolus dev
+# The ONLY write API this workflow calls anywhere is the issue-create API below — it never opens,
+# approves, or merges a PR. Cross-repo upstream reads (git ls-remote, the public REST API for open
+# PRs) are unauthenticated — no PAT, no elevated permissions.
 
 on:
   schedule:
-    - cron: '0 13 * * 1'   # Mondays 13:00 UTC
+    # Daily 13:00 UTC. Previously weekly (Mondays only) — too slow: 09.8-01 observed pumpx2 dev
+    # move 42 commits in ~24h, which a weekly cadence would have missed entirely.
+    - cron: '0 13 * * *'
   workflow_dispatch:
 
 permissions:
@@ -21,7 +35,7 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Compare pinned commit to upstream main
+      - name: pumpx2 main — compare pinned commit to upstream main
         id: drift
         run: |
           set -euo pipefail
@@ -44,26 +58,128 @@ jobs:
             echo "changed=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Open/flag drift issue
-        if: steps.drift.outputs.changed == 'true'
+      - name: pumpx2 dev — compare pinned commit to upstream dev (in-flight, D-02a)
+        id: driftdev
+        run: |
+          set -euo pipefail
+          PINNED=$(git -C vendor/pumpx2-oracle rev-parse HEAD)
+          git -C vendor/pumpx2-oracle fetch --depth=50 origin dev
+          UPSTREAM_DEV=$(git -C vendor/pumpx2-oracle rev-parse origin/dev)
+          echo "upstream_dev=$UPSTREAM_DEV" >> "$GITHUB_OUTPUT"
+          if [ "$PINNED" = "$UPSTREAM_DEV" ]; then
+            echo "dev_changed=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          CHANGED=$(git -C vendor/pumpx2-oracle diff --name-only "$PINNED" "$UPSTREAM_DEV" -- \
+            'messages/src/main/java/com/jwoglom/pumpx2/pump/messages' \
+            'shared/src/main/java/com/jwoglom/pumpx2/shared' || true)
+          if [ -n "$CHANGED" ]; then
+            echo "dev_changed=true" >> "$GITHUB_OUTPUT"
+            { echo 'dev_files<<EOF'; echo "$CHANGED"; echo 'EOF'; } >> "$GITHUB_OUTPUT"
+          else
+            echo "dev_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: controlX2 — compare tracked SHAs (PINNED.md) to upstream main + dev
+        id: controlx2
+        run: |
+          set -euo pipefail
+          # controlX2 is a full Android app, never vendored/compiled — track it with a lightweight
+          # tracked-SHA baseline read straight out of PINNED.md's '## Upstream controlX2 watch'
+          # table instead of a git submodule pin.
+          BASELINE_DEV=$(grep -A2 'Last-reviewed dev commit' PINNED.md | grep -oE '`[0-9a-f]{7,40}`' | head -1 | tr -d '`' || true)
+          BASELINE_MAIN=$(grep -A2 'Last-reviewed main commit' PINNED.md | grep -oE '`[0-9a-f]{7,40}`' | head -1 | tr -d '`' || true)
+          UPSTREAM_DEV=$(git ls-remote https://github.com/jwoglom/controlx2 dev | cut -f1)
+          UPSTREAM_MAIN=$(git ls-remote https://github.com/jwoglom/controlx2 main | cut -f1)
+          echo "baseline_dev=${BASELINE_DEV:-unknown}" >> "$GITHUB_OUTPUT"
+          echo "baseline_main=${BASELINE_MAIN:-unknown}" >> "$GITHUB_OUTPUT"
+          echo "upstream_dev=$UPSTREAM_DEV" >> "$GITHUB_OUTPUT"
+          echo "upstream_main=$UPSTREAM_MAIN" >> "$GITHUB_OUTPUT"
+          # Fail OPEN toward more alerting: an unreadable/missing baseline reports changed=true
+          # rather than silently reporting no-drift.
+          if [ -n "$BASELINE_DEV" ] && [ "$BASELINE_DEV" = "$UPSTREAM_DEV" ]; then
+            echo "controlx2_dev_changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "controlx2_dev_changed=true" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -n "$BASELINE_MAIN" ] && [ "$BASELINE_MAIN" = "$UPSTREAM_MAIN" ]; then
+            echo "controlx2_main_changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "controlx2_main_changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Surface open PRs on both upstreams (heads-up, every cycle — D-02a)
+        # No `if:` gate on drift — this runs every cycle so in-flight PRs are always visible,
+        # even when nothing has landed on main or dev yet (D-02a: a PREVIEW superset of what
+        # eventually lands on dev, not a substitute for watching dev).
+        id: openprs
+        run: |
+          set -euo pipefail
+          fetch_prs() {
+            local owner="$1" repo="$2"
+            curl -fsSL "https://api.github.com/repos/$owner/$repo/pulls?state=open&per_page=50" \
+              | jq -r --arg tag "$owner/$repo" \
+                '.[] | "- [\($tag)#\(.number)] \(.title) (base: `\(.base.ref)`) — \(.html_url)"'
+          }
+          LINES="$(fetch_prs jwoglom pumpx2; fetch_prs jwoglom controlx2)"
+          COUNT=$(printf '%s\n' "$LINES" | grep -c '^- \[' || true)
+          echo "pr_count=$COUNT" >> "$GITHUB_OUTPUT"
+          { echo 'pr_lines<<EOF'; printf '%s\n' "$LINES"; echo 'EOF'; } >> "$GITHUB_OUTPUT"
+
+      - name: Open/flag drift issue (two branch-linked tiers + open-PR heads-up)
+        if: >-
+          steps.drift.outputs.changed == 'true' ||
+          steps.driftdev.outputs.dev_changed == 'true' ||
+          steps.controlx2.outputs.controlx2_main_changed == 'true' ||
+          steps.controlx2.outputs.controlx2_dev_changed == 'true' ||
+          steps.openprs.outputs.pr_count != '0'
         uses: actions/github-script@v7
         with:
           script: |
-            const { pinned, upstream, files } = ${{ toJSON(steps.drift.outputs) }};
-            const body = [
-              `Upstream \`jwoglom/pumpx2\` changed protocol-relevant files vs our pinned commit.`,
-              ``,
-              `- pinned: \`${pinned}\``,
-              `- upstream main: \`${upstream}\``,
-              ``,
-              `Changed files:`,
-              '```', files, '```',
-              ``,
-              `**Do not auto-merge.** Review the diff, hand-port the delta, get the oracle suite`,
-              `green, re-run validation, then bump the submodule + cut a new version.`,
+            const drift = ${{ toJSON(steps.drift.outputs) }};
+            const driftDev = ${{ toJSON(steps.driftdev.outputs) }};
+            const cx2 = ${{ toJSON(steps.controlx2.outputs) }};
+            const openPrs = ${{ toJSON(steps.openprs.outputs) }};
+
+            const mainTier = [
+              '### Main tier (pumpx2 main + controlx2 main <-> TandemKit main <-> faBolus main)',
+              '',
+              `- pumpx2 main: pinned \`${drift.pinned}\` vs upstream \`${drift.upstream}\` — ${drift.changed === 'true' ? '**CHANGED**' : 'unchanged'}`,
+              drift.changed === 'true' ? ['```', drift.files, '```'].join('\n') : '',
+              `- controlx2 main: last-reviewed \`${cx2.baseline_main}\` vs upstream \`${cx2.upstream_main}\` — ${cx2.controlx2_main_changed === 'true' ? '**CHANGED**' : 'unchanged'}`,
+            ].filter(Boolean).join('\n');
+
+            const devTier = [
+              '### Dev tier (pumpx2 dev + controlx2 dev <-> TandemKit dev <-> faBolus dev) — IN-FLIGHT, NOT YET MERGED TO MAIN',
+              '',
+              `- pumpx2 dev: pinned \`${drift.pinned}\` vs upstream dev \`${driftDev.upstream_dev}\` — ${driftDev.dev_changed === 'true' ? '**CHANGED**' : 'unchanged'}`,
+              driftDev.dev_changed === 'true' ? ['```', driftDev.dev_files, '```'].join('\n') : '',
+              `- controlx2 dev: last-reviewed \`${cx2.baseline_dev}\` vs upstream dev \`${cx2.upstream_dev}\` — ${cx2.controlx2_dev_changed === 'true' ? '**CHANGED**' : 'unchanged'}`,
+              '',
+              '**DEV-NOT-TRUSTED:** every item in this tier is a triage CANDIDATE, never adopted on sight. See docs/UPSTREAM-SYNC-RUNBOOK.md.',
+            ].filter(Boolean).join('\n');
+
+            const prSection = [
+              '### Open PRs — in-flight, not yet merged upstream — review only, do not adopt without stabilization',
+              '',
+              openPrs.pr_count === '0' ? '_none open_' : openPrs.pr_lines,
             ].join('\n');
+
+            const body = [
+              'Upstream `jwoglom/pumpx2` and/or `jwoglom/controlx2` moved vs our tracked baselines.',
+              '',
+              mainTier,
+              '',
+              devTier,
+              '',
+              prSection,
+              '',
+              '**Do not auto-merge.** This issue is informational only. Triage per',
+              'docs/UPSTREAM-SYNC-RUNBOOK.md, hand-port relevant deltas with oracle-parity tests,',
+              're-run validation, then bump the baseline (PINNED.md) only after the adoption PR merges.',
+            ].join('\n');
+
             await github.rest.issues.create({
               owner: context.repo.owner, repo: context.repo.repo,
-              title: `Upstream pumpx2 protocol drift detected`,
+              title: 'Upstream pumpx2/controlx2 drift detected',
               body,
             });

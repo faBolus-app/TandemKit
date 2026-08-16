@@ -5,7 +5,7 @@ import Foundation
 
 /// Reads why a bolus permission changed, for a given bolusId (opcode 0xA8 → 0xA9). LE uint16 cargo.
 public struct BolusPermissionChangeReasonRequest: Message {
-    public static let props = MessageProps(opCode: 0xA8, size: 2, type: .request, characteristic: .currentStatus, responseOpCode: 0xA9)
+    public static let props = MessageProps(opCode: 0xA8, size: 2, type: .request, characteristic: .currentStatus, responseOpCode: 0xA9, minApi: .future)
     public var cargo: [UInt8]
     public private(set) var bolusId = 0
     public init() { cargo = [] }
@@ -15,7 +15,7 @@ public struct BolusPermissionChangeReasonRequest: Message {
 
 /// CGM support-package status for a device type (opcode 0xC8 → 0xC9). 1-byte cargo.
 public struct CgmSupportPackageStatusRequest: Message {
-    public static let props = MessageProps(opCode: 0xC8, size: 1, type: .request, characteristic: .currentStatus, responseOpCode: 0xC9)
+    public static let props = MessageProps(opCode: 0xC8, size: 1, type: .request, characteristic: .currentStatus, responseOpCode: 0xC9, minApi: .future)
     public var cargo: [UInt8]
     public private(set) var deviceType = 0
     public init() { cargo = [] }
@@ -25,7 +25,7 @@ public struct CgmSupportPackageStatusRequest: Message {
 
 /// Common software info for an MCU type (opcode 0x8E → 0x8F). 1-byte cargo.
 public struct CommonSoftwareInfoRequest: Message {
-    public static let props = MessageProps(opCode: 0x8E, size: 1, type: .request, characteristic: .currentStatus, responseOpCode: 0x8F)
+    public static let props = MessageProps(opCode: 0x8E, size: 1, type: .request, characteristic: .currentStatus, responseOpCode: 0x8F, minApi: .future)
     public var cargo: [UInt8]
     public private(set) var mcuType = 0
     public init() { cargo = [] }
@@ -55,7 +55,7 @@ public struct StreamDataReadinessRequest: Message {
 
 /// Pump feature set v2, selected by a feature index (opcode 0xA0 → 0xA1). 1-byte cargo (default 2).
 public struct PumpFeaturesV2Request: Message {
-    public static let props = MessageProps(opCode: 0xA0, size: 1, type: .request, characteristic: .currentStatus, responseOpCode: 0xA1)
+    public static let props = MessageProps(opCode: 0xA0, size: 1, type: .request, characteristic: .currentStatus, responseOpCode: 0xA1, minApi: .v2_5)
     public var cargo: [UInt8]
     public private(set) var input = 2
     public init() { self.init(input: 2) }
@@ -65,7 +65,7 @@ public struct PumpFeaturesV2Request: Message {
 
 /// Active auto-adjustment-mode bits (opcode 0x92 → 0x93). Upstream's default cargo is EMPTY.
 public struct ActiveAamBitsRequest: Message {
-    public static let props = MessageProps(opCode: 0x92, size: 1, type: .request, characteristic: .currentStatus, responseOpCode: 0x93)
+    public static let props = MessageProps(opCode: 0x92, size: 1, type: .request, characteristic: .currentStatus, responseOpCode: 0x93, minApi: .mobi_v3_5)
     public var cargo: [UInt8]
     public init() { cargo = [] }
     public mutating func parse(_ raw: [UInt8]) { cargo = raw }

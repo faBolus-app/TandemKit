@@ -745,18 +745,36 @@ public struct ProfileStatusResponse: ResponseMessage {
 }
 
 /// Currently-active IDP parameter values for the active time segment.
-/// `response/currentStatus/CurrentActiveIdpValuesResponse` (op 0x97, 10B). carbRatio uint32@0
-/// (1000-increments), targetBg byte@5, insulinDuration uint16@6 (min), ISF uint16@8.
+/// `response/currentStatus/CurrentActiveIdpValuesResponse` (op 0x97, 10B). Capture-backed layout:
+/// carbRatio uint32@0 (1000-increments), targetBg uint16@4 (mg/dL), insulinDuration uint16@6 (min),
+/// ISF uint16@8. Byte 5 is the targetBg high byte (0 for real-world targets < 256).
 ///
-/// Byte 6 is shared: upstream reads targetBg as `readShort(raw,5)` and insulinDuration as
-/// `readShort(raw,6)`, which overlap and corrupt targetBg once insulinDuration ≥ 256. targetBg is
-/// always < 256, so we read only its low byte (raw[5]); that keeps both fields correct regardless
-/// of duration (upstream's overlapping short read is effectively a bug for durations ≥ 256 min).
+/// Ground truth is the real hardware capture `7017000073002c012800` (present in upstream's own
+/// test suite, cited in `gh pr diff 102 --repo jwoglom/pumpx2`): bytes `73 00` at offset 4 decode
+/// to targetBg == 115 (a sane IDP target). Independently re-derived by Codex (OWNER-DECISIONS.md
+/// 2026-08-16, HIGH confidence for the observed 10-byte layout). The earlier byte@5 read decoded
+/// this capture as 0 (garbage); the old overlapping upstream `readShort(raw,5)` decoded it as 11264.
+/// `Bytes.readShort(raw, 4)` (not `Int(raw[4])`) is used so a future targetBg > 255 is not truncated.
+///
+/// NO CLEAN ORACLE BACKING (owner-acknowledged, deliberate): the pinned cliparser oracle is itself
+/// DEFECTIVE for this field — its `buildCargo` writes targetBg at byte 5 with byte 4 = padding and
+/// its parse reads `readShort(raw,5)` (asserting 11264) — so no OracleRunner vector can validate the
+/// byte-4 offset by construction. The capture-based `ResponseDirectTests.currentActiveIdpValuesCaptureTargetBgAtByte4`
+/// is the substitute ground truth; the oracle-derived parity vectors defer targetBg to that test.
+///
+/// Unverified against a pump capture: the byte-4 offset is confirmed only on the primary pinned
+/// pump (`t:slim X2 · Control-IQ+ 7.10.2`). An unverified decompiled-Mobi rationale reads targetBg
+/// at byte 5, and the wire layout may differ by t:slim SOFTWARE VERSION as well as by pump family
+/// (t:slim vs Mobi). Byte-4 trust is GATED — not asserted — until confirmed live per (pump family,
+/// firmware version) at the Phase-11 saline bench (see TandemKit/docs/BENCH-SESSION-PLAN.md and
+/// faBolus docs/UNVERIFIED-GUESSES.md); if a genuine byte-5 variant is captured, decoding must
+/// become variant-aware keyed on (pump family, firmware version). Experimental-only; not cleared for
+/// real insulin until the bench confirms it.
 public struct CurrentActiveIdpValuesResponse: ResponseMessage {
     public static let props = MessageProps(opCode: 0x97, size: 10, type: .response, characteristic: .currentStatus)
     public var cargo: [UInt8]
     public private(set) var currentCarbRatio = 0            // 1000-increments (10000 = 10 g/U)
-    public private(set) var currentTargetBg = 0             // mg/dL (< 256)
+    public private(set) var currentTargetBg = 0             // mg/dL (uint16 LE @4; capture-backed, bench-gated)
     public private(set) var currentInsulinDuration = 0      // minutes
     public private(set) var currentIsf = 0                  // mg/dL per unit
     public init() { cargo = [] }
@@ -764,7 +782,7 @@ public struct CurrentActiveIdpValuesResponse: ResponseMessage {
         cargo = raw
         guard raw.count >= 10 else { return }
         currentCarbRatio = Int(Bytes.readUint32(raw, 0))
-        currentTargetBg = Int(raw[5])
+        currentTargetBg = Bytes.readShort(raw, 4)
         currentInsulinDuration = Bytes.readShort(raw, 6)
         currentIsf = Bytes.readShort(raw, 8)
     }

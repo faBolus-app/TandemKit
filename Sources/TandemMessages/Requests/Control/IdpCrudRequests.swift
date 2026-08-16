@@ -7,7 +7,7 @@ import Foundation
 
 /// Creates a new IDP with a first time-segment (opcode 0xE6 → 0xE7). 35-byte cargo. modInsulin.
 public struct CreateIDPRequest: Message {
-    public static let props = MessageProps(opCode: 0xE6, size: 35, signed: true, type: .request, characteristic: .control, modifiesInsulinDelivery: true, responseOpCode: 0xE7)
+    public static let props = MessageProps(opCode: 0xE6, size: 35, signed: true, type: .request, characteristic: .control, modifiesInsulinDelivery: true, responseOpCode: 0xE7, supportedDevices: [.mobi])
     public var cargo: [UInt8]
     public private(set) var name = ""
     public init() { cargo = [] }
@@ -33,7 +33,7 @@ public struct CreateIDPRequest: Message {
 
 /// Deletes an IDP (opcode 0xAE → 0xAF). 2-byte cargo: idpId + profileIndex. modInsulin.
 public struct DeleteIDPRequest: Message {
-    public static let props = MessageProps(opCode: 0xAE, size: 2, signed: true, type: .request, characteristic: .control, modifiesInsulinDelivery: true, responseOpCode: 0xAF)
+    public static let props = MessageProps(opCode: 0xAE, size: 2, signed: true, type: .request, characteristic: .control, modifiesInsulinDelivery: true, responseOpCode: 0xAF, supportedDevices: [.mobi])
     public var cargo: [UInt8]
     public private(set) var idpId = 0, profileIndex = 0
     public init() { cargo = [] }
@@ -50,7 +50,7 @@ public struct DeleteIDPRequest: Message {
 /// Renames an IDP (opcode 0xA8 → 0xA9). 19-byte cargo: idpId + profileIndex + 16-char name + 0.
 /// modInsulin.
 public struct RenameIDPRequest: Message {
-    public static let props = MessageProps(opCode: 0xA8, size: 19, signed: true, type: .request, characteristic: .control, modifiesInsulinDelivery: true, responseOpCode: 0xA9)
+    public static let props = MessageProps(opCode: 0xA8, size: 19, signed: true, type: .request, characteristic: .control, modifiesInsulinDelivery: true, responseOpCode: 0xA9, supportedDevices: [.mobi])
     public var cargo: [UInt8]
     public private(set) var idpId = 0, profileIndex = 0
     public private(set) var profileName = ""

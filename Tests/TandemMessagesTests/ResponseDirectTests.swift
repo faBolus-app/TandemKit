@@ -283,6 +283,37 @@ import Testing
         #expect(set.accepted && set.tempRateId == 5)
     }
 
+    /// CurrentActiveIdpValuesResponse: pin the byte-4 targetBg decode against the REAL hardware
+    /// capture `7017000073002c012800` (pre-existing in upstream's own test suite, cited in
+    /// `gh pr diff 102 --repo jwoglom/pumpx2`). This is a capture-based assertion that is
+    /// INDEPENDENT of the pinned cliparser oracle, which is itself DEFECTIVE for this field
+    /// (its `buildCargo` writes targetBg at byte 5 with byte 4 = padding, and its parse reads
+    /// `readShort(raw,5)` asserting 11264 for the old overlapping layout). The real pump wire
+    /// carries targetBg at byte 4 (0x73 = 115), byte 5 = 0x00 — so no OracleRunner-constructed
+    /// vector can validate the correct offset by construction; this capture is the substitute
+    /// ground truth (owner-acknowledged deviation from the phase's no-unbacked-change rule,
+    /// OWNER-DECISIONS.md 2026-08-16 + independent Codex confirmation).
+    ///
+    /// Cargo bytes: 70 17 00 00 | 73 | 00 | 2c 01 | 28 00
+    ///   carbRatio uint32@0 = 0x00001770 = 6000; targetBg uint16LE@4 = 0x0073 = 115;
+    ///   insulinDuration uint16LE@6 = 0x012c = 300; ISF uint16LE@8 = 0x0028 = 40.
+    /// Against the pre-fix `Int(raw[5])` read this FAILS (targetBg decodes as 0).
+    @Test func currentActiveIdpValuesCaptureTargetBgAtByte4() {
+        func hex(_ s: String) -> [UInt8] {
+            var out: [UInt8] = []; var i = s.startIndex
+            while i < s.endIndex { let j = s.index(i, offsetBy: 2)
+                out.append(UInt8(s[i..<j], radix: 16)!); i = j }
+            return out
+        }
+        let cargo = hex("7017000073002c012800")
+        #expect(cargo.count == 10)
+        let m = CurrentActiveIdpValuesResponse(cargo: cargo)
+        #expect(m.currentTargetBg == 115)          // byte-4 fix; pre-fix Int(raw[5]) == 0 (RED)
+        #expect(m.currentInsulinDuration == 300)    // regression guard (byte 6-7, unaffected)
+        #expect(m.currentIsf == 40)                 // regression guard (byte 8-9, unaffected)
+        #expect(m.currentCarbRatio == 6000)         // regression guard (byte 0-3, unaffected)
+    }
+
     /// EGV V2 parses a 9-byte cargo (Control-IQ+ firmware appends a trailing byte); a VALID
     /// status (1) with an in-range reading is displayable.
     @Test func egvV2NineByteCargo() {
