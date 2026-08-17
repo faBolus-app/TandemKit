@@ -1173,6 +1173,18 @@ public struct LastBolusStatusV2Response: ResponseMessage {
 /// way controlX2 does. `response/currentStatus/BolusCalcDataSnapshotResponse` (opcode 115).
 /// `carbRatio` (uint32) and `isf`/`correctionFactor` (mg/dL per unit) + `targetBg` drive the
 /// carb-entry bolus feature.
+///
+/// `maxBolusHourlyTotal`@20 / `maxBolusEventsExceeded`@24 / `maxIobEventsExceeded`@25 are
+/// ADDITIVE (WIP-REGISTER.md Adoption Candidate #4, dose-path-adjacent, HIGH priority) — oracle
+/// offsets confirmed against the vendored `vendor/pumpx2-oracle` Java source
+/// (`BolusCalcDataSnapshotResponse.java:72-74`: `maxBolusHourlyTotal = Bytes.readUint32(raw, 20)`,
+/// `maxBolusEventsExceeded = raw[24] != 0`, `maxIobEventsExceeded = raw[25] != 0`). Only the
+/// LAYOUT and the KNOWN-FALSE case are oracle-backed here (`ResponseDirectTests`); the `true`
+/// case for the two safety-relevant flags has never been observed in a first-party capture, so
+/// it is NOT asserted anywhere and NOT marked verified — that capture is the Phase-11 bench
+/// blocker (faBolus plan 09.15-11, D-05), not a code gap. Two further upstream fields
+/// (`isUnacked`@0, `isAutopopAllowed`@37) remain intentionally undecoded — out of this
+/// additive-only change's scope; the full 46-byte `cargo` is retained regardless.
 public struct BolusCalcDataSnapshotResponse: ResponseMessage {
     public static let props = MessageProps(opCode: 115, size: 46, type: .response, characteristic: .currentStatus)
     public var cargo: [UInt8]
@@ -1184,6 +1196,16 @@ public struct BolusCalcDataSnapshotResponse: ResponseMessage {
     public private(set) var carbEntryEnabled: Bool = false
     public private(set) var carbRatio: UInt32 = 0            // see carbRatioGramsPerUnit
     public private(set) var maxBolusAmount: Int = 0          // milliunits
+    /// The configured hourly bolus ceiling, or 0 if unconfigured. Oracle @20 (uint32).
+    public private(set) var maxBolusHourlyTotal: UInt32 = 0
+    /// true if the maximum bolus has been exceeded for the interval. Oracle @24. LAYOUT +
+    /// KNOWN-FALSE case oracle-backed only — the `true` case has never been observed
+    /// (Phase-11 bench blocker); NOT marked verified.
+    public private(set) var maxBolusEventsExceeded: Bool = false
+    /// true if the maximum iob has been reached for the interval. Oracle @25. LAYOUT +
+    /// KNOWN-FALSE case oracle-backed only — the `true` case has never been observed
+    /// (Phase-11 bench blocker); NOT marked verified.
+    public private(set) var maxIobEventsExceeded: Bool = false
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
@@ -1195,6 +1217,9 @@ public struct BolusCalcDataSnapshotResponse: ResponseMessage {
         carbEntryEnabled = raw[13] != 0
         carbRatio = Bytes.readUint32(raw, 14)
         maxBolusAmount = Bytes.readShort(raw, 18)
+        maxBolusHourlyTotal = Bytes.readUint32(raw, 20)
+        maxBolusEventsExceeded = raw[24] != 0
+        maxIobEventsExceeded = raw[25] != 0
     }
     public mutating func parse(_ raw: [UInt8]) { self = BolusCalcDataSnapshotResponse(cargo: raw) }
     /// Tandem stores carbRatio scaled ×1000 (e.g. 10 g/u → 10000). VERIFY against the pump
