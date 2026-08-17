@@ -130,9 +130,16 @@ public final class JpakeAuth {
     }
 
     /// Verifies the server's round-4 confirmation HMAC.
+    ///
+    /// Uses a constant-time comparison (`Crypto.isValidHmacSha256`, backed by CryptoKit's
+    /// `HMAC<SHA256>.isValidAuthenticationCode`) rather than Array `==` — an elementwise compare
+    /// short-circuits on the first mismatching byte, a timing side-channel on this auth-path HMAC.
+    /// Matches upstream jwoglom/pumpX2 PR #102, which fixed the Java equivalent with the
+    /// constant-time `MessageDigest.isEqual`.
     public func verifyServerRound4(serverNonce4: [UInt8], serverHashDigest: [UInt8]) throws {
-        let expected = Crypto.hmacSha256(data: serverNonce4, key: authKey)
-        guard expected == serverHashDigest else { throw JpakeAuthError.keyConfirmationFailed }
+        guard Crypto.isValidHmacSha256(mac: serverHashDigest, data: serverNonce4, key: authKey) else {
+            throw JpakeAuthError.keyConfirmationFailed
+        }
     }
 
     static func randomBytes(_ n: Int) -> [UInt8] {
