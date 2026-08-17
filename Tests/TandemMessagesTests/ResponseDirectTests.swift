@@ -5,7 +5,8 @@ import Testing
 /// constructor args) or whose real firmware cargo is longer than the base size. Offsets mirror
 /// upstream `parse()`.
 @Suite struct ResponseDirectTests {
-    /// BolusCalcDataSnapshotResponse: verify carbRatio / isf / targetBg offsets.
+    /// BolusCalcDataSnapshotResponse: verify carbRatio / isf / targetBg / maxBolusHourlyTotal
+    /// offsets.
     @Test func bolusCalcSnapshotOffsets() {
         var cargo = [UInt8](repeating: 0, count: 46)
         // targetBg (short @9) = 110
@@ -17,6 +18,8 @@ import Testing
         let cr = Bytes.toUint32(10000); for i in 0..<4 { cargo[14 + i] = cr[i] }
         // maxBolusAmount (short @18) = 25000 milliunits
         let mb = Bytes.firstTwoBytesLittleEndian(25000); cargo[18] = mb[0]; cargo[19] = mb[1]
+        // maxBolusHourlyTotal (uint32 @20) = 15000 milliunits (Candidate #4)
+        let mbht = Bytes.toUint32(15000); for i in 0..<4 { cargo[20 + i] = mbht[i] }
 
         let m = BolusCalcDataSnapshotResponse(cargo: cargo)
         #expect(m.targetBg == 110)
@@ -25,6 +28,36 @@ import Testing
         #expect(m.carbRatio == 10000)
         #expect(m.carbRatioGramsPerUnit == 10.0)
         #expect(m.maxBolusAmount == 25000)
+        #expect(m.maxBolusHourlyTotal == 15000)
+        // cargo left @24/@25 == 0 in this fixture, exercised explicitly by
+        // bolusCalcSnapshotCeilingFlagsKnownFalse below.
+        #expect(!m.maxBolusEventsExceeded)
+        #expect(!m.maxIobEventsExceeded)
+    }
+
+    /// BolusCalcDataSnapshotResponse ceiling flags (WIP-REGISTER.md Adoption Candidate #4,
+    /// dose-path-adjacent — faBolus plan 09.15-11, D-05). Oracle-backed against
+    /// `vendor/pumpx2-oracle/.../BolusCalcDataSnapshotResponse.java:72-74`:
+    /// `maxBolusHourlyTotal = Bytes.readUint32(raw, 20)`, `maxBolusEventsExceeded = raw[24] != 0`,
+    /// `maxIobEventsExceeded = raw[25] != 0`.
+    ///
+    /// This fixture asserts the LAYOUT and the KNOWN-FALSE case only — a captured frame with
+    /// both flags false decodes to `false`/`false` at the correct offsets. The `true` case is
+    /// intentionally NOT asserted anywhere in this suite: no first-party capture of a `true`
+    /// frame exists yet (the Phase-11 bench blocker), so asserting it would be marking an
+    /// unverified byte pattern as verified. Do not add a `true`-case assertion here without a
+    /// bench-captured fixture backing it.
+    @Test func bolusCalcSnapshotCeilingFlagsKnownFalse() {
+        var cargo = [UInt8](repeating: 0, count: 46)
+        // maxBolusHourlyTotal (uint32 @20) = 20000 milliunits, ceiling configured but not hit
+        let mbht = Bytes.toUint32(20000); for i in 0..<4 { cargo[20 + i] = mbht[i] }
+        cargo[24] = 0  // maxBolusEventsExceeded — known-false fixture
+        cargo[25] = 0  // maxIobEventsExceeded — known-false fixture
+
+        let m = BolusCalcDataSnapshotResponse(cargo: cargo)
+        #expect(m.maxBolusHourlyTotal == 20000)
+        #expect(!m.maxBolusEventsExceeded)
+        #expect(!m.maxIobEventsExceeded)
     }
 
     /// TempRateStatusResponse: active/id/duration (offsets mirror upstream parse; oracle has no
