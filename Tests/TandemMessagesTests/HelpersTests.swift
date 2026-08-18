@@ -60,6 +60,22 @@ import Testing
         #expect(Bytes.readString(encoded, 0, 10) == "Mobi")
     }
 
+    // Non-ASCII round-trip: the fixed readString terminates only on a NUL byte (0x00), not on
+    // the first byte >= 0x80. Every UTF-8 continuation/lead byte of these strings is >= 0x80, so
+    // the pre-fix signed-terminator (`Int8(bitPattern: raw[idx]) > 0`) truncated them at byte 0
+    // (e.g. "café" decoded as "caf"). Shape mirrors upstream jwoglom/pumpX2 PR #123's own
+    // BytesTest additions (DEV-NOT-TRUSTED reference; validated here against TandemKit's own code).
+    // NO ORACLE BACKING by construction: the vendored pumpx2-oracle Java Bytes.java (submodule pin
+    // dad3eea2, pre-PR#123) carries the identical bug, so OracleParityTests cannot cover this — this
+    // direct BytesTests case is the substitute ground truth (same posture as the 09.8-04 targetBg
+    // capture-based deviation).
+    @Test func readWriteStringDecodesNonAscii() {
+        for s in ["café", "Ünïcøde", "日本語", "aéb"] {
+            let field = Bytes.writeString(s, 32)
+            #expect(Bytes.readString(field, 0, 32) == s)
+        }
+    }
+
     @Test func combineAndSlices() {
         #expect(Bytes.combine([1, 2], [3], [4, 5]) == [1, 2, 3, 4, 5])
         #expect(Bytes.dropFirst([1, 2, 3, 4], 2) == [3, 4])
