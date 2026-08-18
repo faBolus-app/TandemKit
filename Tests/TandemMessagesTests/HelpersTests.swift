@@ -60,6 +60,36 @@ import Testing
         #expect(Bytes.readString(encoded, 0, 10) == "Mobi")
     }
 
+    // Non-ASCII round-trip: the fixed readString terminates only on a NUL byte (0x00), not on
+    // the first byte >= 0x80. Every UTF-8 continuation/lead byte of these strings is >= 0x80, so
+    // the pre-fix signed-terminator (`Int8(bitPattern: raw[idx]) > 0`) truncated them at byte 0
+    // (e.g. "café" decoded as "caf"). Shape mirrors upstream jwoglom/pumpX2 PR #123's own
+    // BytesTest additions (DEV-NOT-TRUSTED reference; validated here against TandemKit's own code).
+    // NO ORACLE BACKING by construction: the vendored pumpx2-oracle Java Bytes.java (submodule pin
+    // dad3eea2, pre-PR#123) carries the identical bug, so OracleParityTests cannot cover this — this
+    // direct BytesTests case is the substitute ground truth (same posture as the 09.8-04 targetBg
+    // capture-based deviation).
+    @Test func readWriteStringDecodesNonAscii() {
+        for s in ["café", "Ünïcøde", "日本語", "aéb"] {
+            let field = Bytes.writeString(s, 32)
+            #expect(Bytes.readString(field, 0, 32) == s)
+        }
+    }
+
+    // writeString boundary lock. The overlong-reject itself is a fail-loud `precondition` (Swift
+    // Testing has no precondition-trap assertion, and this project has no precondition-crash helper —
+    // do NOT invent one), so this case locks the *in-bound* boundary positively: the exact-fit case
+    // (encoded UTF-8 byte count == field width) must NOT false-trigger the precondition, and the
+    // byte pattern must be correct. "é" is TWO UTF-8 bytes (0xc3 0xa9), so writeString("é", 4) is
+    // the two content bytes NUL-padded to 4 — this documents that the bound is on encoded BYTES, not
+    // characters. Short-input padding (unchanged by the fix) is re-locked too.
+    @Test func writeStringExactFitBoundaryAndPad() {
+        #expect(Bytes.writeString("é", 4) == [0xc3, 0xa9, 0, 0])
+        #expect(Bytes.writeString("é", 4).count == 4)
+        #expect(Bytes.writeString("abc", 3).count == 3)   // exact-fit ASCII, no padding
+        #expect(Bytes.writeString("Mobi", 10).count == 10) // short-input NUL-pad
+    }
+
     @Test func combineAndSlices() {
         #expect(Bytes.combine([1, 2], [3], [4, 5]) == [1, 2, 3, 4, 5])
         #expect(Bytes.dropFirst([1, 2, 3, 4], 2) == [3, 4])

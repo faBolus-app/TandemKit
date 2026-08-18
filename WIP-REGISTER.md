@@ -360,3 +360,77 @@ D-05: `PumpTransactionCoordinator.swift` was not read or touched by this task.
 - **txId-wraparound owner comment: handed to Phase 09.11 as context, not acted on** (D-05 — `PumpTransactionCoordinator.swift` not read or touched anywhere in this plan).
 - **Structural parity sweep (builders/calculator/models/annotations/util/docs): mostly N/A-by-design or already-ported**, with the two new Candidates above being the only genuine gaps found; coverage counts (`391/420`, `134/136`) unchanged from 09.8-01.
 - **`git diff --stat Sources/` is empty for this entire plan.** Only `WIP-REGISTER.md` changed.
+
+---
+
+## 09.21 — codec-hardening sweep (2026-08-18, feat/09.21-codec-hardening)
+
+Adopts ADOPTION CANDIDATE #5 (09.19) as a TandemKit codec fix + completes the D-02 broader codec audit
+as a documentation ledger (the audit surface — one 164-line `Bytes.swift` `enum Bytes` + its 21 call
+sites — was fully enumerated in 09.19/09.21 research; this is a record, not open-ended discovery).
+Branch off `origin/main` `cedb690` (post-PR#20). 0 faBolus `Sources/` edits; SPM pin HELD (09.14 D-05);
+`PumpTransactionCoordinator` untouched (09.11 / 09.8 D-05).
+
+### 1. FIXED-WITH-EVIDENCE
+
+| Function | Bug | Fix | Evidence (first-party) |
+|---|---|---|---|
+| `Bytes.readString` (`Bytes.swift:101`) | Signed-byte terminator `Int8(bitPattern: raw[idx]) > 0` truncated any UTF-8 string at its first byte ≥ 0x80 (café→"caf", Ünïcøde→"", 日本語→"", aéb→"a") | Terminator → NUL-only `raw[idx] != 0` (one line; control flow, length bound, precondition all unchanged — Pitfall 4) | New `BytesTests.readWriteStringDecodesNonAscii` (RED against current code — proven first-party, D-03; GREEN after fix). Shape cross-checked against upstream PR #123 as a DEV-NOT-TRUSTED reference only. Commits: RED `cef6f80`, GREEN `ed417f3`. |
+| `Bytes.writeString` (`Bytes.swift:114`) | No overlong-reject → silently returned an oversized array (wrong-size cargo) when encoded bytes exceeded the field width | Added fail-loud `precondition(encoded.count <= length, …)` before the pad loop; NO signature change (matches the file's `readShort`/`readFloat`/`readUint32`/`readUint64` `precondition` idiom; avoids a breaking public-API/semver bump that would ripple to all 3 call sites) | New `BytesTests.writeStringExactFitBoundaryAndPad`: exact-fit `writeString("é",4)==[0xc3,0xa9,0,0]` count 4 (bound is on encoded UTF-8 BYTES, not chars) + short-pad locks. Adversarial dose-path re-run of the two `modifiesInsulinDelivery:true` sites (below). Commit `790394b`. |
+
+The two `writeString` **dose-adjacent** call sites are `modifiesInsulinDelivery: true`:
+`IdpCrudRequests.CreateIDPRequest` (name, 17-byte field) and `RenameIDPRequest` (profileName, 16-byte
+field). The fix carried the kit's dose-path review discipline (adversarial diff-minimality review,
+experimental-only, §1.4/Phase-11 framing in the `writeString` doc-comment). The third site
+(`ControlSettingsRequests.swift:103`, `writeString(txId, 6)`) is a program-generated 6-char txId — safe
+length by construction, not user-supplied.
+
+### 2. NO-CLEAN-ORACLE DEVIATION (D-05)
+
+Confirmed this session by direct read: the vendored `pumpx2-oracle` submodule (pin `dad3eea2`, `heads/main`,
+pre-PR#123) Java `Bytes.java` STILL carries the identical buggy logic — `readString` uses `(b = raw[i]) > 0`
+(signed terminator) and `writeString` has NO overlong-reject (unconditional pad-only). Worse, its
+`BytesTest.java` has ZERO string-codec coverage (tests only floats). Therefore **no `OracleParityTests`
+vector can validate either fix by construction**: an ASCII/in-bound vector would not exercise the bug, and a
+non-ASCII/overlong vector would compare the fixed Swift against the still-buggy Java and mismatch. The direct
+`BytesTests` cases (`readWriteStringDecodesNonAscii`, `writeStringExactFitBoundaryAndPad`) are the substitute
+ground truth. This is the same posture as the **09.8-04 targetBg** capture-based deviation
+(`Responses.swift:759-763` doc-comment precedent); recorded visibly in both `Bytes.swift` doc-comments and
+this ledger. **Re-check caveat:** if upstream ever merges PR #123 to `jwoglom/pumpx2` `main` and the vendored
+submodule pin is bumped past it, this deviation claim changes — re-verify the pin before any future re-run.
+
+### 3. AUDITED-CLEAN LEDGER (D-02 — affirmative, no silent skips)
+
+Every other `Bytes.*` reader/writer was compared byte-for-byte against the vendored Java this session and
+found bit-for-bit equivalent — **zero additional real bugs**. NO change was made to any of them: D-02 is a
+targeted audit-and-fix, not a rewrite, and touching correct code "for consistency" only risks a new bug
+(anti-pattern, RESEARCH.md). Each is backed by an existing regression test in `HelpersTests.swift`:
+
+| Function | Status | Existing regression test |
+|---|---|---|
+| `readShort` | clean | `readShortLittleEndian` |
+| `readFloat` / `toFloat` | clean | `floatRoundTrip` |
+| `readUint32` / `toUint32` | clean | `readWriteUint32RoundTrip`, `toUint32IsLittleEndian` |
+| `readUint64` / `toUint64` | clean | `uint64RoundTrip` |
+| `firstTwoBytesLittleEndian` / `firstByteLittleEndian` | clean | exercised via `combineAndSlices` + IDP/segment byte-lock tests (`createIdpFullByteLock` etc.) |
+| `calculateCRC16` (CRC-16 CCITT/XModem, poly 0x1021, init 0xFFFF) | clean | `crc16KnownVector` ("123456789"→[0xB1,0x29]), `crc16Deterministic` |
+| `dropFirst`/`dropLast`/`reverse`/`combine`/`empty`/`secureRandom*` | clean (slicing/util, no wire-decode risk) | `combineAndSlices` |
+
+**Call-site tiers (all 21 enumerated in RESEARCH.md):** 18 `readString` sites are decode-only /
+informational (device/version/serial/IDP-name display — Responses/HistoryLogEvents/ControlSettingsRequests),
+NONE on the dose path. 3 `writeString` sites: 1 program-generated txId (safe length) + 2
+`modifiesInsulinDelivery:true` IDP-name builders (the dose-adjacent tier fixed with review discipline above).
+
+### 4. GATING / DELIVERY
+
+- 0 faBolus `Sources/` edits; faBolus TandemKit SPM pin **HELD** (09.14 D-05 — re-pin only post-Phase-11
+  bench); `PumpTransactionCoordinator` untouched.
+- **Experimental-only.** The §1.4 promotion gate is NOT cleared by this phase; the Phase-11 saline bench
+  remains the real-insulin gate for the two `modifiesInsulinDelivery` sites.
+- Upstream **#127** (constant-time digest) = NO ACTION — already matches adopted Candidate #3 (09.8-06).
+- Upstream **#128** txId-reuse-stale-accumulator lesson routed to **09.11** (D2 txId audit), NOT here.
+- Full TandemKit suite green: baseline 301 tests / 35 suites → 303 tests / 35 suites after the two new
+  `BytesTests` cases; no `--no-verify`. PR → merge-after-green-CI is the downstream orchestration step (a
+  human merges once CI is green), not a task in this plan.
+- Commits (branch `feat/09.21-codec-hardening`): `cef6f80` (RED readString test), `ed417f3` (GREEN
+  readString fix), `790394b` (writeString fix + boundary test + doc-comment), + this ledger commit.
