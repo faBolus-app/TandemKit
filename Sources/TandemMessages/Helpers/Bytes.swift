@@ -124,9 +124,35 @@ public enum Bytes {
         return String(decoding: strBytes, as: UTF8.self)
     }
 
-    /// Encodes `input` as UTF-8, null-padded up to `length`.
+    /// Encodes `input` as UTF-8, NUL-padded up to `length`, and fails loud (`precondition`) if the
+    /// encoded byte count exceeds `length` rather than silently returning an oversized cargo.
+    ///
+    /// The overlong-reject uses `precondition` (not `throws`/`Optional`) deliberately: it matches
+    /// the invariant-violation idiom already used by `readShort`/`readFloat`/`readUint32`/`readUint64`
+    /// in this file and avoids a breaking public-API signature change that would ripple to all three
+    /// call sites and force a semver bump (CONTRIBUTING.md public-API stability). This is the intent
+    /// of upstream jwoglom/pumpX2 PR #123 (which throws `IllegalArgumentException`).
+    ///
+    /// NO CLEAN ORACLE BACKING (deliberate, D-05): the vendored pumpx2-oracle Java `Bytes.java`
+    /// (submodule pin dad3eea2, pre-PR#123) has NO overlong-reject and zero string-codec test
+    /// coverage, so no OracleParityTests vector can validate this fix by construction. The direct
+    /// `BytesTests.writeStringExactFitBoundaryAndPad` case is the substitute ground truth (same
+    /// posture as the 09.8-04 targetBg capture-based deviation).
+    ///
+    /// CALLER OBLIGATION: the bound is on encoded UTF-8 BYTES, not characters (a single character
+    /// such as "é" is two UTF-8 bytes). Callers passing user-supplied text (e.g. IDP profile names
+    /// via `CreateIDPRequest`/`RenameIDPRequest`) MUST validate the encoded length ahead of this call
+    /// and surface a friendly error — relying on this `precondition` for user input traps the process.
+    /// That validation is a future faBolus-UI phase's responsibility, not this codec's.
+    ///
+    /// DOSE-PATH framing: two of the three call sites — `IdpCrudRequests.CreateIDPRequest` (name, 17)
+    /// and `RenameIDPRequest` (profileName, 16) — are on `modifiesInsulinDelivery: true` messages.
+    /// This fix carries the kit's dose-path review discipline: experimental-only; the §1.4 promotion
+    /// gate is NOT cleared here; the Phase-11 saline bench remains the real-insulin gate.
     public static func writeString(_ input: String, _ length: Int) -> [UInt8] {
         var encoded = [UInt8](input.utf8)
+        precondition(encoded.count <= length,
+                     "writeString: encoded UTF-8 byte count \(encoded.count) exceeds field width \(length)")
         while encoded.count < length { encoded.append(0) }
         return encoded
     }
