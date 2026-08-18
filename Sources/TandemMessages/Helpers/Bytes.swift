@@ -96,13 +96,27 @@ public enum Bytes {
 
     // MARK: - Strings (null-terminated / null-padded UTF-8)
 
-    /// Reads a UTF-8 string starting at `i`, stopping at the first non-positive byte
-    /// (matching Java's `b > 0`) or after `length` bytes.
+    /// Reads a UTF-8 string starting at `i`, stopping at the first NUL byte (0x00) or after
+    /// `length` bytes.
+    ///
+    /// The terminator is NUL-only: any non-zero byte (including UTF-8 continuation/lead bytes
+    /// >= 0x80) is part of the string. The prior implementation terminated on the first
+    /// non-positive *signed* byte (`Int8(bitPattern: raw[idx]) > 0`, matching upstream's pre-fix
+    /// Java `b > 0`), which truncated any non-ASCII string at its first byte >= 0x80 (e.g. "café"
+    /// decoded as "caf"). This is the intent of upstream jwoglom/pumpX2 PR #123.
+    ///
+    /// NO CLEAN ORACLE BACKING (deliberate, D-05): the vendored pumpx2-oracle Java `Bytes.java`
+    /// (submodule pin dad3eea2, pre-PR#123) still carries the old `b > 0` terminator, so this fix
+    /// intentionally diverges from the vendored oracle and cannot be validated by OracleParityTests.
+    /// The direct `BytesTests.readWriteStringDecodesNonAscii` case is the substitute ground truth
+    /// (same posture as the 09.8-04 targetBg capture-based deviation). Re-check the submodule pin
+    /// before any future re-run: if upstream ever merges PR #123 to pumpx2 main, this divergence note
+    /// no longer applies.
     public static func readString(_ raw: [UInt8], _ i: Int, _ length: Int) -> String {
         precondition(i >= 0 && i < raw.count)
         var strBytes = [UInt8]()
         var idx = i
-        while idx < raw.count, Int8(bitPattern: raw[idx]) > 0 {
+        while idx < raw.count, raw[idx] != 0 {
             strBytes.append(raw[idx])
             if strBytes.count >= length { break }
             idx += 1
