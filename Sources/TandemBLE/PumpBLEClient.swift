@@ -345,6 +345,12 @@ public final class PumpBLEClient: NSObject {
     /// Set once `reconnectAttempts` exceeds `maxReconnectAttempts` without reaching `.ready`. While true,
     /// automatic reconnect is suspended (`startReconnectWatchdog` becomes a no-op) — see `State.reconnectExhausted`.
     private var reconnectExhausted = false
+    /// debug pump-background-disconnect (H1). Set when an UNINTENDED-drop path has issued its ONE inline
+    /// background-safe `central.connect()` (see `planUnintendedDropRecovery`), so the reconnect ladder's
+    /// FIRST tick is pure BACKOFF and does NOT stack a second concurrent connect against the still-pending
+    /// one. Cleared on any link change (`failClosed`), a successful `didConnect`, a fresh user-initiated
+    /// connect (`cancelReconnectWatchdog`), the first tick that consumes it, and ladder exhaustion.
+    private var inlineConnectPending = false
     /// Identifier of the peripheral we're trying to keep/recover, so we can re-resolve or re-target it.
     private var reconnectTargetId: UUID?
     /// A cold-launch `connectKnownPeripheral(identifier:)` that arrived before Bluetooth was powered on;
@@ -441,6 +447,13 @@ public final class PumpBLEClient: NSObject {
     /// Test accessor — the current consecutive-attempt count, so a test can assert it escalates across
     /// ticks instead of resetting to 0 on every simulated drop (the fast-path-reconnect-loop regression).
     var reconnectAttemptsForTesting: Int { reconnectAttempts }
+    /// Test seam (debug pump-background-disconnect) — whether an inline background-safe connect is currently
+    /// marked pending. Get/set (mirrors `readySinceForTesting`) so a unit test can simulate the drop path
+    /// having issued the inline connect without a live `CBPeripheral` (see the class doc).
+    var inlineConnectPendingForTesting: Bool {
+        get { inlineConnectPending }
+        set { inlineConnectPending = newValue }
+    }
     /// Test accessor for the ceiling, so a test doesn't hardcode the constant separately.
     static var maxReconnectAttemptsForTesting: Int { maxReconnectAttempts }
 
@@ -479,6 +492,30 @@ public final class PumpBLEClient: NSObject {
         scheduleNextReconnectAttempt()
     }
 
+    /// debug pump-background-disconnect (H1 root). The reconcilable core of unintended-drop recovery,
+    /// factored out of `didDisconnectPeripheral` so the throttle-preservation + non-stacking logic is
+    /// unit-testable without a live `CBPeripheral`; the caller performs the single
+    /// `central.connect(peripheral, …)` on the real handle CoreBluetooth hands it — the only part that needs
+    /// hardware (bench/device-verified).
+    ///
+    /// Returns whether the caller SHOULD issue the inline background-safe connect. It is issued ONLY for a
+    /// GENUINE drop — one where the link had held `.ready` for at least `readyStabilityWindow`
+    /// (`heldReadyStably`) — so a background idle/supervision-timeout drop recovers immediately (a pending CB
+    /// connect completes while the app is suspended, which the main-RunLoop reconnect Timer cannot do once
+    /// suspended), while a sub-window pairing FLAP gets NO zero-delay connect and is left to the throttled
+    /// ladder. That gate is exactly what keeps the pump-pairing-loop flap throttle intact: without it a
+    /// zero-delay connect would recover a flapping peer faster than the 5 s ladder tick, so `reconnectAttempts`
+    /// would never climb to `.reconnectExhausted` (the exact regression `.planning/debug/pump-pairing-loop.md`
+    /// fixed). Never resets `reconnectAttempts`/`reconnectExhausted`; arms the ladder as backoff/escalation
+    /// exactly as before. Internal (not private) so a unit test can drive it without a `CBPeripheral`.
+    @discardableResult
+    func planUnintendedDropRecovery(heldReadyStably: Bool) -> Bool {
+        guard !intentionalDisconnect, !reconnectExhausted else { return false }
+        if heldReadyStably { inlineConnectPending = true }
+        startReconnectWatchdog()   // backoff/escalation ladder; no counter reset, no double-arm
+        return heldReadyStably
+    }
+
     private func scheduleNextReconnectAttempt() {
         let base = Self.reconnectBackoff[min(reconnectAttempts, Self.reconnectBackoff.count - 1)]
         let delay = Self.jitteredDelay(base: base)   // break phone↔pump fixed-interval lockstep (group C)
@@ -498,6 +535,7 @@ public final class PumpBLEClient: NSObject {
         reconnectAttempts = 0
         reconnectExhausted = false
         readySince = nil   // a fresh user-initiated connect discards any stale stability window
+        inlineConnectPending = false   // debug pump-background-disconnect: fresh intent → no stale pending connect
     }
 
     /// Internal (not private) so a unit test can fire ladder ticks directly — no real Timer wait, and no
@@ -520,8 +558,18 @@ public final class PumpBLEClient: NSObject {
             // CoreBluetooth can't silently complete it later and contradict the "gave up" state — mirrors
             // the cancel `disconnect()` issues for a user-initiated stop.
             if let p = peripheral { central.cancelPeripheralConnection(p) }
+            inlineConnectPending = false   // debug pump-background-disconnect: pending connect cancelled above
             state = .reconnectExhausted
             notify { $0.pumpClient(self, didError: ClientError.reconnectLoopDetected) }
+            return
+        }
+        // debug pump-background-disconnect (H1): if the drop already issued an inline background-safe
+        // connect, this FIRST ladder tick is pure BACKOFF — CoreBluetooth will complete that pending connect
+        // when the pump returns, so do NOT stack a second concurrent connect. Consume the flag; the NEXT tick
+        // escalates (re-resolve / reconnect / rescan) if the pending connect is still stalled by then.
+        if inlineConnectPending {
+            inlineConnectPending = false
+            scheduleNextReconnectAttempt()
             return
         }
         let pumpUUID = CBUUID(nsuuid: ServiceUUID.pumpService)
@@ -637,6 +685,10 @@ public final class PumpBLEClient: NSObject {
         // before the device/API send gate can refuse anything — fail-OPEN across every link change.
         connectedPumpModel = nil
         negotiatedApiVersion = nil
+        // debug pump-background-disconnect (H1): every link change resolves any inline background-safe
+        // connect (a drop re-sets it below; a failed-connect / restore / power-off leaves it clear so the
+        // ladder escalates normally). Consistent with resetting write policy/correlation/device context here.
+        inlineConnectPending = false
         if resumePending { transactions.failAll(.connectionLost) }
     }
 
@@ -734,6 +786,7 @@ extension PumpBLEClient: CBCentralManagerDelegate {
             // also covers a connect that completed after state restoration).
             self.peripheral = peripheral
             peripheral.delegate = self
+            inlineConnectPending = false   // debug pump-background-disconnect: the pending connect completed
             state = .discovering
             peripheral.discoverServices([CBUUID(nsuuid: ServiceUUID.pumpService)])
         }
@@ -745,6 +798,13 @@ extension PumpBLEClient: CBCentralManagerDelegate {
             characteristics.removeAll()
             reassembly.removeAll()
             failClosed(resumePending: true)   // PX-04/PX-08: policy → .readOnly, resume all waiters
+            // debug pump-background-disconnect (H1): capture whether the link had HELD `.ready` long enough
+            // to trust as a stable connection, BEFORE `consumeReadyStabilityAndMaybeReset()` clears the
+            // `readySince` stamp. This gates the inline background-safe reconnect below (a genuine stable-link
+            // drop recovers immediately; a sub-window flap does NOT get a zero-delay connect → throttle intact).
+            let heldReadyStably = readySince.map {
+                Self.readyHeldLongEnoughToResetLadder(heldFor: Date().timeIntervalSince($0))
+            } ?? false
             // Was the link that just dropped a genuine recovery (held `.ready` >= `readyStabilityWindow`),
             // or an accept-then-immediately-drop flap? Only the former resets the ladder — see
             // `readyStabilityWindow`'s doc. Must run before the `reconnectExhausted` check below, since a
@@ -759,14 +819,20 @@ extension PumpBLEClient: CBCentralManagerDelegate {
                 bleLog.log("disconnect domain=\(ns.domain, privacy: .public) code=\(ns.code, privacy: .public) desc=\(ns.localizedDescription, privacy: .private)")
                 notify { $0.pumpClient(self, didError: error) }
             }
-            // Auto-reconnect on an unintended drop (e.g. out of range): re-issuing `central.connect()`
-            // makes CoreBluetooth complete it automatically when the pump comes back in range, in the
-            // foreground or background — no manual "Connect" needed. Go straight to .connecting (skip a
-            // .disconnected flicker) so the UI shows "reconnecting". The actual `central.connect()` call
-            // is now made by `reconnectTick()` after the ladder's jittered delay, NOT here with zero
-            // delay — a peer that keeps accepting-then-dropping the link (pairing-window flap) would
-            // otherwise drive an unthrottled connect/disconnect loop, since `startReconnectWatchdog` no
-            // longer resets `reconnectAttempts` on every drop (that reset was the other half of the bug).
+            // Auto-reconnect on an unintended drop (e.g. out of range, or a background idle/supervision-timeout
+            // drop). Go straight to .connecting (skip a .disconnected flicker) so the UI shows "reconnecting".
+            // debug pump-background-disconnect (H1 root): for a GENUINE stable-link drop we now re-issue ONE
+            // background-safe `central.connect()` INLINE, right here — a pending CB connect has no timeout and
+            // does not poll, so CoreBluetooth completes it automatically when the pump returns, in the
+            // foreground OR while the app is suspended (battery-neutral). This is the fix for "drops in the
+            // background, only reconnects when reopened": the main-RunLoop reconnect Timer freezes on suspend,
+            // so it could never ISSUE the connect in the background. A sub-window FLAP is deliberately NOT
+            // inline-connected (`planUnintendedDropRecovery` gates on `heldReadyStably`): a zero-delay connect
+            // on every flap drop would recover faster than the ladder tick and defeat the pairing-window
+            // throttle (`.planning/debug/pump-pairing-loop.md`) — the flap is left to the throttled ladder,
+            // which still escalates to `.reconnectExhausted`. Either way the ladder is armed as
+            // backoff/ESCALATION (recovering a stalled/lost handle) and, via `inlineConnectPending`, does NOT
+            // stack a second concurrent connect on its first tick. `reconnectAttempts` is never reset here.
             if !intentionalDisconnect {
                 self.peripheral = peripheral
                 peripheral.delegate = self
@@ -777,7 +843,9 @@ extension PumpBLEClient: CBCentralManagerDelegate {
                     state = .reconnectExhausted
                 } else {
                     state = .connecting
-                    startReconnectWatchdog()   // schedules the throttled reconnect attempt (and recovers a stall)
+                    if planUnintendedDropRecovery(heldReadyStably: heldReadyStably) {
+                        central.connect(peripheral, options: [CBConnectPeripheralOptionNotifyOnDisconnectionKey: true])
+                    }
                 }
             } else {
                 state = .disconnected
