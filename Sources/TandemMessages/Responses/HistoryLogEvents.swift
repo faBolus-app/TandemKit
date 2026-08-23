@@ -833,6 +833,8 @@ public struct CgmAlertAckDexHistoryLog: HistoryLogEvent {
     public var cargo: [UInt8]
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
+    /// alertId is a single byte @10 (upstream dev `d3d209c2`, PR #119): the earlier 4-byte read wrongly
+    /// swallowed sensorType@11 + padding, yielding a mis-decoded value. Fix ported to `main` (decode only).
     public private(set) var alertId: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
@@ -840,7 +842,7 @@ public struct CgmAlertAckDexHistoryLog: HistoryLogEvent {
         guard raw.count >= 26 else { return }
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
-        alertId = Int(Bytes.readUint32(raw, 10))
+        alertId = Int(raw[10])
     }
 }
 
@@ -850,6 +852,8 @@ public struct CgmAlertActivatedDexHistoryLog: HistoryLogEvent {
     public var cargo: [UInt8]
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
+    /// alertId is a single byte @10 (upstream dev `d3d209c2`, PR #119): the earlier 4-byte read wrongly
+    /// swallowed sensorType@11 + padding, yielding a mis-decoded value. Fix ported to `main` (decode only).
     public private(set) var alertId: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
@@ -857,7 +861,7 @@ public struct CgmAlertActivatedDexHistoryLog: HistoryLogEvent {
         guard raw.count >= 26 else { return }
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
-        alertId = Int(Bytes.readUint32(raw, 10))
+        alertId = Int(raw[10])
     }
 }
 
@@ -907,6 +911,8 @@ public struct CgmAlertClearedDexHistoryLog: HistoryLogEvent {
     public var cargo: [UInt8]
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
+    /// alertId is a single byte @10 (upstream dev `d3d209c2`, PR #119): the earlier 4-byte read wrongly
+    /// swallowed sensorType@11 + padding, yielding a mis-decoded value. Fix ported to `main` (decode only).
     public private(set) var alertId: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
@@ -914,7 +920,7 @@ public struct CgmAlertClearedDexHistoryLog: HistoryLogEvent {
         guard raw.count >= 26 else { return }
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
-        alertId = Int(Bytes.readUint32(raw, 10))
+        alertId = Int(raw[10])
     }
 }
 

@@ -229,4 +229,21 @@ private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8]
         #expect(m?.percent == 150.0)
         #expect(m?.tempRateId == 7)
     }
+
+    // Regression (upstream dev d3d209c2, PR #119): the 3 Dexcom CGM-alert logs (369/370/371) decode
+    // alertId as a SINGLE byte @10. The earlier 4-byte read swallowed sensorType@11 + padding, mis-
+    // decoding e.g. alertId 2 as 770. Captured real-pump records. Non-oracle (the oracle doesn't
+    // compare alertId). Only the alertId narrowing is ported to `main`; sensorType et al. stay on experimental.
+    @Test func cgmDexAlertIdIsSingleByteAtOffset10() throws {
+        let ack = try #require(HistoryLogParser.parse(
+            record: Hex.decode("7311a88c9d228379070002030000000000000000000000000000")) as? CgmAlertAckDexHistoryLog)
+        #expect(ack.pumpTimeSec == 580_750_504)
+        #expect(ack.alertId == 2)   // byte @10 — was 770 under the old 4-byte read
+        let activated = try #require(HistoryLogParser.parse(
+            record: Hex.decode("7111f8da9d22057d07000203000014210000d000000000004843")) as? CgmAlertActivatedDexHistoryLog)
+        #expect(activated.alertId == 2)
+        let cleared = try #require(HistoryLogParser.parse(
+            record: Hex.decode("721123f79d227e7e070002030000000000000000000000000000")) as? CgmAlertClearedDexHistoryLog)
+        #expect(cleared.alertId == 2)
+    }
 }
