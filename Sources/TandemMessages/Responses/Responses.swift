@@ -1238,6 +1238,10 @@ public struct BolusPermissionResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
+        // VA-20: fail CLOSED on a short buffer — never default to status 0 (== granted). Unreachable via
+        // ResponseParser (length-guarded + VA-04 HMAC-verified first), but a direct caller must neither
+        // trap (precondition on raw[0]) nor decode a truncated frame as a GRANTED bolus permission.
+        guard raw.count >= Self.props.size else { status = 1; return }
         status = Int(raw[0])
         bolusId = Bytes.readShort(raw, 1)
         nackReasonId = Int(raw[5])
@@ -1256,6 +1260,10 @@ public struct InitiateBolusResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
+        // VA-20: fail CLOSED on a short buffer — never default to status 0 (== accepted). Unreachable via
+        // ResponseParser (length-guarded + VA-04 HMAC-verified first), but a direct caller must neither
+        // trap (precondition on raw[0]) nor decode a truncated frame as an ACCEPTED bolus.
+        guard raw.count >= Self.props.size else { status = 1; return }
         status = Int(raw[0])
         bolusId = Bytes.readShort(raw, 1)
         statusTypeId = Int(raw[5])
