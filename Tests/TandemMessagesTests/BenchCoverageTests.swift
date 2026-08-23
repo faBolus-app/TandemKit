@@ -1,0 +1,285 @@
+import Testing
+import Foundation
+@testable import TandemMessages
+
+// Pure-logic tests for the saline-bench command-coverage harness (deliverable #6). These prove the parts
+// the executable coverage runner CANNOT prove under `swift test` (CoreBluetooth aborts there): command
+// enumeration, per-model applicability, prerequisite gating, cell classification, and matrix
+// accumulation/merge across sessions. Everything here is transport-free and deterministic.
+
+@Suite struct BenchCommandCatalogTests {
+
+    /// Every enumerated request type maps to exactly one descriptor, with no duplicate names.
+    @Test func catalogEnumeratesEveryRequestWithoutDuplicates() {
+        let names = BenchCommandCatalog.all.map { $0.name }
+        #expect(names.count == BenchCommandCatalog.messageTypes.count)
+        #expect(Set(names).count == names.count, "duplicate command names in the catalog: \(names.count) vs \(Set(names).count)")
+        // The full request surface under Sources/TandemMessages/Requests is 125 types.
+        #expect(names.count == 125, "catalog drifted from the 125-request surface (got \(names.count))")
+    }
+
+    /// The delivery-class surface is exactly 14: 3 UNIVERSAL + 11 Mobi-only (prior-research invariant).
+    @Test func deliveryCommandsAreThreeUniversalPlusElevenMobiOnly() {
+        let delivery = BenchCommandCatalog.deliveryCommands
+        #expect(delivery.count == 14, "expected 14 modifiesInsulinDelivery commands, got \(delivery.count)")
+
+        let universal = Set(BenchCommandCatalog.universalDeliveryCommands.map { $0.name })
+        #expect(universal == ["InitiateBolusRequest", "AdditionalBolusRequest", "EnterChangeCartridgeModeRequest"],
+                "universal delivery set drifted: \(universal.sorted())")
+
+        let mobiOnly = Set(BenchCommandCatalog.mobiOnlyDeliveryCommands.map { $0.name })
+        // Ground truth from the messages' own props (NOT hand-guessed): the delivery IDP op is
+        // RenameIDP (0xA8), and EnterFillTubingMode dispenses to prime tubing — both delivery+Mobi;
+        // SetIDPSegment/PrimeTubingSuspend are Mobi-only but NOT delivery-class.
+        let expectedMobi: Set<String> = [
+            "SetModesRequest", "SetActiveIDPRequest", "FillCannulaRequest", "EnterFillTubingModeRequest",
+            "SetTempRateRequest", "StopTempRateRequest", "SuspendPumpingRequest", "ResumePumpingRequest",
+            "CreateIDPRequest", "DeleteIDPRequest", "RenameIDPRequest",
+        ]
+        #expect(mobiOnly == expectedMobi, "Mobi-only delivery set drifted: \(mobiOnly.sorted())")
+        #expect(mobiOnly.count == 11)
+    }
+
+    /// Applicability is derived from `supportedDevices` (nil = all models).
+    @Test func applicablePumpModelsDerivedFromSupportedDevices() {
+        let bolus = BenchCommandCatalog.all.first { $0.name == "InitiateBolusRequest" }!
+        #expect(Set(bolus.applicablePumpModels) == Set(PumpModel.allCases))
+        let temp = BenchCommandCatalog.all.first { $0.name == "SetTempRateRequest" }!
+        #expect(temp.applicablePumpModels == [.mobi])
+    }
+
+    /// `requiresCGM` is a name-driven, self-maintaining predicate covering the CGM/glucose family.
+    @Test func requiresCGMPredicateClassifiesTheCgmFamily() {
+        for name in ["CurrentEgvGuiDataV2Request", "CGMStatusRequest", "StartDexcomG6SensorSessionRequest",
+                     "SetG6TransmitterIdRequest", "GetSavedG7PairingCodeRequest", "SetSensorTypeRequest",
+                     "CgmHighLowAlertRequest"] {
+            #expect(BenchCommandCatalog.requiresCGM(name: name), "\(name) should be CGM-dependent")
+        }
+        for name in ["InsulinStatusRequest", "InitiateBolusRequest", "CurrentBatteryV2Request",
+                     "ApiVersionRequest", "SetMaxBolusLimitRequest", "LastBGRequest"] {
+            #expect(!BenchCommandCatalog.requiresCGM(name: name), "\(name) should NOT be CGM-dependent")
+        }
+    }
+
+    /// Lane classification: reads, signed non-delivery writes, delivery, and pairing.
+    @Test func laneClassification() {
+        func lane(_ n: String) -> BenchLane { BenchCommandCatalog.all.first { $0.name == n }!.lane }
+        #expect(lane("InsulinStatusRequest") == .read)
+        #expect(lane("ApiVersionRequest") == .read)
+        #expect(lane("InitiateBolusRequest") == .delivery)
+        #expect(lane("SetTempRateRequest") == .delivery)
+        #expect(lane("SetMaxBolusLimitRequest") == .signedWrite)
+        #expect(lane("FactoryResetRequest") == .signedWrite)
+        #expect(lane("Jpake1aRequest") == .pairing)
+        #expect(lane("CentralChallengeRequest") == .pairing)
+    }
+
+    /// Pairing scheme is attributed by message family.
+    @Test func pairingSchemeAttribution() {
+        let jpake = BenchCommandCatalog.all.first { $0.name == "Jpake2Request" }!
+        #expect(jpake.pairingScheme == .jpake)
+        let legacy = BenchCommandCatalog.all.first { $0.name == "PumpChallengeRequest" }!
+        #expect(legacy.pairingScheme == .legacyV1)
+    }
+
+    /// A lane-`read` command can be instantiated for sending; a delivery command cannot (via this path).
+    @Test func makeReadInstanceOnlyForReads() {
+        #expect(BenchCommandCatalog.makeReadInstance("InsulinStatusRequest") != nil)
+        #expect(BenchCommandCatalog.makeReadInstance("InitiateBolusRequest") == nil)
+        #expect(BenchCommandCatalog.makeReadInstance("NotARealRequest") == nil)
+    }
+}
+
+@Suite struct BenchCoveragePlanTests {
+
+    // Representative session configs.
+    static let oldTslim = BenchSessionConfig(
+        model: .tslim, apiVersion: .v2_5, firmwareLabel: "SW7.6 (API 2.5)", pairingScheme: .legacyV1,
+        cartridgePresent: false, cgmPresent: false, salineAttested: false, deliveryEnabled: false)
+    static let oldTslimSaline = BenchSessionConfig(
+        model: .tslim, apiVersion: .v2_5, firmwareLabel: "SW7.6 (API 2.5)", pairingScheme: .legacyV1,
+        cartridgePresent: true, cgmPresent: false, salineAttested: true, deliveryEnabled: true)
+    static let newTslim = BenchSessionConfig(
+        model: .tslim, apiVersion: .v3_4, firmwareLabel: "SW7.8 (API 3.4)", pairingScheme: .jpake,
+        cartridgePresent: false, cgmPresent: false, salineAttested: false, deliveryEnabled: false)
+    static let mobiSaline = BenchSessionConfig(
+        model: .mobi, apiVersion: .mobi_v3_6, firmwareLabel: "SW7.7 (API 3.6)", pairingScheme: .jpake,
+        cartridgePresent: true, cgmPresent: false, salineAttested: true, deliveryEnabled: true)
+    static let mobiSalineCgm = BenchSessionConfig(
+        model: .mobi, apiVersion: .mobi_v3_6, firmwareLabel: "SW7.7 (API 3.6)", pairingScheme: .jpake,
+        cartridgePresent: true, cgmPresent: true, salineAttested: true, deliveryEnabled: true)
+
+    private func cmd(_ n: String) -> BenchCommand { BenchCommandCatalog.all.first { $0.name == n }! }
+    private func plan(_ n: String, _ cfg: BenchSessionConfig) -> BenchPlan { BenchCoverage.plan(for: cmd(n), in: cfg) }
+
+    /// A read runs in any connected config.
+    @Test func readsExerciseInAnyConfig() {
+        #expect(plan("InsulinStatusRequest", Self.oldTslim) == .exercise(.read))
+        #expect(plan("InsulinStatusRequest", Self.mobiSaline) == .exercise(.read))
+    }
+
+    /// A CGM-dependent read (with a satisfiable API floor) is deferred without a sensor, exercised with one.
+    @Test func cgmReadGatedOnCgmPresent() {
+        if case .deferred(let r) = plan("CGMStatusRequest", Self.mobiSaline) { #expect(r.contains("CGM")) }
+        else { Issue.record("expected deferred without CGM") }
+        #expect(plan("CGMStatusRequest", Self.mobiSalineCgm) == .exercise(.read))
+    }
+
+    /// A command with an API_FUTURE floor (known to the app, unparseable by any current firmware) defers on
+    /// EVERY known config — the honest disposition (no session can cover it until such firmware exists).
+    @Test func futureApiFlooredReadDefersOnAllKnownFirmware() {
+        let egvV2 = cmd("CurrentEgvGuiDataV2Request")
+        #expect(egvV2.minApi == .future)
+        if case .deferred = plan("CurrentEgvGuiDataV2Request", Self.mobiSalineCgm) {} else {
+            Issue.record("an API_FUTURE-floored read must defer even on the fullest config")
+        }
+    }
+
+    /// A universal delivery command: deferred without a cartridge, deferred without saline attest, then exercised.
+    @Test func universalDeliveryGating() {
+        let noCart = BenchSessionConfig(model: .tslim, apiVersion: .v3_4, firmwareLabel: "SW7.8", pairingScheme: .jpake,
+                                        cartridgePresent: false, cgmPresent: false, salineAttested: false, deliveryEnabled: false)
+        if case .deferred(let r) = plan("InitiateBolusRequest", noCart) { #expect(r.contains("cartridge")) }
+        else { Issue.record("expected deferred (no cartridge)") }
+
+        let cartNoSaline = BenchSessionConfig(model: .tslim, apiVersion: .v3_4, firmwareLabel: "SW7.8", pairingScheme: .jpake,
+                                              cartridgePresent: true, cgmPresent: false, salineAttested: false, deliveryEnabled: false)
+        if case .deferred(let r) = plan("InitiateBolusRequest", cartNoSaline) { #expect(r.contains("saline")) }
+        else { Issue.record("expected deferred (no saline attest)") }
+
+        #expect(plan("InitiateBolusRequest", Self.oldTslimSaline) == .exercise(.delivery))
+    }
+
+    /// A Mobi-only delivery command is N/A on t:slim (any firmware), and exercisable on a saline Mobi.
+    @Test func mobiOnlyDeliveryIsNotApplicableOnTslim() {
+        if case .notApplicable = plan("SetTempRateRequest", Self.oldTslimSaline) {} else { Issue.record("expected N/A on t:slim") }
+        if case .notApplicable = plan("SetTempRateRequest", Self.newTslim) {} else { Issue.record("expected N/A on new t:slim") }
+        #expect(plan("SetTempRateRequest", Self.mobiSaline) == .exercise(.delivery))
+    }
+
+    /// Destructive + non-allowlisted settings writes are GAPs (never auto-fired); the permission pair + sound are exercised.
+    @Test func signedWriteGapVsAllowlist() {
+        if case .gap(let r) = plan("FactoryResetRequest", Self.oldTslim) { #expect(r.contains("destructive")) }
+        else { Issue.record("expected gap for FactoryReset") }
+        if case .gap = plan("SetMaxBolusLimitRequest", Self.oldTslim) {} else { Issue.record("expected gap for SetMaxBolusLimit") }
+        #expect(plan("BolusPermissionRequest", Self.oldTslim) == .exercise(.signedWrite))
+        #expect(plan("PlaySoundRequest", Self.oldTslim) == .exercise(.signedWrite))
+    }
+
+    /// Pairing coverage is attributed by scheme + API floor.
+    @Test func pairingGatedBySchemeAndApi() {
+        // JPAKE needs API >= 3.2 → deferred on the old (2.5) t:slim, exercised on a JPAKE session.
+        if case .deferred = plan("Jpake1aRequest", Self.oldTslim) {} else { Issue.record("JPAKE should defer on API 2.5") }
+        #expect(plan("Jpake1aRequest", Self.newTslim) == .exercise(.pairing))
+        // Legacy V1 is exercised on the legacy session, deferred on a JPAKE session.
+        #expect(plan("CentralChallengeRequest", Self.oldTslim) == .exercise(.pairing))
+        if case .deferred = plan("CentralChallengeRequest", Self.newTslim) {} else { Issue.record("legacy V1 should defer on a JPAKE session") }
+    }
+
+    /// planSession classifies EVERY catalog command and never crashes; counts are sane.
+    @Test func planSessionCoversEveryCommand() {
+        let cells = BenchCoverage.planSession(Self.mobiSalineCgm, timestamp: "T0")
+        #expect(cells.count == BenchCommandCatalog.all.count)
+        // On a fully-loaded Mobi+CGM session, at least the universal + Mobi delivery commands are exercisable.
+        let untested = cells.filter { $0.state == .untested }.map { $0.command }
+        #expect(untested.contains("InitiateBolusRequest"))
+        #expect(untested.contains("SetTempRateRequest"))
+    }
+}
+
+@Suite struct BenchCoverageMatrixTests {
+
+    private func cell(_ command: String, _ state: BenchCellState, model: String = "mobi",
+                      firmware: String = "SW7.7", cartridge: Bool = true, cgm: Bool = false,
+                      ts: String) -> BenchCoverageCell {
+        BenchCoverageCell(model: model, firmware: firmware, cartridge: cartridge, cgm: cgm,
+                          command: command, lane: .delivery, state: state, note: "", session: "s", timestamp: ts)
+    }
+
+    /// A real result (pass/fail) always beats a "can't-test-here" placeholder, regardless of order.
+    @Test func realResultBeatsPlaceholder() {
+        var m = BenchCoverageMatrix()
+        m.record(cell("InitiateBolusRequest", .pass, ts: "T1"))
+        // A later DEFERRED from a wrong-config session must NOT clobber the PASS.
+        m.record(cell("InitiateBolusRequest", .deferred, ts: "T2"))
+        #expect(m.cells.values.first { $0.command == "InitiateBolusRequest" }!.state == .pass)
+
+        // And a placeholder-first, real-second ordering ends up real too.
+        var n = BenchCoverageMatrix()
+        n.record(cell("SetTempRateRequest", .deferred, ts: "T1"))
+        n.record(cell("SetTempRateRequest", .pass, ts: "T2"))
+        #expect(n.cells.values.first { $0.command == "SetTempRateRequest" }!.state == .pass)
+    }
+
+    /// Between two real results the latest timestamp wins (a later FAIL surfaces a regression).
+    @Test func latestRealResultWins() {
+        var m = BenchCoverageMatrix()
+        m.record(cell("InitiateBolusRequest", .pass, ts: "2026-01-01"))
+        m.record(cell("InitiateBolusRequest", .fail, ts: "2026-02-01"))
+        #expect(m.cells.values.first!.state == .fail)
+    }
+
+    /// Merging two sessions accumulates coverage (resume-across-sessions).
+    @Test func mergingAccumulatesAcrossSessions() {
+        // Session A (mobi, cartridge) proves delivery.
+        var a = BenchCoverageMatrix()
+        a.record(cell("InitiateBolusRequest", .pass, model: "mobi", cartridge: true, ts: "T1"))
+        // Session B (t:slim, no cartridge) recorded delivery as deferred and a read as pass.
+        var b = BenchCoverageMatrix()
+        b.record(cell("InitiateBolusRequest", .deferred, model: "tslim", cartridge: false, ts: "T2"))
+        b.record(BenchCoverageCell(model: "tslim", firmware: "SW7.8", cartridge: false, cgm: false,
+                                   command: "InsulinStatusRequest", lane: .read, state: .pass,
+                                   note: "", session: "s", timestamp: "T2"))
+        let merged = a.merging(b)
+        // Both sessions' distinct keys survive (different model axis) → 3 cells.
+        #expect(merged.cells.count == 3)
+    }
+
+    /// rollups(): a command is COVERED for a (model,firmware) if ANY cart/cgm variant passed.
+    @Test func rollupCoveredIfAnyVariantPassed() {
+        var m = BenchCoverageMatrix()
+        // Same command, same model/firmware, two cartridge variants: no-cart deferred + cart pass.
+        m.record(cell("InitiateBolusRequest", .deferred, cartridge: false, ts: "T1"))
+        m.record(cell("InitiateBolusRequest", .pass, cartridge: true, ts: "T2"))
+        let roll = m.rollups().first { $0.command == "InitiateBolusRequest" }!
+        #expect(roll.best == .pass)
+        #expect(m.remaining().contains { $0.command == "InitiateBolusRequest" } == false)
+    }
+
+    /// remaining() lists deferred/untested/fail (with the config note) but not N/A or gap.
+    @Test func remainingListsOnlyCoverableGaps() {
+        var m = BenchCoverageMatrix()
+        m.record(BenchCoverageCell(model: "tslim", firmware: "SW7.8", cartridge: false, cgm: true,
+                                   command: "CurrentEgvGuiDataV2Request", lane: .read, state: .deferred,
+                                   note: "needs a CGM-present session", session: "s", timestamp: "T1"))
+        m.record(BenchCoverageCell(model: "tslim", firmware: "SW7.8", cartridge: false, cgm: false,
+                                   command: "FactoryResetRequest", lane: .signedWrite, state: .gap,
+                                   note: "destructive", session: "s", timestamp: "T1"))
+        let rem = m.remaining()
+        #expect(rem.contains { $0.command == "CurrentEgvGuiDataV2Request" })
+        #expect(rem.contains { $0.command == "FactoryResetRequest" } == false, "gaps are not 'coverable-but-missing'")
+    }
+
+    /// The matrix round-trips through JSON (the persistence format the runner uses between sessions).
+    @Test func matrixJsonRoundTrips() throws {
+        var m = BenchCoverageMatrix()
+        m.record(cell("InitiateBolusRequest", .pass, ts: "T1"))
+        let data = try JSONEncoder().encode(m)
+        let back = try JSONDecoder().decode(BenchCoverageMatrix.self, from: data)
+        #expect(back.cells.count == 1)
+        #expect(back.cells.values.first!.state == .pass)
+        #expect(back.schemaVersion == BenchCoverageMatrix.currentSchemaVersion)
+    }
+
+    /// Markdown rendering produces the expected sections (human-readable artifact).
+    @Test func markdownRenderHasSections() {
+        let cells = BenchCoverage.planSession(BenchCoveragePlanTests.mobiSaline, timestamp: "T0")
+        var m = BenchCoverageMatrix()
+        m.record(cells)
+        let md = m.renderMarkdown(generatedAt: "2026-08-23")
+        #expect(md.contains("# TandemKit bench command-coverage matrix"))
+        #expect(md.contains("## Summary"))
+        #expect(md.contains("## Coverage by session config"))
+        #expect(md.contains("Still uncovered"))
+    }
+}
