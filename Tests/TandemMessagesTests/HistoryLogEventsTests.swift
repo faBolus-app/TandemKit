@@ -230,3 +230,204 @@ private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8]
         #expect(m?.tempRateId == 7)
     }
 }
+
+/// Decode assertions for the history-log fields ported from pumpx2 `dev` (commits ea361236,
+/// 319dace5, d3d209c2). These fields are NOT present in the oracle's pinned-`main` build, so the
+/// oracle cannot cross-check them; instead we decode the exact captured-pump-record hex vectors
+/// upstream added alongside those commits and assert the newly-decoded fields match upstream's
+/// expected values. Not gated on the oracle — these always run.
+@Suite struct HistoryLogDecodeCompletenessTests {
+    // MARK: op 11 PumpingSuspended / op 12 PumpingResumed (upstream ea361236)
+
+    @Test func pumpingSuspendedAlarmWithRpaTimeout() throws {
+        let rec = try Hex.decode("0b1009b90123765b0b006a0000009600010f0000000000000000")
+        let m = try #require(HistoryLogParser.parse(record: rec) as? PumpingSuspendedHistoryLog)
+        #expect(m.pumpTimeSec == 587_315_465)
+        #expect(m.sequenceNum == 744_310)
+        #expect(m.preSuspendState == 106)   // uint32 @10
+        #expect(m.insulinAmount == 150)     // existing, unchanged
+        #expect(m.reasonId == 1)            // existing, unchanged (ALARM)
+        #expect(m.rpaTimeout == 15)         // byte @17
+    }
+
+    @Test func pumpingSuspendedUserAbortedWithRpaTimeout() throws {
+        let rec = try Hex.decode("0b1030d20223d36c0b006a0000006900000f0000000000000000")
+        let m = try #require(HistoryLogParser.parse(record: rec) as? PumpingSuspendedHistoryLog)
+        #expect(m.pumpTimeSec == 587_387_440)
+        #expect(m.sequenceNum == 748_755)
+        #expect(m.preSuspendState == 106)
+        #expect(m.insulinAmount == 105)
+        #expect(m.reasonId == 0)            // USER_ABORTED
+        #expect(m.rpaTimeout == 15)
+    }
+
+    @Test func pumpingResumedAfterAlarmSuspend() throws {
+        let rec = try Hex.decode("0c10c6ba0123945b0b0064000000960000000000000000000000")
+        let m = try #require(HistoryLogParser.parse(record: rec) as? PumpingResumedHistoryLog)
+        #expect(m.pumpTimeSec == 587_315_910)
+        #expect(m.sequenceNum == 744_340)
+        #expect(m.preResumeState == 100)    // uint32 @10
+        #expect(m.insulinAmount == 150)     // existing, unchanged
+    }
+
+    @Test func pumpingResumedAfterUserSuspend() throws {
+        let rec = try Hex.decode("0c102bd80223066d0b0064000000690000000000000000000000")
+        let m = try #require(HistoryLogParser.parse(record: rec) as? PumpingResumedHistoryLog)
+        #expect(m.pumpTimeSec == 587_388_971)
+        #expect(m.sequenceNum == 748_806)
+        #expect(m.preResumeState == 100)
+        #expect(m.insulinAmount == 105)
+    }
+
+    // MARK: BolusActivated selectedIob (upstream 319dace5, PR #104)
+
+    @Test func bolusActivatedSelectedIob1() throws {
+        let rec = try Hex.decode("370071ef951adfc902000d04010000000000cdcc8c3f00000000")
+        let m = try #require(HistoryLogParser.parse(record: rec) as? BolusActivatedHistoryLog)
+        #expect(m.pumpTimeSec == 446_033_777)
+        #expect(m.sequenceNum == 182_751)
+        #expect(m.bolusId == 1037)          // existing, unchanged
+        #expect(m.selectedIob == 1)         // byte @12
+        #expect(m.iob == 0.0)               // existing, unchanged
+        #expect(abs(m.bolusSize - 1.1) < 0.0001) // existing, unchanged
+    }
+
+    @Test func bolusActivatedSelectedIob2() throws {
+        let rec = try Hex.decode("37008393971a46d602001d04010011be00400000003f00000000")
+        let m = try #require(HistoryLogParser.parse(record: rec) as? BolusActivatedHistoryLog)
+        #expect(m.pumpTimeSec == 446_141_315)
+        #expect(m.sequenceNum == 185_926)
+        #expect(m.bolusId == 1053)
+        #expect(m.selectedIob == 1)
+        #expect(abs(m.iob - 2.0116007) < 0.0001)
+        #expect(m.bolusSize == 0.5)
+    }
+
+    // MARK: CGM Dex alert logs (upstream d3d209c2, PR #119)
+    // Note: alertId is corrected from a 4-byte read to a single byte @10 by this upstream commit;
+    // sensorType @11 (and, for Ack/Activated, further fields) were previously swallowed.
+
+    @Test func cgmAlertAckDex1() throws {
+        let rec = try Hex.decode("7311a88c9d228379070002030000000000000000000000000000")
+        let m = try #require(HistoryLogParser.parse(record: rec) as? CgmAlertAckDexHistoryLog)
+        #expect(m.pumpTimeSec == 580_750_504)
+        #expect(m.sequenceNum == 489_859)
+        #expect(m.alertId == 2)             // byte @10 (was 770 under the old 4-byte read)
+        #expect(m.sensorType == 3)          // byte @11
+        #expect(m.ackSource == 0)           // uint32 @14
+    }
+
+    @Test func cgmAlertAckDex2NonDefaultAckSource() throws {
+        let rec = try Hex.decode("7311d4e18e22f8dc060020030000010000000000000000000000")
+        let m = try #require(HistoryLogParser.parse(record: rec) as? CgmAlertAckDexHistoryLog)
+        #expect(m.pumpTimeSec == 579_789_268)
+        #expect(m.sequenceNum == 449_784)
+        #expect(m.alertId == 32)            // byte @10 (was 800 under the old 4-byte read)
+        #expect(m.sensorType == 3)
+        #expect(m.ackSource == 1)           // non-default source
+    }
+
+    @Test func cgmAlertActivatedDex1() throws {
+        let rec = try Hex.decode("7111f8da9d22057d07000203000014210000d000000000004843")
+        let m = try #require(HistoryLogParser.parse(record: rec) as? CgmAlertActivatedDexHistoryLog)
+        #expect(m.pumpTimeSec == 580_770_552)
+        #expect(m.sequenceNum == 490_757)
+        #expect(m.alertId == 2)
+        #expect(m.sensorType == 3)
+        #expect(m.faultLocatorData == 8468) // uint32 @14
+        #expect(m.param1 == 208)            // uint32 @18
+        #expect(m.param2 == 200.0)          // float @22
+    }
+
+    @Test func cgmAlertActivatedDex2() throws {
+        let rec = try Hex.decode("71114b179d22a77407000e0300000e2100001900000000406544")
+        let m = try #require(HistoryLogParser.parse(record: rec) as? CgmAlertActivatedDexHistoryLog)
+        #expect(m.pumpTimeSec == 580_720_459)
+        #expect(m.sequenceNum == 488_615)
+        #expect(m.alertId == 14)
+        #expect(m.sensorType == 3)
+        #expect(m.faultLocatorData == 8462)
+        #expect(m.param1 == 25)
+        #expect(m.param2 == 917.0)
+    }
+
+    @Test func cgmAlertClearedDex1() throws {
+        let rec = try Hex.decode("721123f79d227e7e070002030000000000000000000000000000")
+        let m = try #require(HistoryLogParser.parse(record: rec) as? CgmAlertClearedDexHistoryLog)
+        #expect(m.pumpTimeSec == 580_777_763)
+        #expect(m.sequenceNum == 491_134)
+        #expect(m.alertId == 2)
+        #expect(m.sensorType == 3)
+    }
+
+    @Test func cgmAlertClearedDex2() throws {
+        let rec = try Hex.decode("721172189d22af7407000e030000000000000000000000000000")
+        let m = try #require(HistoryLogParser.parse(record: rec) as? CgmAlertClearedDexHistoryLog)
+        #expect(m.pumpTimeSec == 580_720_754)
+        #expect(m.sequenceNum == 488_623)
+        #expect(m.alertId == 14)
+        #expect(m.sensorType == 3)
+    }
+
+    // MARK: Control-IQ logs (upstream d3d209c2, PR #119)
+
+    @Test func controlIQPcmChange1() throws {
+        let rec = try Hex.decode("e6107ce59d22897d070000030101010101000000000000000000")
+        let m = try #require(HistoryLogParser.parse(record: rec) as? ControlIQPcmChangeHistoryLog)
+        #expect(m.pumpTimeSec == 580_773_244)
+        #expect(m.sequenceNum == 490_889)
+        #expect(m.currentPcmId == 0)        // existing, unchanged
+        #expect(m.previousPcmId == 3)       // existing, unchanged
+        #expect(m.pumpSuspended == 1)       // byte @12
+        #expect(m.calculationAvailable == 1) // byte @13
+        #expect(m.cgmAvailable == 1)        // byte @14
+        #expect(m.closedLoopPreferred == 1) // byte @15
+        #expect(m.sufficientClosedLoopParams == 1) // byte @16
+    }
+
+    @Test func controlIQPcmChange2() throws {
+        let rec = try Hex.decode("e61077189d22ba74070003020001010101000000000000000000")
+        let m = try #require(HistoryLogParser.parse(record: rec) as? ControlIQPcmChangeHistoryLog)
+        #expect(m.pumpTimeSec == 580_720_759)
+        #expect(m.sequenceNum == 488_634)
+        #expect(m.currentPcmId == 3)
+        #expect(m.previousPcmId == 2)
+        #expect(m.pumpSuspended == 0)
+        #expect(m.calculationAvailable == 1)
+        #expect(m.cgmAvailable == 1)
+        #expect(m.closedLoopPreferred == 1)
+        #expect(m.sufficientClosedLoopParams == 1)
+    }
+
+    @Test func controlIQUserModeChange1() throws {
+        let rec = try Hex.decode("e5105f65912205f9060001020400000100000000000000000000")
+        let m = try #require(HistoryLogParser.parse(record: rec) as? ControlIQUserModeChangeHistoryLog)
+        #expect(m.pumpTimeSec == 579_954_015)
+        #expect(m.sequenceNum == 456_965)
+        #expect(m.currentUserMode == 1)     // existing, unchanged
+        #expect(m.previousUserMode == 2)    // existing, unchanged
+        #expect(m.requestedAction == 4)     // byte @12
+        #expect(m.sleepStartedByGui == 0)   // byte @14
+        #expect(m.activeSleepSchedule == 1) // byte @15
+        #expect(m.exerciseStoppedByTimer == 0) // byte @18
+        #expect(m.exerciseChoice == 0)      // byte @19
+        #expect(m.exerciseTime == 0)        // uint16 @20
+        #expect(m.eatingSoonStoppedByTimer == 0) // byte @22
+    }
+
+    @Test func controlIQUserModeChange2() throws {
+        let rec = try Hex.decode("e5104b659122f8f8060000010200010100000000000000000000")
+        let m = try #require(HistoryLogParser.parse(record: rec) as? ControlIQUserModeChangeHistoryLog)
+        #expect(m.pumpTimeSec == 579_953_995)
+        #expect(m.sequenceNum == 456_952)
+        #expect(m.currentUserMode == 0)
+        #expect(m.previousUserMode == 1)
+        #expect(m.requestedAction == 2)
+        #expect(m.sleepStartedByGui == 1)
+        #expect(m.activeSleepSchedule == 1)
+        #expect(m.exerciseStoppedByTimer == 0)
+        #expect(m.exerciseChoice == 0)
+        #expect(m.exerciseTime == 0)
+        #expect(m.eatingSoonStoppedByTimer == 0)
+    }
+}
