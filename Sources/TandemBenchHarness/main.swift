@@ -1080,6 +1080,11 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
               perm.granted else { return .fail }
         do {
             let mask = InitiateBolusRequest.typeBitmask(hasCarbs: false, hasCorrection: false, isExtended: false)
+            // BENCH-CONFIRM (dose path, opcode-158): log the EMITTED type mask so the operator can compare it
+            // against the pump's own BolusDeliveryHistoryLog bolus-type. Pre-#120 labels FOOD1(1)/CORRECTION(2)/
+            // EXTENDED(4)/FOOD2(8); this units-only bolus emits FOOD2. See docs/BENCH-COVERAGE.md → BENCH-CONFIRM.
+            print("  🔬 BENCH-CONFIRM (opcode-158 type bits): units-only bolus emits bolusTypeBitmask=0x"
+                + "\(String(mask, radix: 16)) (FOOD2) — compare vs the pump's recorded BolusDeliveryHistoryLog type")
             let req = try InitiateBolusRequest(validating: requestedMU, bolusID: perm.bolusId, bolusTypeBitmask: mask)
             let frame = try await client.withWritePolicy(.allowDelivery) {
                 try await self.client.sendAwaitingResponse(

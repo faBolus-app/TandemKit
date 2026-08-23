@@ -63,6 +63,28 @@ does not rot as messages are added:
 
 On a t:slim session the 11 Mobi-only deliveries record as `notApplicable`; only a Mobi saline session covers them.
 
+> ### ⚠️ BENCH-CONFIRM (dose path): InitiateBolus (opcode-158) bolus-type bitmask
+>
+> **CONFIRM-only — do NOT change any code now.** `InitiateBolusRequest.swift` labels the opcode-158
+> request's bolus-type bits `FOOD1(1) / CORRECTION(2) / EXTENDED(4) / FOOD2(8)` (pre-#120 names). Upstream
+> pumpX2 PR #120 (`c07687db`) re-labeled the bits from a 48k-record capture to
+> `NOW(1) / LATER(2) / OVERRIDE(4) / CORRECTION(8) / CARB(16) / EATING_SOON(32)` — **but that came from
+> opcode-280 HISTORY records, which may not share the opcode-158 REQUEST's bitmask meaning.**
+>
+> There is **NO demonstrated regression**: the wire bytes TandemKit emits are byte-verified against
+> upstream's two real InitiateBolus captures (carb bolus → mask `1`; no-carb correction → mask `8`), and the
+> byte-parity oracle is green. This is a confirmation gap, not a code gap — porting #120's labels blindly
+> onto the request would be an unverified guess.
+>
+> **At the bench, for each dose type — {units-only, carb, correction, extended} — capture BOTH:**
+> 1. what TandemKit SENDS (the emitted `bolusTypeBitmask`; the harness logs it in the InitiateBolus oracle), and
+> 2. what the pump RECORDS in its history log (`BolusDeliveryHistoryLog` bolus-type),
+>
+> then confirm the emitted mask is what the pump expects for that dose type. Only after this confirmation on
+> real hardware should any re-labeling of the opcode-158 bits be considered. Until then the current
+> byte-locked masks stand (they match every captured vector). Tracked as a Phase-11 bench-confirm item; it
+> does not block the reversible-affordance coverage above.
+
 ## Lanes and the safety gate for auto-firing
 
 - **Lane A — reads / status / query:** always bench-safe; sent read-only; PASS when a typed response parses.
