@@ -360,4 +360,38 @@ import Testing
         #expect(m.trendRate == 4)
         #expect(m.hasValidReading)
     }
+
+    /// VA-20: a short buffer fed to a fixed-size pure-READ response `init(cargo:)` must NOT trap
+    /// (no `raw[i]` out-of-bounds / precondition) and must zero-default every decoded field —
+    /// never a garbage or partially-decoded value. `cargo` is still retained verbatim. This is
+    /// defense-in-depth for a direct/refactor caller; via BLE the ResponseParser length-gates
+    /// before `make`, so this path is unreachable on the wire. Distinct from the accept-bearing
+    /// signed acks (InitiateBolus/BolusPermission), which fail CLOSED to a non-zero status
+    /// (`SignedAckFailClosedTests`) rather than zero-defaulting.
+    @Test func va20ShortBufferPureReadsZeroDefaultNoTrap() {
+        // HistoryLogStatusResponse needs 12 bytes; feed 4.
+        let hl = HistoryLogStatusResponse(cargo: [1, 2, 3, 4])
+        #expect(hl.numEntries == 0 && hl.firstSequenceNum == 0 && hl.lastSequenceNum == 0)
+        #expect(hl.cargo == [1, 2, 3, 4])   // raw retained
+
+        // ControlIQIOBResponse needs 17 bytes; feed 3 (would trap on raw[16] without the guard).
+        let iob = ControlIQIOBResponse(cargo: [9, 9, 9])
+        #expect(iob.swan6hrIOB == 0 && iob.iobType == 0 && iob.iobUnits == 0.0)
+
+        // CurrentEgvGuiDataV2Response needs 8 bytes; feed 2 (would trap on raw[7] without the guard).
+        let egv = CurrentEgvGuiDataV2Response(cargo: [1, 2])
+        #expect(egv.cgmReading == 0 && egv.trendRate == 0 && egv.egvStatusId == 0)
+
+        // LastBolusStatusV2Response needs 24 bytes; feed 5 (would trap on readUint32 @20 without the guard).
+        let lb = LastBolusStatusV2Response(cargo: [1, 2, 3, 4, 5])
+        #expect(lb.status == 0 && lb.deliveredVolume == 0 && lb.requestedVolume == 0)
+
+        // BolusCalcDataSnapshotResponse needs 46 bytes; feed 10 (would trap on raw[24]/raw[25]).
+        let bc = BolusCalcDataSnapshotResponse(cargo: [UInt8](repeating: 7, count: 10))
+        #expect(bc.carbRatio == 0 && bc.maxBolusAmount == 0 && !bc.maxBolusEventsExceeded)
+
+        // Notifications-family bitmaps need 8 bytes; feed 3.
+        #expect(AlertStatusResponse(cargo: [1, 2, 3]).bitmap == 0)
+        #expect(MalfunctionBitmaskStatusResponse(cargo: [1, 2, 3]).bitmap == 0)
+    }
 }

@@ -18,6 +18,9 @@ public struct HistoryLogStatusResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
+        // VA-20: length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
+        // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
+        guard raw.count >= Self.props.size else { return }
         numEntries = Bytes.readUint32(raw, 0)
         firstSequenceNum = Bytes.readUint32(raw, 4)
         lastSequenceNum = Bytes.readUint32(raw, 8)

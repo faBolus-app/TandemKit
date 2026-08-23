@@ -46,7 +46,13 @@ public struct AlertStatusResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var bitmap: UInt64 = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; bitmap = Bytes.readUint64(raw, 0) }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        // VA-20: length-guard a fixed-size pure READ — zero bitmap is safe (no accept/grant field).
+        // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
+        guard raw.count >= Self.props.size else { return }
+        bitmap = Bytes.readUint64(raw, 0)
+    }
     public mutating func parse(_ raw: [UInt8]) { self = AlertStatusResponse(cargo: raw) }
     public var notifications: [PumpNotification] {
         NotificationBitmap.decode(bitmap, kind: .alert, names: Self.names)
@@ -96,7 +102,13 @@ public struct AlarmStatusResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var bitmap: UInt64 = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; bitmap = Bytes.readUint64(raw, 0) }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        // VA-20: length-guard a fixed-size pure READ — zero bitmap is safe (no accept/grant field).
+        // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
+        guard raw.count >= Self.props.size else { return }
+        bitmap = Bytes.readUint64(raw, 0)
+    }
     public mutating func parse(_ raw: [UInt8]) { self = AlarmStatusResponse(cargo: raw) }
     public var notifications: [PumpNotification] {
         NotificationBitmap.decode(bitmap, kind: .alarm, names: Self.names)
@@ -128,7 +140,13 @@ public struct CGMAlertStatusResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var bitmap: UInt64 = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; bitmap = Bytes.readUint64(raw, 0) }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        // VA-20: length-guard a fixed-size pure READ — zero bitmap is safe (no accept/grant field).
+        // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
+        guard raw.count >= Self.props.size else { return }
+        bitmap = Bytes.readUint64(raw, 0)
+    }
     public mutating func parse(_ raw: [UInt8]) { self = CGMAlertStatusResponse(cargo: raw) }
     public var notifications: [PumpNotification] {
         NotificationBitmap.decode(bitmap, kind: .cgmAlert, names: Self.names)
@@ -178,7 +196,13 @@ public struct ReminderStatusResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var bitmap: UInt64 = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; bitmap = Bytes.readUint64(raw, 0) }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        // VA-20: length-guard a fixed-size pure READ — zero bitmap is safe (no accept/grant field).
+        // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
+        guard raw.count >= Self.props.size else { return }
+        bitmap = Bytes.readUint64(raw, 0)
+    }
     public mutating func parse(_ raw: [UInt8]) { self = ReminderStatusResponse(cargo: raw) }
     public var notifications: [PumpNotification] {
         NotificationBitmap.decode(bitmap, kind: .reminder, names: [:])
@@ -199,7 +223,13 @@ public struct MalfunctionBitmaskStatusResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var bitmap: UInt64 = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; bitmap = Bytes.readUint64(raw, 0) }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        // VA-20: length-guard a fixed-size pure READ — zero bitmap is safe (no accept/grant field).
+        // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
+        guard raw.count >= Self.props.size else { return }
+        bitmap = Bytes.readUint64(raw, 0)
+    }
     public mutating func parse(_ raw: [UInt8]) { self = MalfunctionBitmaskStatusResponse(cargo: raw) }
     public var notifications: [PumpNotification] {
         NotificationBitmap.decode(bitmap, kind: .alarm, names: [:], fallbackLabel: "Malfunction", dismissable: false)

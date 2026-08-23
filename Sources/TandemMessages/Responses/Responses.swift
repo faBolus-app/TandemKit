@@ -958,6 +958,9 @@ public struct ControlIQIOBResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
+        // VA-20: length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
+        // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
+        guard raw.count >= Self.props.size else { return }
         mudaliarIOB = Bytes.readUint32(raw, 0)
         timeRemainingSeconds = Bytes.readUint32(raw, 4)
         mudaliarTotalIOB = Bytes.readUint32(raw, 8)
@@ -1003,6 +1006,9 @@ public struct InsulinStatusResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
+        // VA-20: length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
+        // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
+        guard raw.count >= Self.props.size else { return }
         currentInsulinAmount = Bytes.readShort(raw, 0)
         isEstimate = Int(raw[2])
         insulinLowAmount = Int(raw[3])
@@ -1020,6 +1026,9 @@ public struct CurrentBatteryV2Response: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
+        // VA-20: length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
+        // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
+        guard raw.count >= Self.props.size else { return }
         currentBatteryAbc = Int(raw[0])
         currentBatteryIbc = Int(raw[1])
         chargingStatus = Int(raw[2])
@@ -1040,6 +1049,9 @@ public struct CurrentEgvGuiDataV2Response: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
+        // VA-20: length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
+        // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
+        guard raw.count >= Self.props.size else { return }
         bgReadingTimestampSeconds = Bytes.readUint32(raw, 0)
         cgmReading = Bytes.readShort(raw, 4)
         egvStatusId = Int(raw[6])
@@ -1120,6 +1132,9 @@ public struct TimeSinceResetResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
+        // VA-20: length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
+        // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
+        guard raw.count >= Self.props.size else { return }
         currentTime = Bytes.readUint32(raw, 0)
         pumpTimeSinceReset = Bytes.readUint32(raw, 4)
     }
@@ -1139,6 +1154,9 @@ public struct CurrentBasalStatusResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
+        // VA-20: length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
+        // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
+        guard raw.count >= Self.props.size else { return }
         profileBasalRate = Bytes.readUint32(raw, 0)
         currentBasalRate = Bytes.readUint32(raw, 4)
         basalModifiedBitmask = Int(raw[8])
@@ -1159,6 +1177,9 @@ public struct LastBolusStatusV2Response: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
+        // VA-20: length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
+        // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
+        guard raw.count >= Self.props.size else { return }
         status = Int(raw[0])
         bolusId = Bytes.readShort(raw, 1)
         timestamp = Bytes.readUint32(raw, 5)
@@ -1209,6 +1230,9 @@ public struct BolusCalcDataSnapshotResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
+        // VA-20: length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
+        // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
+        guard raw.count >= Self.props.size else { return }
         correctionFactor = Bytes.readShort(raw, 1)
         iob = Bytes.readUint32(raw, 3)
         cartridgeRemainingInsulin = Bytes.readShort(raw, 7)
