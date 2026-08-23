@@ -80,17 +80,16 @@ public struct BenchCommand: Sendable, Equatable {
 /// The enumerated command surface + the pure derivation from `MessageProps`.
 public enum BenchCommandCatalog {
 
-    /// The curated safety allowlist of signed NON-delivery writes the coverage runner may auto-fire as an
-    /// accept/NACK probe. Deliberately tiny and hand-reviewed: these do not change therapy state and are
-    /// self-reversing (permission is released; the sound is cosmetic). Every OTHER signed non-delivery
-    /// write (settings edits, factory reset, disconnect, shelf mode, IDP CRUD, alert/reminder config …) is
-    /// recorded as a GAP — it needs a hand-written, reversible affordance (see the `probe` subcommand),
-    /// never a blind auto-fire on a bench pump.
-    public static let benchExercisableSignedWrites: Set<String> = [
-        "BolusPermissionRequest",          // signed accept/NACK proof — releases immediately (permission-test)
-        "BolusPermissionReleaseRequest",   // the release half of the pair
-        "PlaySoundRequest",                // find-my-pump chime — no therapy effect (risk .benign)
-    ]
+    /// The set of signed NON-delivery writes the coverage runner may auto-fire, DERIVED from the
+    /// reversible-affordance catalog (every one with a wired, self-reversing `.drivable` affordance) so it
+    /// GROWS automatically as affordances are added — no hand-maintained list to rot. It now spans the
+    /// captureReapply settings writes (read→re-apply the SAME value→verify unchanged) and the benign
+    /// accept/NACK probes (permission pair, sound, remote entries, user-interaction, cancel-with-no-bolus).
+    /// Every OTHER signed non-delivery write is still a GAP: `.manualOnly` (destructive / irreversible /
+    /// session-disrupting — owner-only) or `.bespokePending` (reversible but its generic driver is not yet
+    /// wired). See `BenchAffordanceCatalog` for the per-command strategy + the runbook exceptions.
+    public static let benchExercisableSignedWrites: Set<String> =
+        Set(BenchAffordanceCatalog.drivableSignedWrites.map { $0.command })
 
     /// Case-insensitive name tokens that mark a command as CGM/glucose-dependent (`requiresCGM`). New
     /// CGM-family commands that follow the naming convention auto-classify, so this does not rot.
