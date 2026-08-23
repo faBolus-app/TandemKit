@@ -33,12 +33,18 @@ import Testing
         #expect(mobiOnly.isSupported(onModel: .mobi, apiVersion: .v3) == false) // 3.0 < 3.5
     }
 
-    /// Fail-OPEN: an unknown model and/or unknown apiVersion is never gated — preserves today's
-    /// send-then-firmware-NACK behavior; only a KNOWN target can trip a restriction.
-    @Test func unknownTargetFailsOpen() {
-        #expect(mobiOnly.isSupported(onModel: nil, apiVersion: nil))          // both unknown
-        #expect(mobiOnly.isSupported(onModel: nil, apiVersion: .v2_5))        // model unknown
-        #expect(mobiOnly.isSupported(onModel: .tslim, apiVersion: nil))       // version unknown
+    /// VA-06: a FULLY-unknown target fails open (send-then-firmware-NACK), but a partially-known target is
+    /// now gated on the KNOWN dimension it violates — the old combined-guard fail-open (which required BOTH
+    /// dimensions known before gating either) is closed. A known-COMPATIBLE partial still fails open on the
+    /// still-unknown dimension (so an unknown API can't deadlock bootstrap).
+    @Test func partialTargetGatesOnKnownViolationFullyUnknownFailsOpen() {
+        #expect(mobiOnly.isSupported(onModel: nil, apiVersion: nil))               // both unknown ⇒ open
+        // Known API below the 3.5 floor while family is still unknown ⇒ GATED (was fail-open pre-VA-06).
+        #expect(mobiOnly.isSupported(onModel: nil, apiVersion: .v2_5) == false)
+        // Known t:slim (wrong family) while API is still unknown ⇒ GATED (was fail-open pre-VA-06).
+        #expect(mobiOnly.isSupported(onModel: .tslim, apiVersion: nil) == false)
+        // Known-COMPATIBLE family, API still unknown ⇒ still open (unknown API dim never deadlocks bootstrap).
+        #expect(mobiOnly.isSupported(onModel: .mobi, apiVersion: nil))
     }
 
     /// A device-only restriction (no minApi) gates the wrong known family but fails open on unknown api.

@@ -89,23 +89,28 @@ public struct MessageProps: Sendable {
     ///
     /// - Returns `true` when the message declares no restriction (`supportedDevices == nil` and
     ///   `minApi == nil`) — an un-annotated message stays universally sendable.
-    /// - Returns `true` when the target `model` and/or `apiVersion` is unknown (`nil`) — preserves
-    ///   today's *send-then-firmware-NACK* behavior; only a KNOWN target can trip a declared restriction.
-    /// - Returns `false` **only** when the message DECLARES an incompatibility AND a KNOWN target
-    ///   violates it: a known `model` not in `supportedDevices`, or a known `apiVersion` below `minApi`.
+    /// VA-06: each declared dimension (device family, API floor) is evaluated **independently**.
+    /// - Returns `false` when the message DECLARES a restriction AND a KNOWN target violates THAT
+    ///   dimension: a known `model` not in `supportedDevices`, OR a known `apiVersion` below `minApi` —
+    ///   even if the OTHER dimension's context is still unknown.
+    /// - An UNKNOWN dimension fails OPEN for that dimension only (preserves send-then-firmware-NACK; and
+    ///   gating on an unknown API would deadlock bootstrap — the API is negotiated via op33 only AFTER
+    ///   JPAKE auth and several pre-identity reads that themselves carry a `minApi`).
+    /// - A fully-unrestricted message, or a fully-unknown target for a restricted message, stays supported.
     ///
     /// This is deliberately transport-free so the send gate's decision is deterministically testable and
     /// cannot be masked by connection state (mirrors `PumpBLEClient.authorizationError`).
+    ///
+    /// NOTE (pre-VA-06 defect): the old `guard let model, let apiVersion else { return true }` required
+    /// BOTH dimensions known before gating EITHER, so a known t:slim could send a `[.mobi]`-only message
+    /// (or a known too-old API a `minApi` message) whenever the other dimension was not yet known.
     public func isSupported(onModel model: PumpModel?, apiVersion: ApiVersion?) -> Bool {
         // Unrestricted message ⇒ always supported (behavior-preserving for every un-annotated message).
         if supportedDevices == nil && minApi == nil { return true }
-        // Fail-open on ANY unknown target dimension: only a FULLY-known (model, apiVersion) target can
-        // trip a declared restriction, preserving today's send-then-firmware-NACK behavior.
-        guard let model, let apiVersion else { return true }
-        // Device restriction violated: the KNOWN model is not in the declared device set.
-        if let supportedDevices, !supportedDevices.contains(model) { return false }
-        // API floor violated: the KNOWN negotiated version is below the declared minimum.
-        if let minApi, apiVersion < minApi { return false }
+        // Device restriction violated: a KNOWN model is not in the declared device set (independent of API).
+        if let supportedDevices, let model, !supportedDevices.contains(model) { return false }
+        // API floor violated: a KNOWN negotiated version is below the declared minimum (independent of model).
+        if let minApi, let apiVersion, apiVersion < minApi { return false }
         return true
     }
 
