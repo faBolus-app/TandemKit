@@ -31,7 +31,8 @@ public struct ExitChangeCartridgeModeRequest: Message {
 public struct EnterFillTubingModeRequest: Message {
     public static let props = MessageProps(
         opCode: 0x94, size: 0, signed: true, type: .request,
-        characteristic: .control, modifiesInsulinDelivery: true, responseOpCode: 0x95)
+        characteristic: .control, modifiesInsulinDelivery: true, responseOpCode: 0x95,
+        supportedDevices: [.mobi]) // VA-06: upstream MOBI_ONLY — documentation-consistency with sibling FillCannulaRequest (not on the wire → oracle-parity neutral)
     public var cargo: [UInt8]
     public init() { cargo = [] }
     public mutating func parse(_ raw: [UInt8]) { cargo = [] }
