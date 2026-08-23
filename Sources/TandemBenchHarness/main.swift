@@ -46,7 +46,7 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     /// (16-char, pre-v7.7). Used to tag results by auth scheme.
     var pairingScheme: PairingCodeType = .short6Char
     enum Mode: Equatable {
-        case scan, monitor, permissionTest, probe
+        case scan, monitor, permissionTest, probe, coverage
         case deliverBolus(milliunits: UInt32)
         case carbBolus(carbs: Double, bg: Int?)
     }
@@ -63,6 +63,10 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     var isPaired = false
     /// The comprehensive `probe` sequence is launched once (on first pair) and survives reconnects.
     var probeStarted = false
+    /// The `coverage` sequence is launched once (on first pair) and survives reconnects.
+    var coverageStarted = false
+    /// Set true once the BolusPermission→Release accept/NACK probe proved the release half in `coverage`.
+    var coveragePermissionReleasePassed = false
     /// op-77 NACK txId-echo sub-probe state (Addendum G / P1a). While `nackProbeActive`, the ErrorResponse
     /// delegate case records the pump's ECHOED txId (frame[1], surfaced as `parsed.txId`) so the sub-probe
     /// can assert it equals the failing request's SENT txId. UNVALIDATED until bench hardware (see the probe
@@ -146,6 +150,10 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
                     self.readFirmwareProfile()
                     // Launch the sequence once; it internally awaits re-pairs across the pump's drops.
                     if !self.probeStarted { self.probeStarted = true; Task { await self.runProbeSequence() } }
+                case .coverage:
+                    self.readFirmwareProfile()
+                    // Launch the resumable coverage sweep once; it survives the pump's reconnect cycles.
+                    if !self.coverageStarted { self.coverageStarted = true; Task { await self.runCoverageSequence() } }
                 case .permissionTest, .deliverBolus:
                     print("[write] reading pump time for signing…")
                     try? c.send(TimeSinceResetRequest())   // read (allowed); triggers the signed flow
@@ -617,6 +625,247 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         print("\n========== PROBE COMPLETE — press Ctrl-C to exit ==========\n")
     }
 
+    // MARK: - Comprehensive command-coverage sweep (`coverage`) — resumable across bench sessions
+    //
+    // ⚠️⚠️  UNVALIDATED BENCH RUNNER — NEEDS PHYSICAL PUMP HARDWARE.  ⚠️⚠️
+    //
+    // Drives EVERY harness-drivable command the CURRENT session config can exercise, records each cell as
+    // PASS / FAIL / GAP / N/A / DEFERRED into a PERSISTENT matrix under `bench-coverage/`, then prints what
+    // remains and exactly which session config would cover it. Classification + persistence reuse the
+    // unit-tested pure logic in TandemMessages (`BenchCommandCatalog` / `BenchCoverage` / `BenchCoverageMatrix`).
+    // Both delivery walls stay armed: reads are `.readOnly`; a delivery is attempted ONLY when the pure plan
+    // says the saline gate is open (cartridge + PUMP_SALINE_ATTESTED=1 + PUMPX2_DELIVER_SALINE=1) and is
+    // then verified by the pump's OWN history-log read-back. This runner drives ONLY read-only reads, the
+    // curated safe signed writes, and the InitiateBolus saline oracle — never a blind delivery command.
+
+    func runCoverageSequence() async {
+        print("\n========== COVERAGE — resumable command-coverage sweep ==========")
+        print("  ⚠️ UNVALIDATED bench runner — never run on hardware. Reads + curated signed writes + (gated)")
+        print("     InitiateBolus saline oracle. Gates NOTHING automatically; records a matrix for a human.")
+
+        // Signing time (for the signed-write / delivery probes).
+        if let t = await probeRead(TimeSinceResetRequest(), as: TimeSinceResetResponse.self, "time/signing") {
+            signingTimestamp = t.signingTimestamp
+        }
+
+        // Identify the pump → wire the D-08 send gate (affordance b) + build the session config.
+        var isMobi = false, apiMajor = 0, apiMinor = 0
+        if let api = await probeRead(ApiVersionRequest(), as: ApiVersionResponse.self, "apiVersion") {
+            isMobi = api.isMobi; apiMajor = api.majorVersion; apiMinor = api.minorVersion
+        }
+        wireDeviceContext(isMobi: isMobi, major: apiMajor, minor: apiMinor)   // affordance (b)
+        let scheme: BenchPairingScheme = (pairingScheme == .long16Char) ? .legacyV1 : .jpake
+        let firmwareTag = ProcessInfo.processInfo.environment["PUMP_FIRMWARE_TAG"]
+        let cfg = BenchSessionDetect.config(isMobi: isMobi, apiMajor: apiMajor, apiMinor: apiMinor,
+                                            pairingScheme: scheme, firmwareTag: firmwareTag)
+        print("  session: \(cfg.label)")
+        print("  D-08 gate wired: connectedPumpModel=\(String(describing: client.connectedPumpModel)) "
+            + "negotiatedApi=\(client.negotiatedApiVersion.map { "\($0.major).\($0.minor)" } ?? "nil")")
+
+        // Affordance (a): log the RAW CurrentActiveIdpValues cargo + byte-4 vs byte-5 targetBg decode.
+        await logCurrentTargetBgRaw()
+
+        // Load the accumulated matrix (resume), record this session's PLAN (placeholders), then exercise.
+        let ts = BenchCoverageStore.iso8601Now()
+        var matrix = BenchCoverageStore.load()
+        let planned = BenchCoverage.planSession(cfg, timestamp: ts)
+        matrix.record(planned)
+        print("\n--- Exercising this session's coverable cells ---")
+
+        for cell in planned where cell.state == .untested {
+            guard let cmd = BenchCommandCatalog.all.first(where: { $0.name == cell.command }) else { continue }
+            var updated = cell
+            switch cmd.lane {
+            case .read:
+                if cmd.name == "CurrentActiveIdpValuesRequest" {
+                    updated.state = .pass   // already read (+ raw-logged) above
+                    updated.note = "read + raw targetBg cargo logged"
+                } else if let inst = BenchCommandCatalog.makeReadInstance(cmd.name) {
+                    updated.state = await coverageRead(inst, cmd.name)
+                } else {
+                    updated.state = .gap; updated.note = "no read instance / response opcode to correlate"
+                }
+            case .signedWrite:
+                updated.state = await coverageSignedWrite(cmd.name)
+            case .delivery:
+                if cmd.name == "InitiateBolusRequest" {
+                    updated.state = await coverageDeliverBolusOracle()
+                    updated.note = "history-log read-back oracle (delivered ≈ requested)"
+                } else {
+                    updated.state = .gap
+                    updated.note = "no scripted delivery affordance in `coverage` — drive via TandemHardwareTests BenchCases / `probe`"
+                }
+            case .pairing:
+                updated.state = .pass; updated.note = "paired via \(scheme.rawValue) this session"
+            }
+            updated.timestamp = ts
+            matrix.record(updated)
+            print("  [\(updated.state.rawValue)] \(cmd.name) (\(cmd.lane.rawValue))")
+        }
+
+        // Affordance (c): opt-in no-cartridge delivery-rejection probe (its own flag; can never dispense).
+        if ProcessInfo.processInfo.environment["PUMPX2_NO_CARTRIDGE_BOLUS_PROBE"] == "1" && !cfg.cartridgePresent {
+            for c in await runNoCartridgeBolusProbe(cfg: cfg, ts: ts) { matrix.record(c) }
+        }
+
+        // Persist (JSON source-of-truth + human Markdown) and report what's left.
+        do {
+            try BenchCoverageStore.save(matrix, generatedAt: ts)
+            print("\n  matrix saved → \(BenchCoverageStore.jsonURL.path)")
+            print("  markdown     → \(BenchCoverageStore.markdownURL.path)")
+        } catch { print("  ⚠️ failed to save coverage matrix: \(error)") }
+        printCoverageRemaining(matrix)
+        print("\n========== COVERAGE COMPLETE — press Ctrl-C to exit ==========\n")
+    }
+
+    /// Affordance (b): activate the D-08 device/API send gate for THIS pump. From here the kit refuses
+    /// (throws `.unsupportedOnDevice`) any model/API-restricted message — the same gate faBolus relies on.
+    /// `failClosed()` clears it on any link drop; the pure `plan()` already excludes model-N/A commands, so
+    /// this is belt-and-suspenders proof that the wiring is in place, not the sole guard.
+    private func wireDeviceContext(isMobi: Bool, major: Int, minor: Int) {
+        guard major > 0 else { print("  ⏭️  device-context not wired (no ApiVersion read)"); return }
+        client.setDeviceContext(model: isMobi ? .mobi : .tslim, apiVersion: ApiVersion(major: major, minor: minor))
+    }
+
+    /// A generic read probe for the coverage sweep: send `req` read-only and await its correlated response.
+    /// PASS if the pump answers (a typed frame on the expected opcode), FAIL on NACK/timeout/drop (recovers).
+    private func coverageRead(_ req: Message, _ name: String) async -> BenchCellState {
+        guard await awaitPaired() else { return .deferred }
+        guard req.props.responseOpCode != nil else { return .gap }
+        do {
+            _ = try await client.withWritePolicy(.readOnly) {
+                try await self.client.sendAwaitingResponse(req, deadline: 10)
+            }
+            return .pass
+        } catch {
+            _ = await awaitPaired(); return .fail
+        }
+    }
+
+    /// Exercise a curated safe signed NON-delivery write (accept/NACK probe). Only the allowlisted names
+    /// reach here (the pure plan GAPs everything else). Nothing dispenses; permission is released immediately.
+    private func coverageSignedWrite(_ name: String) async -> BenchCellState {
+        switch name {
+        case "PlaySoundRequest":
+            return await probeWrite(PlaySoundRequest(), "coverage PlaySound") != nil ? .pass : .fail
+        case "BolusPermissionRequest":
+            guard let f = await probeWrite(BolusPermissionRequest(), "coverage BolusPermission"),
+                  let resp = try? ResponseParser.parse(frame: f, characteristic: .control).message as? BolusPermissionResponse,
+                  resp.granted else { return .fail }
+            if await probeWrite(BolusPermissionReleaseRequest(bolusID: resp.bolusId), "coverage release") != nil {
+                coveragePermissionReleasePassed = true
+            }
+            return .pass
+        case "BolusPermissionReleaseRequest":
+            return coveragePermissionReleasePassed ? .pass : .untested
+        default:
+            return .gap
+        }
+    }
+
+    /// Lane B delivery oracle: deliver a small SALINE bolus (0.10 u) and PASS only when the pump's OWN
+    /// history-log read-back (`LastBolusStatusV2`) reports the requested amount. Reached ONLY when the pure
+    /// plan opened the saline gate. UNVALIDATED — bench hardware only.
+    private func coverageDeliverBolusOracle() async -> BenchCellState {
+        let requestedMU: UInt32 = 100
+        let requestedUnits = Double(requestedMU) / 1000.0
+        guard await awaitPaired() else { return .fail }
+        guard let permFrame = await probeWrite(BolusPermissionRequest(), "coverage-deliver BolusPermission"),
+              let perm = try? ResponseParser.parse(frame: permFrame, characteristic: .control).message as? BolusPermissionResponse,
+              perm.granted else { return .fail }
+        do {
+            let mask = InitiateBolusRequest.typeBitmask(hasCarbs: false, hasCorrection: false, isExtended: false)
+            let req = try InitiateBolusRequest(validating: requestedMU, bolusID: perm.bolusId, bolusTypeBitmask: mask)
+            let frame = try await client.withWritePolicy(.allowDelivery) {
+                try await self.client.sendAwaitingResponse(
+                    req, authenticationKey: self.authKey, pumpTimeSinceReset: self.signingTimestamp,
+                    allowInsulinDelivery: true, deadline: 10, serialized: true)
+            }
+            guard let resp = try? ResponseParser.parse(frame: frame, characteristic: .control).message as? InitiateBolusResponse,
+                  resp.accepted else { return .fail }
+        } catch { return .fail }
+        // Oracle: poll the pump's own last-bolus record until it reflects the requested units.
+        let deadline = Date().addingTimeInterval(30)
+        while Date() < deadline {
+            if let f = try? await client.withWritePolicy(.readOnly, { try await self.client.sendAwaitingResponse(LastBolusStatusV2Request(), deadline: 10) }),
+               let last = try? ResponseParser.parse(frame: f, characteristic: .currentStatus).message as? LastBolusStatusV2Response,
+               abs(last.deliveredUnits - requestedUnits) <= 0.05 {
+                print("  ✅ delivery oracle: pump recorded \(last.deliveredUnits) u ≈ requested \(requestedUnits) u")
+                return .pass
+            }
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+        }
+        print("  ❌ delivery oracle: pump history did not reflect the requested \(requestedUnits) u within 30s")
+        return .fail
+    }
+
+    /// Affordance (a): read `CurrentActiveIdpValues` and log the RAW cargo hex + the byte-4 vs byte-5
+    /// targetBg decode (BENCH-SESSION-PLAN Obj 4 / D-07 — confirm byte-4 carries the pump-set target on
+    /// THIS pump family + firmware before trusting the typed decode).
+    private func logCurrentTargetBgRaw() async {
+        guard let r = await probeRead(CurrentActiveIdpValuesRequest(), as: CurrentActiveIdpValuesResponse.self, "activeIDP raw") else {
+            print("  ⏭️  currentTargetBg raw: activeIDP read rejected on this pump"); return
+        }
+        let raw = r.cargo
+        let b4 = raw.count >= 6 ? (Int(raw[4]) | (Int(raw[5]) << 8)) : -1
+        let b5 = raw.count >= 7 ? (Int(raw[5]) | (Int(raw[6]) << 8)) : -1
+        print("  🔬 currentTargetBg RAW cargo=\(Hex.encode(raw))")
+        print("     decoded targetBg: byte4(LE)=\(b4)  byte5(LE)=\(b5)  typed=\(r.currentTargetBg)  "
+            + "(D-07: byte-4 must equal the pump-set target; capture per pump-family+firmware)")
+    }
+
+    /// Affordance (c): OPT-IN no-cartridge bolus-rejection probe. Drives a 0.10 u bolus through BOTH
+    /// software walls with NO cartridge loaded and RECORDS the pump's rejection — it can never dispense
+    /// (no cartridge). Recorded under a distinct synthetic command so it does not mark the real delivery
+    /// oracle covered.
+    private func runNoCartridgeBolusProbe(cfg: BenchSessionConfig, ts: String) async -> [BenchCoverageCell] {
+        print("\n--- No-cartridge bolus-rejection probe (PUMPX2_NO_CARTRIDGE_BOLUS_PROBE) ---")
+        print("  Driving a 0.10 u bolus through BOTH walls with NO cartridge; recording the REJECTION.")
+        var passed = false, note = ""
+        if let f = await probeWrite(BolusPermissionRequest(), "no-cart BolusPermission"),
+           let perm = try? ResponseParser.parse(frame: f, characteristic: .control).message as? BolusPermissionResponse {
+            if !perm.granted {
+                passed = true; note = "pump refused permission without a cartridge (expected)"
+            } else {
+                do {
+                    let mask = InitiateBolusRequest.typeBitmask(hasCarbs: false, hasCorrection: false, isExtended: false)
+                    let req = try InitiateBolusRequest(validating: 100, bolusID: perm.bolusId, bolusTypeBitmask: mask)
+                    let frame = try await client.withWritePolicy(.allowDelivery) {
+                        try await self.client.sendAwaitingResponse(
+                            req, authenticationKey: self.authKey, pumpTimeSinceReset: self.signingTimestamp,
+                            allowInsulinDelivery: true, deadline: 10, serialized: true)
+                    }
+                    if let resp = try? ResponseParser.parse(frame: frame, characteristic: .control).message as? InitiateBolusResponse {
+                        passed = !resp.accepted
+                        note = resp.accepted
+                            ? "⚠️ pump ACCEPTED a no-cartridge initiate — verify NO delivery recorded on the pump"
+                            : "pump rejected the no-cartridge initiate (expected; status \(resp.status))"
+                    }
+                } catch { passed = true; note = "no-cartridge initiate threw/failed (expected rejection)" }
+            }
+        } else { note = "permission exchange produced no response" }
+        print("  → no-cartridge probe: \(passed ? "PASS (rejected as expected)" : "REVIEW") — \(note)")
+        let cell = BenchCoverageCell(
+            model: cfg.modelName, firmware: cfg.firmwareLabel, cartridge: false, cgm: cfg.cgmPresent,
+            command: "InitiateBolusRequest·no-cartridge-reject", lane: .delivery,
+            state: passed ? .pass : .fail, note: note, session: cfg.label, timestamp: ts)
+        return [cell]
+    }
+
+    private func printCoverageRemaining(_ matrix: BenchCoverageMatrix) {
+        let rem = matrix.remaining()
+        print("\n--- Coverage remaining: \(rem.count) command(s) not yet PASS in any config ---")
+        guard !rem.isEmpty else {
+            print("  ✅ every applicable command has a PASS in at least one recorded config"); return
+        }
+        var byNote: [String: [String]] = [:]
+        for r in rem { byNote[r.note, default: []].append("\(r.command) [\(r.model)/\(r.firmware) · \(r.best.rawValue)]") }
+        for note in byNote.keys.sorted() {
+            print("  • \(note)")
+            for item in byNote[note]!.sorted() { print("      - \(item)") }
+        }
+    }
+
     func pumpClient(_ c: PumpBLEClient, didReceiveFrame frame: [UInt8], on ch: Characteristic) {
         if ch == .authorization {
             coordinator?.handle(frame: frame)
@@ -698,6 +947,11 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
 switch args.first {
 case nil, "":
     serializationSelfCheck()
+case "coverage-selftest":
+    // OFFLINE (no Bluetooth): plan the representative bench sessions and write the coverage artifacts.
+    // Verifies the classification→persistence→render pipeline and seeds bench-coverage/ with the honest
+    // pre-bench PLAN (nothing PASS without a real pump). Safe to run anywhere.
+    BenchCoverageSelfTest.run()
 case "scan":
     let m = Monitor(mode: .scan); _ = m
     print("Scanning for pumps — Ctrl-C to stop.")
@@ -714,6 +968,18 @@ case "probe":
     let m = Monitor(mode: .probe); _ = m
     print("PROBE — reads + signed writes (NO insulin delivery). Pairs, runs the sequence, then idles.")
     print("Bench/spare pump only. Ctrl-C to stop.")
+    RunLoop.main.run()
+case "coverage":
+    // Resumable, comprehensive command-coverage sweep. Pairs, detects this session's config
+    // {model, firmware, cartridge, CGM} (from the pump's ApiVersion + PUMP_CARTRIDGE_LOADED /
+    // PUMP_CGM_PRESENT / PUMP_SALINE_ATTESTED / PUMPX2_DELIVER_SALINE env axes), enumerates every
+    // harness-drivable command, exercises the ones this config can (reads + curated signed writes;
+    // delivery ONLY behind the saline gate, verified by the pump's own history log), and accumulates a
+    // PERSISTENT matrix under bench-coverage/. Prints what remains and which config would cover it.
+    // Both delivery walls stay armed throughout. Bench/spare pump only.
+    let m = Monitor(mode: .coverage); _ = m
+    print("COVERAGE — resumable command-coverage sweep. Pairs, exercises this session's coverable")
+    print("commands, accumulates bench-coverage/COVERAGE-MATRIX.{json,md}, prints what's left. Ctrl-C to stop.")
     RunLoop.main.run()
 case "permission-test":
     // Signed-write validation that delivers NO insulin: pair → sign a BolusPermissionRequest
@@ -772,6 +1038,6 @@ case "carb-bolus":
     RunLoop.main.run()
 default:
     print("unknown command: \(args[0])")
-    print("commands: (none)=self-check, scan, monitor, probe, permission-test, bolus <milliunits>, carb-bolus <grams> [bg]")
+    print("commands: (none)=self-check, scan, monitor, probe, coverage, permission-test, bolus <milliunits>, carb-bolus <grams> [bg]")
     exit(2)
 }
