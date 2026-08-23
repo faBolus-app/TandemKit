@@ -1,6 +1,6 @@
 # TandemKit bench command-coverage matrix
 
-_Generated 2026-08-23T20:57:06Z · schema v1 · 625 recorded cells across 3 session config(s)._
+_Generated 2026-08-23T22:06:40Z · schema v1 · 625 recorded cells across 3 session config(s)._
 
 This matrix accumulates ACROSS bench sessions. Each session fills only the cells its hardware config (pump model × firmware × cartridge × CGM) allows; the rest stay `deferred` (coverable later) or `n/a` (another model's matrix). A delivery cell PASSES only when the pump's OWN history-log read-back equals the requested units.
 
@@ -8,16 +8,16 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 
 | state | count |
 |---|---|
-| `gap` | 95 |
+| `gap` | 71 |
 | `notApplicable` | 32 |
 | `deferred` | 43 |
-| `untested` | 205 |
+| `untested` | 229 |
 
 ## Coverage by session config
 
 | model | firmware | command | lane | best | detail |
 |---|---|---|---|---|---|
-| mobi | API 3.6 | `ActivateShelfModeRequest` | signedWrite | 🚫 `gap` | destructive command — never auto-fired on a bench pump |
+| mobi | API 3.6 | `ActivateShelfModeRequest` | signedWrite | 🚫 `gap` | MANUAL — activates shelf/storage mode — takes the pump offline; owner decides at the bench, never auto-fired |
 | mobi | API 3.6 | `ActiveAamBitsRequest` | read | • `untested` | exercisable (lane: read) |
 | mobi | API 3.6 | `AdditionalBolusRequest` | delivery | • `untested` | exercisable (lane: delivery) |
 | mobi | API 3.6 | `AlarmStatusRequest` | read | • `untested` | exercisable (lane: read) |
@@ -30,22 +30,22 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | mobi | API 3.6 | `BleSoftwareInfoRequest` | read | • `untested` | exercisable (lane: read) |
 | mobi | API 3.6 | `BolusCalcDataSnapshotRequest` | read | • `untested` | exercisable (lane: read) |
 | mobi | API 3.6 | `BolusPermissionChangeReasonRequest` | read | ⏳ `deferred` | needs mobi firmware on API ≥ 99.99 |
-| mobi | API 3.6 | `BolusPermissionReleaseRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| mobi | API 3.6 | `BolusPermissionReleaseRequest` | signedWrite | 🚫 `gap` | restore-half of the BolusPermissionRequest reversible pair — recorded when that pair runs behind the saline gate |
 | mobi | API 3.6 | `BolusPermissionRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
 | mobi | API 3.6 | `CGMGlucoseAlertSettingsRequest` | read | • `untested` | exercisable (lane: read) |
 | mobi | API 3.6 | `CGMHardwareInfoRequest` | read | • `untested` | exercisable (lane: read) |
 | mobi | API 3.6 | `CGMOORAlertSettingsRequest` | read | • `untested` | exercisable (lane: read) |
 | mobi | API 3.6 | `CGMRateAlertSettingsRequest` | read | • `untested` | exercisable (lane: read) |
 | mobi | API 3.6 | `CGMStatusRequest` | read | • `untested` | exercisable (lane: read) |
-| mobi | API 3.6 | `CancelBolusRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| mobi | API 3.6 | `CancelBolusRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
 | mobi | API 3.6 | `CentralChallengeRequest` | pairing | ⏳ `deferred` | needs a legacyV1-pairing session |
-| mobi | API 3.6 | `CgmHighLowAlertRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| mobi | API 3.6 | `CgmOutOfRangeAlertRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| mobi | API 3.6 | `CgmRiseFallAlertRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| mobi | API 3.6 | `CgmHighLowAlertRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke CGM-alert read↔write mapping (CGM session) |
+| mobi | API 3.6 | `CgmOutOfRangeAlertRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke CGM-alert read↔write mapping (CGM session) |
+| mobi | API 3.6 | `CgmRiseFallAlertRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke CGM-alert read↔write mapping (CGM session) |
 | mobi | API 3.6 | `CgmStatusV2Request` | read | • `untested` | exercisable (lane: read) |
 | mobi | API 3.6 | `CgmSupportPackageStatusRequest` | read | ⏳ `deferred` | needs mobi firmware on API ≥ 99.99 |
-| mobi | API 3.6 | `ChangeControlIQSettingsRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| mobi | API 3.6 | `ChangeTimeDateRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| mobi | API 3.6 | `ChangeControlIQSettingsRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| mobi | API 3.6 | `ChangeTimeDateRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
 | mobi | API 3.6 | `CommonSoftwareInfoRequest` | read | ⏳ `deferred` | needs mobi firmware on API ≥ 99.99 |
 | mobi | API 3.6 | `ControlIQIOBRequest` | read | • `untested` | exercisable (lane: read) |
 | mobi | API 3.6 | `ControlIQInfoV1Request` | read | • `untested` | exercisable (lane: read) |
@@ -61,15 +61,15 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | mobi | API 3.6 | `CurrentEGVGuiDataRequest` | read | • `untested` | exercisable (lane: read) |
 | mobi | API 3.6 | `CurrentEgvGuiDataV2Request` | read | ⏳ `deferred` | needs mobi firmware on API ≥ 99.99 |
 | mobi | API 3.6 | `DeleteIDPRequest` | delivery | • `untested` | exercisable (lane: delivery) |
-| mobi | API 3.6 | `DisconnectPumpRequest` | signedWrite | 🚫 `gap` | destructive command — never auto-fired on a bench pump |
+| mobi | API 3.6 | `DisconnectPumpRequest` | signedWrite | 🚫 `gap` | MANUAL — force-disconnects the BLE session — drops the link the sweep needs; owner decides at the bench, never auto-fired |
 | mobi | API 3.6 | `EnterChangeCartridgeModeRequest` | delivery | • `untested` | exercisable (lane: delivery) |
 | mobi | API 3.6 | `EnterFillTubingModeRequest` | delivery | • `untested` | exercisable (lane: delivery) |
-| mobi | API 3.6 | `ExitChangeCartridgeModeRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| mobi | API 3.6 | `ExitFillTubingModeRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| mobi | API 3.6 | `ExitChangeCartridgeModeRequest` | signedWrite | 🚫 `gap` | restore-half of the EnterChangeCartridgeModeRequest reversible pair — recorded when that pair runs behind the saline gate |
+| mobi | API 3.6 | `ExitFillTubingModeRequest` | signedWrite | 🚫 `gap` | restore-half of the EnterFillTubingModeRequest reversible pair — recorded when that pair runs behind the saline gate |
 | mobi | API 3.6 | `ExtendedBolusStatusRequest` | read | • `untested` | exercisable (lane: read) |
 | mobi | API 3.6 | `ExtendedBolusStatusV2Request` | read | • `untested` | exercisable (lane: read) |
-| mobi | API 3.6 | `FactoryResetBRequest` | signedWrite | 🚫 `gap` | destructive command — never auto-fired on a bench pump |
-| mobi | API 3.6 | `FactoryResetRequest` | signedWrite | 🚫 `gap` | destructive command — never auto-fired on a bench pump |
+| mobi | API 3.6 | `FactoryResetBRequest` | signedWrite | 🚫 `gap` | MANUAL — ERASES the pump to factory state (B variant) — irreversible; owner decides at the bench, never auto-fired |
+| mobi | API 3.6 | `FactoryResetRequest` | signedWrite | 🚫 `gap` | MANUAL — ERASES the pump to factory state — irreversible; owner decides at the bench, never auto-fired |
 | mobi | API 3.6 | `FillCannulaRequest` | delivery | • `untested` | exercisable (lane: delivery) |
 | mobi | API 3.6 | `GetG6TransmitterHardwareInfoRequest` | read | • `untested` | exercisable (lane: read) |
 | mobi | API 3.6 | `GetSavedG7PairingCodeRequest` | read | • `untested` | exercisable (lane: read) |
@@ -96,7 +96,7 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | mobi | API 3.6 | `MalfunctionStatusRequest` | read | • `untested` | exercisable (lane: read) |
 | mobi | API 3.6 | `NonControlIQIOBRequest` | read | • `untested` | exercisable (lane: read) |
 | mobi | API 3.6 | `PlaySoundRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
-| mobi | API 3.6 | `PrimeTubingSuspendRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| mobi | API 3.6 | `PrimeTubingSuspendRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — only meaningful during an active tubing prime; drive within the fill-tubing workflow |
 | mobi | API 3.6 | `ProfileStatusRequest` | read | • `untested` | exercisable (lane: read) |
 | mobi | API 3.6 | `PumpChallengeRequest` | pairing | ⏳ `deferred` | needs a legacyV1-pairing session |
 | mobi | API 3.6 | `PumpFeaturesV1Request` | read | • `untested` | exercisable (lane: read) |
@@ -106,33 +106,33 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | mobi | API 3.6 | `PumpVersionBRequest` | read | • `untested` | exercisable (lane: read) |
 | mobi | API 3.6 | `PumpVersionRequest` | read | • `untested` | exercisable (lane: read) |
 | mobi | API 3.6 | `RemindersRequest` | read | • `untested` | exercisable (lane: read) |
-| mobi | API 3.6 | `RemoteBgEntryRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| mobi | API 3.6 | `RemoteCarbEntryRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| mobi | API 3.6 | `RemoteBgEntryRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| mobi | API 3.6 | `RemoteCarbEntryRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
 | mobi | API 3.6 | `RenameIDPRequest` | delivery | • `untested` | exercisable (lane: delivery) |
 | mobi | API 3.6 | `ResumePumpingRequest` | delivery | • `untested` | exercisable (lane: delivery) |
 | mobi | API 3.6 | `SecretMenuRequest` | read | • `untested` | exercisable (lane: read) |
-| mobi | API 3.6 | `SendTipsControlGenericTestRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| mobi | API 3.6 | `SendTipsControlGenericTestRequest` | signedWrite | 🚫 `gap` | MANUAL — undocumented internal test op — effect unknown; owner decides at the bench, never auto-fired |
 | mobi | API 3.6 | `SetActiveIDPRequest` | delivery | • `untested` | exercisable (lane: delivery) |
-| mobi | API 3.6 | `SetAutoOffAlertRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| mobi | API 3.6 | `SetBgReminderRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| mobi | API 3.6 | `SetDexcomG7PairingCodeRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| mobi | API 3.6 | `SetG6TransmitterIdRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| mobi | API 3.6 | `SetIDPSegmentRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| mobi | API 3.6 | `SetIDPSettingsRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| mobi | API 3.6 | `SetLowInsulinAlertRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| mobi | API 3.6 | `SetMaxBasalLimitRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| mobi | API 3.6 | `SetMaxBolusLimitRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| mobi | API 3.6 | `SetMissedMealBolusReminderRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| mobi | API 3.6 | `SetAutoOffAlertRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — PumpSettings exposes enabled+duration but not the write's bitmask byte — no clean no-op re-apply |
+| mobi | API 3.6 | `SetBgReminderRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke Reminders read↔write mapping |
+| mobi | API 3.6 | `SetDexcomG7PairingCodeRequest` | signedWrite | 🚫 `gap` | MANUAL — changes the G7 pairing code — disrupts the sensor pairing; owner decides at the bench, never auto-fired |
+| mobi | API 3.6 | `SetG6TransmitterIdRequest` | signedWrite | 🚫 `gap` | MANUAL — changes the paired CGM transmitter id — disrupts the sensor pairing; owner decides at the bench, never auto-fired |
+| mobi | API 3.6 | `SetIDPSegmentRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — edits a live profile segment; capture/restore via IDPSegment is bespoke + profile-mutating |
+| mobi | API 3.6 | `SetIDPSettingsRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — edits live profile settings; capture/restore via IDPSettings is bespoke + profile-mutating |
+| mobi | API 3.6 | `SetLowInsulinAlertRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| mobi | API 3.6 | `SetMaxBasalLimitRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| mobi | API 3.6 | `SetMaxBolusLimitRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| mobi | API 3.6 | `SetMissedMealBolusReminderRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke Reminders read↔write mapping |
 | mobi | API 3.6 | `SetModesRequest` | delivery | • `untested` | exercisable (lane: delivery) |
-| mobi | API 3.6 | `SetPumpAlertSnoozeRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| mobi | API 3.6 | `SetPumpSoundsRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| mobi | API 3.6 | `SetQuickBolusSettingsRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| mobi | API 3.6 | `SetSensorTypeRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| mobi | API 3.6 | `SetSiteChangeReminderRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| mobi | API 3.6 | `SetSleepScheduleRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| mobi | API 3.6 | `SetPumpAlertSnoozeRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — no read-back for the snooze setting to capture/restore |
+| mobi | API 3.6 | `SetPumpSoundsRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke PumpGlobals annunciation read↔write mapping |
+| mobi | API 3.6 | `SetQuickBolusSettingsRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs the opaque 5-byte magic echoed from a prior read; bespoke mapping |
+| mobi | API 3.6 | `SetSensorTypeRequest` | signedWrite | 🚫 `gap` | MANUAL — switches the CGM sensor type — disrupts the active sensor; owner decides at the bench, never auto-fired |
+| mobi | API 3.6 | `SetSiteChangeReminderRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke Reminders read↔write mapping |
+| mobi | API 3.6 | `SetSleepScheduleRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke ControlIQSleepSchedule read↔write mapping |
 | mobi | API 3.6 | `SetTempRateRequest` | delivery | • `untested` | exercisable (lane: delivery) |
-| mobi | API 3.6 | `StartDexcomG6SensorSessionRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| mobi | API 3.6 | `StopDexcomCGMSensorSessionRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| mobi | API 3.6 | `StartDexcomG6SensorSessionRequest` | signedWrite | 🚫 `gap` | MANUAL — starts a CGM sensor session — disrupts an in-progress sensor; owner decides at the bench, never auto-fired |
+| mobi | API 3.6 | `StopDexcomCGMSensorSessionRequest` | signedWrite | 🚫 `gap` | MANUAL — stops the CGM sensor session — disrupts an in-progress sensor; owner decides at the bench, never auto-fired |
 | mobi | API 3.6 | `StopTempRateRequest` | delivery | • `untested` | exercisable (lane: delivery) |
 | mobi | API 3.6 | `StreamDataPreflightRequest` | signedWrite | ⏳ `deferred` | needs mobi firmware on API ≥ 99.99 |
 | mobi | API 3.6 | `StreamDataReadinessRequest` | read | • `untested` | exercisable (lane: read) |
@@ -141,8 +141,8 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | mobi | API 3.6 | `TempRateStatusRequest` | read | • `untested` | exercisable (lane: read) |
 | mobi | API 3.6 | `TimeSinceResetRequest` | read | • `untested` | exercisable (lane: read) |
 | mobi | API 3.6 | `UnknownMobiOpcode110Request` | read | • `untested` | exercisable (lane: read) |
-| mobi | API 3.6 | `UserInteractionRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 2.5 | `ActivateShelfModeRequest` | signedWrite | 🚫 `gap` | destructive command — never auto-fired on a bench pump |
+| mobi | API 3.6 | `UserInteractionRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| tslim | API 2.5 | `ActivateShelfModeRequest` | signedWrite | 🚫 `gap` | MANUAL — activates shelf/storage mode — takes the pump offline; owner decides at the bench, never auto-fired |
 | tslim | API 2.5 | `ActiveAamBitsRequest` | read | ⏳ `deferred` | needs tslim firmware on API ≥ 3.5 |
 | tslim | API 2.5 | `AdditionalBolusRequest` | delivery | ⏳ `deferred` | needs a cartridge (saline) session on tslim |
 | tslim | API 2.5 | `AlarmStatusRequest` | read | • `untested` | exercisable (lane: read) |
@@ -155,22 +155,22 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | tslim | API 2.5 | `BleSoftwareInfoRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 2.5 | `BolusCalcDataSnapshotRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 2.5 | `BolusPermissionChangeReasonRequest` | read | ⏳ `deferred` | needs tslim firmware on API ≥ 99.99 |
-| tslim | API 2.5 | `BolusPermissionReleaseRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| tslim | API 2.5 | `BolusPermissionReleaseRequest` | signedWrite | 🚫 `gap` | restore-half of the BolusPermissionRequest reversible pair — recorded when that pair runs behind the saline gate |
 | tslim | API 2.5 | `BolusPermissionRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
 | tslim | API 2.5 | `CGMGlucoseAlertSettingsRequest` | read | ⏳ `deferred` | needs a CGM-present session (PUMP_CGM_PRESENT=1) |
 | tslim | API 2.5 | `CGMHardwareInfoRequest` | read | ⏳ `deferred` | needs a CGM-present session (PUMP_CGM_PRESENT=1) |
 | tslim | API 2.5 | `CGMOORAlertSettingsRequest` | read | ⏳ `deferred` | needs a CGM-present session (PUMP_CGM_PRESENT=1) |
 | tslim | API 2.5 | `CGMRateAlertSettingsRequest` | read | ⏳ `deferred` | needs a CGM-present session (PUMP_CGM_PRESENT=1) |
 | tslim | API 2.5 | `CGMStatusRequest` | read | ⏳ `deferred` | needs a CGM-present session (PUMP_CGM_PRESENT=1) |
-| tslim | API 2.5 | `CancelBolusRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| tslim | API 2.5 | `CancelBolusRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
 | tslim | API 2.5 | `CentralChallengeRequest` | pairing | • `untested` | exercisable (lane: pairing) |
-| tslim | API 2.5 | `CgmHighLowAlertRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 2.5 | `CgmOutOfRangeAlertRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 2.5 | `CgmRiseFallAlertRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| tslim | API 2.5 | `CgmHighLowAlertRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke CGM-alert read↔write mapping (CGM session) |
+| tslim | API 2.5 | `CgmOutOfRangeAlertRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke CGM-alert read↔write mapping (CGM session) |
+| tslim | API 2.5 | `CgmRiseFallAlertRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke CGM-alert read↔write mapping (CGM session) |
 | tslim | API 2.5 | `CgmStatusV2Request` | read | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
 | tslim | API 2.5 | `CgmSupportPackageStatusRequest` | read | ⏳ `deferred` | needs tslim firmware on API ≥ 99.99 |
-| tslim | API 2.5 | `ChangeControlIQSettingsRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 2.5 | `ChangeTimeDateRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| tslim | API 2.5 | `ChangeControlIQSettingsRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| tslim | API 2.5 | `ChangeTimeDateRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
 | tslim | API 2.5 | `CommonSoftwareInfoRequest` | read | ⏳ `deferred` | needs tslim firmware on API ≥ 99.99 |
 | tslim | API 2.5 | `ControlIQIOBRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 2.5 | `ControlIQInfoV1Request` | read | • `untested` | exercisable (lane: read) |
@@ -189,12 +189,12 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | tslim | API 2.5 | `DisconnectPumpRequest` | signedWrite | ⏳ `deferred` | needs tslim firmware on API ≥ 3.5 |
 | tslim | API 2.5 | `EnterChangeCartridgeModeRequest` | delivery | ⏳ `deferred` | needs a cartridge (saline) session on tslim |
 | tslim | API 2.5 | `EnterFillTubingModeRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
-| tslim | API 2.5 | `ExitChangeCartridgeModeRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 2.5 | `ExitFillTubingModeRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| tslim | API 2.5 | `ExitChangeCartridgeModeRequest` | signedWrite | 🚫 `gap` | restore-half of the EnterChangeCartridgeModeRequest reversible pair — recorded when that pair runs behind the saline gate |
+| tslim | API 2.5 | `ExitFillTubingModeRequest` | signedWrite | 🚫 `gap` | restore-half of the EnterFillTubingModeRequest reversible pair — recorded when that pair runs behind the saline gate |
 | tslim | API 2.5 | `ExtendedBolusStatusRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 2.5 | `ExtendedBolusStatusV2Request` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 2.5 | `FactoryResetBRequest` | signedWrite | 🚫 `gap` | destructive command — never auto-fired on a bench pump |
-| tslim | API 2.5 | `FactoryResetRequest` | signedWrite | 🚫 `gap` | destructive command — never auto-fired on a bench pump |
+| tslim | API 2.5 | `FactoryResetBRequest` | signedWrite | 🚫 `gap` | MANUAL — ERASES the pump to factory state (B variant) — irreversible; owner decides at the bench, never auto-fired |
+| tslim | API 2.5 | `FactoryResetRequest` | signedWrite | 🚫 `gap` | MANUAL — ERASES the pump to factory state — irreversible; owner decides at the bench, never auto-fired |
 | tslim | API 2.5 | `FillCannulaRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
 | tslim | API 2.5 | `GetG6TransmitterHardwareInfoRequest` | read | ⏳ `deferred` | needs a CGM-present session (PUMP_CGM_PRESENT=1) |
 | tslim | API 2.5 | `GetSavedG7PairingCodeRequest` | read | ⏳ `deferred` | needs a CGM-present session (PUMP_CGM_PRESENT=1) |
@@ -221,7 +221,7 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | tslim | API 2.5 | `MalfunctionStatusRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 2.5 | `NonControlIQIOBRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 2.5 | `PlaySoundRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
-| tslim | API 2.5 | `PrimeTubingSuspendRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| tslim | API 2.5 | `PrimeTubingSuspendRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — only meaningful during an active tubing prime; drive within the fill-tubing workflow |
 | tslim | API 2.5 | `ProfileStatusRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 2.5 | `PumpChallengeRequest` | pairing | • `untested` | exercisable (lane: pairing) |
 | tslim | API 2.5 | `PumpFeaturesV1Request` | read | • `untested` | exercisable (lane: read) |
@@ -231,33 +231,33 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | tslim | API 2.5 | `PumpVersionBRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 2.5 | `PumpVersionRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 2.5 | `RemindersRequest` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 2.5 | `RemoteBgEntryRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 2.5 | `RemoteCarbEntryRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| tslim | API 2.5 | `RemoteBgEntryRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| tslim | API 2.5 | `RemoteCarbEntryRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
 | tslim | API 2.5 | `RenameIDPRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
 | tslim | API 2.5 | `ResumePumpingRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
 | tslim | API 2.5 | `SecretMenuRequest` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 2.5 | `SendTipsControlGenericTestRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| tslim | API 2.5 | `SendTipsControlGenericTestRequest` | signedWrite | 🚫 `gap` | MANUAL — undocumented internal test op — effect unknown; owner decides at the bench, never auto-fired |
 | tslim | API 2.5 | `SetActiveIDPRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
-| tslim | API 2.5 | `SetAutoOffAlertRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 2.5 | `SetBgReminderRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 2.5 | `SetDexcomG7PairingCodeRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| tslim | API 2.5 | `SetAutoOffAlertRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — PumpSettings exposes enabled+duration but not the write's bitmask byte — no clean no-op re-apply |
+| tslim | API 2.5 | `SetBgReminderRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke Reminders read↔write mapping |
+| tslim | API 2.5 | `SetDexcomG7PairingCodeRequest` | signedWrite | 🚫 `gap` | MANUAL — changes the G7 pairing code — disrupts the sensor pairing; owner decides at the bench, never auto-fired |
 | tslim | API 2.5 | `SetG6TransmitterIdRequest` | signedWrite | ⏳ `deferred` | needs tslim firmware on API ≥ 3.5 |
 | tslim | API 2.5 | `SetIDPSegmentRequest` | signedWrite | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
 | tslim | API 2.5 | `SetIDPSettingsRequest` | signedWrite | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
-| tslim | API 2.5 | `SetLowInsulinAlertRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 2.5 | `SetMaxBasalLimitRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 2.5 | `SetMaxBolusLimitRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 2.5 | `SetMissedMealBolusReminderRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| tslim | API 2.5 | `SetLowInsulinAlertRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| tslim | API 2.5 | `SetMaxBasalLimitRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| tslim | API 2.5 | `SetMaxBolusLimitRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| tslim | API 2.5 | `SetMissedMealBolusReminderRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke Reminders read↔write mapping |
 | tslim | API 2.5 | `SetModesRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
-| tslim | API 2.5 | `SetPumpAlertSnoozeRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 2.5 | `SetPumpSoundsRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 2.5 | `SetQuickBolusSettingsRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 2.5 | `SetSensorTypeRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 2.5 | `SetSiteChangeReminderRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| tslim | API 2.5 | `SetPumpAlertSnoozeRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — no read-back for the snooze setting to capture/restore |
+| tslim | API 2.5 | `SetPumpSoundsRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke PumpGlobals annunciation read↔write mapping |
+| tslim | API 2.5 | `SetQuickBolusSettingsRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs the opaque 5-byte magic echoed from a prior read; bespoke mapping |
+| tslim | API 2.5 | `SetSensorTypeRequest` | signedWrite | 🚫 `gap` | MANUAL — switches the CGM sensor type — disrupts the active sensor; owner decides at the bench, never auto-fired |
+| tslim | API 2.5 | `SetSiteChangeReminderRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke Reminders read↔write mapping |
 | tslim | API 2.5 | `SetSleepScheduleRequest` | signedWrite | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
 | tslim | API 2.5 | `SetTempRateRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
-| tslim | API 2.5 | `StartDexcomG6SensorSessionRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 2.5 | `StopDexcomCGMSensorSessionRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| tslim | API 2.5 | `StartDexcomG6SensorSessionRequest` | signedWrite | 🚫 `gap` | MANUAL — starts a CGM sensor session — disrupts an in-progress sensor; owner decides at the bench, never auto-fired |
+| tslim | API 2.5 | `StopDexcomCGMSensorSessionRequest` | signedWrite | 🚫 `gap` | MANUAL — stops the CGM sensor session — disrupts an in-progress sensor; owner decides at the bench, never auto-fired |
 | tslim | API 2.5 | `StopTempRateRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
 | tslim | API 2.5 | `StreamDataPreflightRequest` | signedWrite | ⏳ `deferred` | needs tslim firmware on API ≥ 99.99 |
 | tslim | API 2.5 | `StreamDataReadinessRequest` | read | • `untested` | exercisable (lane: read) |
@@ -266,8 +266,8 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | tslim | API 2.5 | `TempRateStatusRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 2.5 | `TimeSinceResetRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 2.5 | `UnknownMobiOpcode110Request` | read | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
-| tslim | API 2.5 | `UserInteractionRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 3.4 | `ActivateShelfModeRequest` | signedWrite | 🚫 `gap` | destructive command — never auto-fired on a bench pump |
+| tslim | API 2.5 | `UserInteractionRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| tslim | API 3.4 | `ActivateShelfModeRequest` | signedWrite | 🚫 `gap` | MANUAL — activates shelf/storage mode — takes the pump offline; owner decides at the bench, never auto-fired |
 | tslim | API 3.4 | `ActiveAamBitsRequest` | read | ⏳ `deferred` | needs tslim firmware on API ≥ 3.5 |
 | tslim | API 3.4 | `AdditionalBolusRequest` | delivery | • `untested` | exercisable (lane: delivery) |
 | tslim | API 3.4 | `AlarmStatusRequest` | read | • `untested` | exercisable (lane: read) |
@@ -280,22 +280,22 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | tslim | API 3.4 | `BleSoftwareInfoRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 3.4 | `BolusCalcDataSnapshotRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 3.4 | `BolusPermissionChangeReasonRequest` | read | ⏳ `deferred` | needs tslim firmware on API ≥ 99.99 |
-| tslim | API 3.4 | `BolusPermissionReleaseRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| tslim | API 3.4 | `BolusPermissionReleaseRequest` | signedWrite | 🚫 `gap` | restore-half of the BolusPermissionRequest reversible pair — recorded when that pair runs behind the saline gate |
 | tslim | API 3.4 | `BolusPermissionRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
 | tslim | API 3.4 | `CGMGlucoseAlertSettingsRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 3.4 | `CGMHardwareInfoRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 3.4 | `CGMOORAlertSettingsRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 3.4 | `CGMRateAlertSettingsRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 3.4 | `CGMStatusRequest` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 3.4 | `CancelBolusRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| tslim | API 3.4 | `CancelBolusRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
 | tslim | API 3.4 | `CentralChallengeRequest` | pairing | ⏳ `deferred` | needs a legacyV1-pairing session |
-| tslim | API 3.4 | `CgmHighLowAlertRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 3.4 | `CgmOutOfRangeAlertRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 3.4 | `CgmRiseFallAlertRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| tslim | API 3.4 | `CgmHighLowAlertRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke CGM-alert read↔write mapping (CGM session) |
+| tslim | API 3.4 | `CgmOutOfRangeAlertRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke CGM-alert read↔write mapping (CGM session) |
+| tslim | API 3.4 | `CgmRiseFallAlertRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke CGM-alert read↔write mapping (CGM session) |
 | tslim | API 3.4 | `CgmStatusV2Request` | read | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
 | tslim | API 3.4 | `CgmSupportPackageStatusRequest` | read | ⏳ `deferred` | needs tslim firmware on API ≥ 99.99 |
-| tslim | API 3.4 | `ChangeControlIQSettingsRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 3.4 | `ChangeTimeDateRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| tslim | API 3.4 | `ChangeControlIQSettingsRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| tslim | API 3.4 | `ChangeTimeDateRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
 | tslim | API 3.4 | `CommonSoftwareInfoRequest` | read | ⏳ `deferred` | needs tslim firmware on API ≥ 99.99 |
 | tslim | API 3.4 | `ControlIQIOBRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 3.4 | `ControlIQInfoV1Request` | read | • `untested` | exercisable (lane: read) |
@@ -314,12 +314,12 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | tslim | API 3.4 | `DisconnectPumpRequest` | signedWrite | ⏳ `deferred` | needs tslim firmware on API ≥ 3.5 |
 | tslim | API 3.4 | `EnterChangeCartridgeModeRequest` | delivery | • `untested` | exercisable (lane: delivery) |
 | tslim | API 3.4 | `EnterFillTubingModeRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
-| tslim | API 3.4 | `ExitChangeCartridgeModeRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 3.4 | `ExitFillTubingModeRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| tslim | API 3.4 | `ExitChangeCartridgeModeRequest` | signedWrite | 🚫 `gap` | restore-half of the EnterChangeCartridgeModeRequest reversible pair — recorded when that pair runs behind the saline gate |
+| tslim | API 3.4 | `ExitFillTubingModeRequest` | signedWrite | 🚫 `gap` | restore-half of the EnterFillTubingModeRequest reversible pair — recorded when that pair runs behind the saline gate |
 | tslim | API 3.4 | `ExtendedBolusStatusRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 3.4 | `ExtendedBolusStatusV2Request` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 3.4 | `FactoryResetBRequest` | signedWrite | 🚫 `gap` | destructive command — never auto-fired on a bench pump |
-| tslim | API 3.4 | `FactoryResetRequest` | signedWrite | 🚫 `gap` | destructive command — never auto-fired on a bench pump |
+| tslim | API 3.4 | `FactoryResetBRequest` | signedWrite | 🚫 `gap` | MANUAL — ERASES the pump to factory state (B variant) — irreversible; owner decides at the bench, never auto-fired |
+| tslim | API 3.4 | `FactoryResetRequest` | signedWrite | 🚫 `gap` | MANUAL — ERASES the pump to factory state — irreversible; owner decides at the bench, never auto-fired |
 | tslim | API 3.4 | `FillCannulaRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
 | tslim | API 3.4 | `GetG6TransmitterHardwareInfoRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 3.4 | `GetSavedG7PairingCodeRequest` | read | • `untested` | exercisable (lane: read) |
@@ -346,7 +346,7 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | tslim | API 3.4 | `MalfunctionStatusRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 3.4 | `NonControlIQIOBRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 3.4 | `PlaySoundRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
-| tslim | API 3.4 | `PrimeTubingSuspendRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| tslim | API 3.4 | `PrimeTubingSuspendRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — only meaningful during an active tubing prime; drive within the fill-tubing workflow |
 | tslim | API 3.4 | `ProfileStatusRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 3.4 | `PumpChallengeRequest` | pairing | ⏳ `deferred` | needs a legacyV1-pairing session |
 | tslim | API 3.4 | `PumpFeaturesV1Request` | read | • `untested` | exercisable (lane: read) |
@@ -356,33 +356,33 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | tslim | API 3.4 | `PumpVersionBRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 3.4 | `PumpVersionRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 3.4 | `RemindersRequest` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 3.4 | `RemoteBgEntryRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 3.4 | `RemoteCarbEntryRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| tslim | API 3.4 | `RemoteBgEntryRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| tslim | API 3.4 | `RemoteCarbEntryRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
 | tslim | API 3.4 | `RenameIDPRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
 | tslim | API 3.4 | `ResumePumpingRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
 | tslim | API 3.4 | `SecretMenuRequest` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 3.4 | `SendTipsControlGenericTestRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| tslim | API 3.4 | `SendTipsControlGenericTestRequest` | signedWrite | 🚫 `gap` | MANUAL — undocumented internal test op — effect unknown; owner decides at the bench, never auto-fired |
 | tslim | API 3.4 | `SetActiveIDPRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
-| tslim | API 3.4 | `SetAutoOffAlertRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 3.4 | `SetBgReminderRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 3.4 | `SetDexcomG7PairingCodeRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| tslim | API 3.4 | `SetAutoOffAlertRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — PumpSettings exposes enabled+duration but not the write's bitmask byte — no clean no-op re-apply |
+| tslim | API 3.4 | `SetBgReminderRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke Reminders read↔write mapping |
+| tslim | API 3.4 | `SetDexcomG7PairingCodeRequest` | signedWrite | 🚫 `gap` | MANUAL — changes the G7 pairing code — disrupts the sensor pairing; owner decides at the bench, never auto-fired |
 | tslim | API 3.4 | `SetG6TransmitterIdRequest` | signedWrite | ⏳ `deferred` | needs tslim firmware on API ≥ 3.5 |
 | tslim | API 3.4 | `SetIDPSegmentRequest` | signedWrite | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
 | tslim | API 3.4 | `SetIDPSettingsRequest` | signedWrite | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
-| tslim | API 3.4 | `SetLowInsulinAlertRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 3.4 | `SetMaxBasalLimitRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 3.4 | `SetMaxBolusLimitRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 3.4 | `SetMissedMealBolusReminderRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| tslim | API 3.4 | `SetLowInsulinAlertRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| tslim | API 3.4 | `SetMaxBasalLimitRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| tslim | API 3.4 | `SetMaxBolusLimitRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| tslim | API 3.4 | `SetMissedMealBolusReminderRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke Reminders read↔write mapping |
 | tslim | API 3.4 | `SetModesRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
-| tslim | API 3.4 | `SetPumpAlertSnoozeRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 3.4 | `SetPumpSoundsRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 3.4 | `SetQuickBolusSettingsRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 3.4 | `SetSensorTypeRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 3.4 | `SetSiteChangeReminderRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| tslim | API 3.4 | `SetPumpAlertSnoozeRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — no read-back for the snooze setting to capture/restore |
+| tslim | API 3.4 | `SetPumpSoundsRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke PumpGlobals annunciation read↔write mapping |
+| tslim | API 3.4 | `SetQuickBolusSettingsRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs the opaque 5-byte magic echoed from a prior read; bespoke mapping |
+| tslim | API 3.4 | `SetSensorTypeRequest` | signedWrite | 🚫 `gap` | MANUAL — switches the CGM sensor type — disrupts the active sensor; owner decides at the bench, never auto-fired |
+| tslim | API 3.4 | `SetSiteChangeReminderRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke Reminders read↔write mapping |
 | tslim | API 3.4 | `SetSleepScheduleRequest` | signedWrite | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
 | tslim | API 3.4 | `SetTempRateRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
-| tslim | API 3.4 | `StartDexcomG6SensorSessionRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
-| tslim | API 3.4 | `StopDexcomCGMSensorSessionRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| tslim | API 3.4 | `StartDexcomG6SensorSessionRequest` | signedWrite | 🚫 `gap` | MANUAL — starts a CGM sensor session — disrupts an in-progress sensor; owner decides at the bench, never auto-fired |
+| tslim | API 3.4 | `StopDexcomCGMSensorSessionRequest` | signedWrite | 🚫 `gap` | MANUAL — stops the CGM sensor session — disrupts an in-progress sensor; owner decides at the bench, never auto-fired |
 | tslim | API 3.4 | `StopTempRateRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
 | tslim | API 3.4 | `StreamDataPreflightRequest` | signedWrite | ⏳ `deferred` | needs tslim firmware on API ≥ 99.99 |
 | tslim | API 3.4 | `StreamDataReadinessRequest` | read | • `untested` | exercisable (lane: read) |
@@ -391,7 +391,7 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | tslim | API 3.4 | `TempRateStatusRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 3.4 | `TimeSinceResetRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 3.4 | `UnknownMobiOpcode110Request` | read | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
-| tslim | API 3.4 | `UserInteractionRequest` | signedWrite | 🚫 `gap` | state-mutating signed write — no auto-fired reversible affordance; drive via the curated `probe` subcommand |
+| tslim | API 3.4 | `UserInteractionRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
 
 ## Still uncovered — and the session config that would cover it
 
@@ -595,15 +595,39 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
   - `TimeSinceResetRequest` (tslim/API 3.4, untested)
   - `UnknownMobiOpcode110Request` (mobi/API 3.6, untested)
 - **exercisable (lane: signedWrite)**
-  - `BolusPermissionReleaseRequest` (mobi/API 3.6, untested)
-  - `BolusPermissionReleaseRequest` (tslim/API 2.5, untested)
-  - `BolusPermissionReleaseRequest` (tslim/API 3.4, untested)
   - `BolusPermissionRequest` (mobi/API 3.6, untested)
   - `BolusPermissionRequest` (tslim/API 2.5, untested)
   - `BolusPermissionRequest` (tslim/API 3.4, untested)
+  - `CancelBolusRequest` (mobi/API 3.6, untested)
+  - `CancelBolusRequest` (tslim/API 2.5, untested)
+  - `CancelBolusRequest` (tslim/API 3.4, untested)
+  - `ChangeControlIQSettingsRequest` (mobi/API 3.6, untested)
+  - `ChangeControlIQSettingsRequest` (tslim/API 2.5, untested)
+  - `ChangeControlIQSettingsRequest` (tslim/API 3.4, untested)
+  - `ChangeTimeDateRequest` (mobi/API 3.6, untested)
+  - `ChangeTimeDateRequest` (tslim/API 2.5, untested)
+  - `ChangeTimeDateRequest` (tslim/API 3.4, untested)
   - `PlaySoundRequest` (mobi/API 3.6, untested)
   - `PlaySoundRequest` (tslim/API 2.5, untested)
   - `PlaySoundRequest` (tslim/API 3.4, untested)
+  - `RemoteBgEntryRequest` (mobi/API 3.6, untested)
+  - `RemoteBgEntryRequest` (tslim/API 2.5, untested)
+  - `RemoteBgEntryRequest` (tslim/API 3.4, untested)
+  - `RemoteCarbEntryRequest` (mobi/API 3.6, untested)
+  - `RemoteCarbEntryRequest` (tslim/API 2.5, untested)
+  - `RemoteCarbEntryRequest` (tslim/API 3.4, untested)
+  - `SetLowInsulinAlertRequest` (mobi/API 3.6, untested)
+  - `SetLowInsulinAlertRequest` (tslim/API 2.5, untested)
+  - `SetLowInsulinAlertRequest` (tslim/API 3.4, untested)
+  - `SetMaxBasalLimitRequest` (mobi/API 3.6, untested)
+  - `SetMaxBasalLimitRequest` (tslim/API 2.5, untested)
+  - `SetMaxBasalLimitRequest` (tslim/API 3.4, untested)
+  - `SetMaxBolusLimitRequest` (mobi/API 3.6, untested)
+  - `SetMaxBolusLimitRequest` (tslim/API 2.5, untested)
+  - `SetMaxBolusLimitRequest` (tslim/API 3.4, untested)
+  - `UserInteractionRequest` (mobi/API 3.6, untested)
+  - `UserInteractionRequest` (tslim/API 2.5, untested)
+  - `UserInteractionRequest` (tslim/API 3.4, untested)
 - **needs a CGM-present session (PUMP_CGM_PRESENT=1)**
   - `CGMGlucoseAlertSettingsRequest` (tslim/API 2.5, deferred)
   - `CGMHardwareInfoRequest` (tslim/API 2.5, deferred)
@@ -654,3 +678,100 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
   - `CurrentEgvGuiDataV2Request` (tslim/API 3.4, deferred)
   - `StreamDataPreflightRequest` (tslim/API 2.5, deferred)
   - `StreamDataPreflightRequest` (tslim/API 3.4, deferred)
+
+## Not auto-fired (manual / owner-judgment at the bench)
+
+- **MANUAL — ERASES the pump to factory state (B variant) — irreversible; owner decides at the bench, never auto-fired**
+  - `FactoryResetBRequest` (mobi/API 3.6)
+  - `FactoryResetBRequest` (tslim/API 2.5)
+  - `FactoryResetBRequest` (tslim/API 3.4)
+- **MANUAL — ERASES the pump to factory state — irreversible; owner decides at the bench, never auto-fired**
+  - `FactoryResetRequest` (mobi/API 3.6)
+  - `FactoryResetRequest` (tslim/API 2.5)
+  - `FactoryResetRequest` (tslim/API 3.4)
+- **MANUAL — activates shelf/storage mode — takes the pump offline; owner decides at the bench, never auto-fired**
+  - `ActivateShelfModeRequest` (mobi/API 3.6)
+  - `ActivateShelfModeRequest` (tslim/API 2.5)
+  - `ActivateShelfModeRequest` (tslim/API 3.4)
+- **MANUAL — changes the G7 pairing code — disrupts the sensor pairing; owner decides at the bench, never auto-fired**
+  - `SetDexcomG7PairingCodeRequest` (mobi/API 3.6)
+  - `SetDexcomG7PairingCodeRequest` (tslim/API 2.5)
+  - `SetDexcomG7PairingCodeRequest` (tslim/API 3.4)
+- **MANUAL — changes the paired CGM transmitter id — disrupts the sensor pairing; owner decides at the bench, never auto-fired**
+  - `SetG6TransmitterIdRequest` (mobi/API 3.6)
+- **MANUAL — force-disconnects the BLE session — drops the link the sweep needs; owner decides at the bench, never auto-fired**
+  - `DisconnectPumpRequest` (mobi/API 3.6)
+- **MANUAL — starts a CGM sensor session — disrupts an in-progress sensor; owner decides at the bench, never auto-fired**
+  - `StartDexcomG6SensorSessionRequest` (mobi/API 3.6)
+  - `StartDexcomG6SensorSessionRequest` (tslim/API 2.5)
+  - `StartDexcomG6SensorSessionRequest` (tslim/API 3.4)
+- **MANUAL — stops the CGM sensor session — disrupts an in-progress sensor; owner decides at the bench, never auto-fired**
+  - `StopDexcomCGMSensorSessionRequest` (mobi/API 3.6)
+  - `StopDexcomCGMSensorSessionRequest` (tslim/API 2.5)
+  - `StopDexcomCGMSensorSessionRequest` (tslim/API 3.4)
+- **MANUAL — switches the CGM sensor type — disrupts the active sensor; owner decides at the bench, never auto-fired**
+  - `SetSensorTypeRequest` (mobi/API 3.6)
+  - `SetSensorTypeRequest` (tslim/API 2.5)
+  - `SetSensorTypeRequest` (tslim/API 3.4)
+- **MANUAL — undocumented internal test op — effect unknown; owner decides at the bench, never auto-fired**
+  - `SendTipsControlGenericTestRequest` (mobi/API 3.6)
+  - `SendTipsControlGenericTestRequest` (tslim/API 2.5)
+  - `SendTipsControlGenericTestRequest` (tslim/API 3.4)
+- **restore-half of the BolusPermissionRequest reversible pair — recorded when that pair runs behind the saline gate**
+  - `BolusPermissionReleaseRequest` (mobi/API 3.6)
+  - `BolusPermissionReleaseRequest` (tslim/API 2.5)
+  - `BolusPermissionReleaseRequest` (tslim/API 3.4)
+- **restore-half of the EnterChangeCartridgeModeRequest reversible pair — recorded when that pair runs behind the saline gate**
+  - `ExitChangeCartridgeModeRequest` (mobi/API 3.6)
+  - `ExitChangeCartridgeModeRequest` (tslim/API 2.5)
+  - `ExitChangeCartridgeModeRequest` (tslim/API 3.4)
+- **restore-half of the EnterFillTubingModeRequest reversible pair — recorded when that pair runs behind the saline gate**
+  - `ExitFillTubingModeRequest` (mobi/API 3.6)
+  - `ExitFillTubingModeRequest` (tslim/API 2.5)
+  - `ExitFillTubingModeRequest` (tslim/API 3.4)
+- **reversible affordance pending — PumpSettings exposes enabled+duration but not the write's bitmask byte — no clean no-op re-apply**
+  - `SetAutoOffAlertRequest` (mobi/API 3.6)
+  - `SetAutoOffAlertRequest` (tslim/API 2.5)
+  - `SetAutoOffAlertRequest` (tslim/API 3.4)
+- **reversible affordance pending — edits a live profile segment; capture/restore via IDPSegment is bespoke + profile-mutating**
+  - `SetIDPSegmentRequest` (mobi/API 3.6)
+- **reversible affordance pending — edits live profile settings; capture/restore via IDPSettings is bespoke + profile-mutating**
+  - `SetIDPSettingsRequest` (mobi/API 3.6)
+- **reversible affordance pending — needs a bespoke CGM-alert read↔write mapping (CGM session)**
+  - `CgmHighLowAlertRequest` (mobi/API 3.6)
+  - `CgmHighLowAlertRequest` (tslim/API 2.5)
+  - `CgmHighLowAlertRequest` (tslim/API 3.4)
+  - `CgmOutOfRangeAlertRequest` (mobi/API 3.6)
+  - `CgmOutOfRangeAlertRequest` (tslim/API 2.5)
+  - `CgmOutOfRangeAlertRequest` (tslim/API 3.4)
+  - `CgmRiseFallAlertRequest` (mobi/API 3.6)
+  - `CgmRiseFallAlertRequest` (tslim/API 2.5)
+  - `CgmRiseFallAlertRequest` (tslim/API 3.4)
+- **reversible affordance pending — needs a bespoke ControlIQSleepSchedule read↔write mapping**
+  - `SetSleepScheduleRequest` (mobi/API 3.6)
+- **reversible affordance pending — needs a bespoke PumpGlobals annunciation read↔write mapping**
+  - `SetPumpSoundsRequest` (mobi/API 3.6)
+  - `SetPumpSoundsRequest` (tslim/API 2.5)
+  - `SetPumpSoundsRequest` (tslim/API 3.4)
+- **reversible affordance pending — needs a bespoke Reminders read↔write mapping**
+  - `SetBgReminderRequest` (mobi/API 3.6)
+  - `SetBgReminderRequest` (tslim/API 2.5)
+  - `SetBgReminderRequest` (tslim/API 3.4)
+  - `SetMissedMealBolusReminderRequest` (mobi/API 3.6)
+  - `SetMissedMealBolusReminderRequest` (tslim/API 2.5)
+  - `SetMissedMealBolusReminderRequest` (tslim/API 3.4)
+  - `SetSiteChangeReminderRequest` (mobi/API 3.6)
+  - `SetSiteChangeReminderRequest` (tslim/API 2.5)
+  - `SetSiteChangeReminderRequest` (tslim/API 3.4)
+- **reversible affordance pending — needs the opaque 5-byte magic echoed from a prior read; bespoke mapping**
+  - `SetQuickBolusSettingsRequest` (mobi/API 3.6)
+  - `SetQuickBolusSettingsRequest` (tslim/API 2.5)
+  - `SetQuickBolusSettingsRequest` (tslim/API 3.4)
+- **reversible affordance pending — no read-back for the snooze setting to capture/restore**
+  - `SetPumpAlertSnoozeRequest` (mobi/API 3.6)
+  - `SetPumpAlertSnoozeRequest` (tslim/API 2.5)
+  - `SetPumpAlertSnoozeRequest` (tslim/API 3.4)
+- **reversible affordance pending — only meaningful during an active tubing prime; drive within the fill-tubing workflow**
+  - `PrimeTubingSuspendRequest` (mobi/API 3.6)
+  - `PrimeTubingSuspendRequest` (tslim/API 2.5)
+  - `PrimeTubingSuspendRequest` (tslim/API 3.4)
