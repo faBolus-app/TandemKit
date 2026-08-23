@@ -264,7 +264,8 @@ import Testing
         let payload: [UInt8] = [0, 0x9A, 0x29, 0, 0] + [UInt8](repeating: 0, count: 24)
         let body: [UInt8] = [0xFB, 0x01, UInt8(payload.count)] + payload
         let frame = body + Bytes.calculateCRC16(body)
-        #expect(try ResponseParser.parse(frame: frame, characteristic: .control).message is AdditionalBolusResponse)
+        // Dispatch/routing test with a placeholder (zero) HMAC → skip VA-04 signature verification.
+        #expect(try ResponseParser.parse(frame: frame, characteristic: .control, verifySignature: false).message is AdditionalBolusResponse)
     }
 
     /// PrimeTubingSuspendResponse: statusCode@0, reserve@2. Direct test — oracle can't build it.
@@ -310,7 +311,8 @@ import Testing
         let payload = cargo + [UInt8](repeating: 0, count: 24)
         let body: [UInt8] = [0xA5, 0x01, UInt8(payload.count)] + payload
         let frame = body + Bytes.calculateCRC16(body)
-        let parsed = try ResponseParser.parse(frame: frame, characteristic: .control)
+        // Opcode/characteristic dispatch test with a placeholder (zero) HMAC → skip VA-04 verification.
+        let parsed = try ResponseParser.parse(frame: frame, characteristic: .control, verifySignature: false)
         #expect(parsed.message is SetTempRateResponse)
         let set = try #require(parsed.message as? SetTempRateResponse)
         #expect(set.accepted && set.tempRateId == 5)

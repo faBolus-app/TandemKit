@@ -16,6 +16,10 @@ public enum ResponseParser {
         case crcMismatch(expected: [UInt8], actual: [UInt8])
         case unknownOpcode(UInt8)
         case cargoLengthMismatch(opcode: UInt8, expected: Int, got: Int)
+        // VA-04: signed-response HMAC verification failures (fail-closed).
+        case signatureMissing(opcode: UInt8)         // signed response but the 24-byte auth trailer is absent/short
+        case signatureKeyUnavailable(opcode: UInt8)  // signed response but no session key to verify against
+        case signatureInvalid(opcode: UInt8)         // trailer present but the HMAC-SHA1 does not verify
     }
 
     public struct Parsed {
@@ -204,7 +208,14 @@ public enum ResponseParser {
 
     /// Validates CRC + length and dispatches to the matching response type for the characteristic
     /// the frame arrived on.
-    public static func parse(frame: [UInt8], characteristic: Characteristic) throws -> Parsed {
+    /// - Parameters:
+    ///   - authenticationKey: the per-session HMAC key (JPAKE-derived / legacy pairing code) used to
+    ///     VERIFY a signed response's auth trailer. Defaults to empty — an empty key on a signed response
+    ///     fails CLOSED (`.signatureKeyUnavailable`), never fail-open. Production MUST pass the real key.
+    ///   - verifySignature: set false ONLY in decode/dispatch tests that use zero/placeholder HMACs; leave
+    ///     true (the default) everywhere else so forged/absent signatures are rejected.
+    public static func parse(frame: [UInt8], characteristic: Characteristic,
+                             authenticationKey: [UInt8] = [], verifySignature: Bool = true) throws -> Parsed {
         guard frame.count >= 5 else { throw ParseError.frameTooShort }
         let body = Array(frame[0..<(frame.count - 2)])
         let crc = Array(frame[(frame.count - 2)...])
@@ -219,6 +230,23 @@ public enum ResponseParser {
         }
         guard let reg = registry[Key(characteristic: characteristic, opCode: opCode)] else {
             throw ParseError.unknownOpcode(opCode)
+        }
+        // VA-04: a signed response carries a 24-byte auth trailer (4-byte pumpTimeSinceReset + 20-byte
+        // HMAC-SHA1). Upstream (PacketArrayList.validate) recomputes and compares that HMAC and REJECTS a
+        // mismatch; the earlier Swift port dropped the check (CRC-16 alone is not cryptographic), so a
+        // CRC-valid FORGED signed response — e.g. a forged InitiateBolus NACK — was accepted, releasing the
+        // durable delivery lock and opening a double-dose window. Verify BEFORE stripping/trusting the cargo,
+        // fail CLOSED, constant-time. Byte-exact with the oracle: the HMAC covers messageData
+        // (`[opcode,txId,length] + cargo`) minus its last 20 bytes; the last 20 bytes are the expected mac.
+        if reg.signed && verifySignature {
+            guard length >= 24 else { throw ParseError.signatureMissing(opcode: opCode) }
+            guard !authenticationKey.isEmpty else { throw ParseError.signatureKeyUnavailable(opcode: opCode) }
+            let messageData = Array(body[0..<(3 + length)])
+            let signedOver = Array(messageData[0..<(messageData.count - 20)])
+            let expected = Array(messageData[(messageData.count - 20)...])
+            guard Packetize.isValidHmacSha1(mac: expected, data: signedOver, key: authenticationKey) else {
+                throw ParseError.signatureInvalid(opcode: opCode)
+            }
         }
         // Signed responses append a 24-byte HMAC to the cargo; strip it for field parsing.
         let cargoLen = reg.signed ? max(0, length - 24) : length

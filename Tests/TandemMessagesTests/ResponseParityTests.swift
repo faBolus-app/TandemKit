@@ -19,7 +19,10 @@ import Testing
     /// Reassemble + parse on a given characteristic (defaults to CURRENT_STATUS, where most reads
     /// arrive). Dispatch is now (characteristic, opcode)-keyed, so control responses pass `.control`.
     private func parse(_ packets: [String], on characteristic: Characteristic = .currentStatus) throws -> ResponseParser.Parsed {
-        try ResponseParser.parse(frame: frame(packets), characteristic: characteristic)
+        // VA-04: these are DECODE-parity fixtures — oracle-encoded WITHOUT a pairing key, so their signed
+        // trailers won't verify under any real key. Byte-decode parity is the concern here; signed-response
+        // HMAC authenticity is covered separately by SignedResponseHmacVerifyTests.
+        try ResponseParser.parse(frame: frame(packets), characteristic: characteristic, verifySignature: false)
     }
 
     @Test func apiVersionResponseParsesAndDetectsModel() throws {
