@@ -167,8 +167,10 @@ import TandemMessages
     /// runtime seam is added to the dose-path Source (out of scope, D-01). This guard confirms:
     ///   (a) the `failClosed` body resets `transactions.correlationMode` back to the FIFO reference mode, so
     ///       a reconnect can NEVER inherit an elevated `.txIdMatch` (T-09.11-03 stale-state spoofing);
-    ///   (b) EXACTLY six `failClosed(resumePending:)` call sites exist — the six disconnect / failed-connect
-    ///       / restore / error edges all route through the single fail-closed teardown (D-04 PLUS).
+    ///   (b) EXACTLY seven `failClosed(resumePending:)` call sites exist — the disconnect / failed-connect
+    ///       / restore / error edges all route through the single fail-closed teardown (D-04 PLUS). R2-11
+    ///       added the seventh: `establishmentTimedOut()` fails closed when a cold/reconnect establishment
+    ///       stalls before `.ready`.
     /// Note: `failClosed` ALSO clears the device context (`connectedPumpModel`/`negotiatedApiVersion`) per
     /// 09.8-05/D-08; that line coexists with the correlation-mode reset but is out of THIS audit's scope
     /// (D-01) and is not asserted here. Fault-injection-verified RED-then-green (see 09.11-01-SUMMARY.md).
@@ -184,11 +186,12 @@ import TandemMessages
         }
         #expect(body.contains("transactions.correlationMode = .opcodeFIFO"),
                 "failClosed must reset correlationMode to the FIFO reference mode on every link change (D-04 #2)")
-        // (b) Exactly six CALL SITES (true/false variants; the definition uses `Bool` and is not counted).
+        // (b) Exactly seven CALL SITES (true/false variants; the definition uses `Bool` and is not counted).
+        // The seventh is R2-11's establishment-timeout edge (`establishmentTimedOut()`).
         let trueCalls = source.components(separatedBy: "failClosed(resumePending: true)").count - 1
         let falseCalls = source.components(separatedBy: "failClosed(resumePending: false)").count - 1
         let callSites = trueCalls + falseCalls
-        #expect(callSites == 6,
-                "expected exactly six disconnect/restore/error edges routing through failClosed (found \(callSites))")
+        #expect(callSites == 7,
+                "expected exactly seven disconnect/restore/error/establishment-timeout edges routing through failClosed (found \(callSites))")
     }
 }
