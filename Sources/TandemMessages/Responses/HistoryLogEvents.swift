@@ -266,6 +266,9 @@ public struct BolusActivatedHistoryLog: HistoryLogEvent {
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
     public private(set) var bolusId: Int = 0
+    /// Raw value of byte 12, inferred to track the IOB algorithm in use (co-varies with
+    /// `BolusRequestedMsg2HistoryLog.selectedIOB`). Added from upstream dev `319dace5` (PR #104).
+    public private(set) var selectedIob: Int = 0
     public private(set) var iob: Float = 0
     public private(set) var bolusSize: Float = 0
     public init() { cargo = [] }
@@ -275,6 +278,7 @@ public struct BolusActivatedHistoryLog: HistoryLogEvent {
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
         bolusId = Bytes.readShort(raw, 10)
+        selectedIob = Int(raw[12])
         iob = Bytes.readFloat(raw, 14)
         bolusSize = Bytes.readFloat(raw, 18)
     }
@@ -669,6 +673,9 @@ public struct PumpingResumedHistoryLog: HistoryLogEvent {
     public var cargo: [UInt8]
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
+    /// State of the pump immediately before pumping was resumed. Added from upstream
+    /// pumpx2 dev `ea361236` (Tandem's pump-logs JSON calls this `preResumeState`).
+    public private(set) var preResumeState: UInt32 = 0
     public private(set) var insulinAmount: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
@@ -676,6 +683,7 @@ public struct PumpingResumedHistoryLog: HistoryLogEvent {
         guard raw.count >= 26 else { return }
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
+        preResumeState = Bytes.readUint32(raw, 10)
         insulinAmount = Bytes.readShort(raw, 14)
     }
 }
@@ -686,16 +694,24 @@ public struct PumpingSuspendedHistoryLog: HistoryLogEvent {
     public var cargo: [UInt8]
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
+    /// State of the pump immediately before pumping was suspended. Added from upstream
+    /// pumpx2 dev `ea361236` (Tandem's pump-logs JSON calls this `preSuspendState`).
+    public private(set) var preSuspendState: UInt32 = 0
     public private(set) var insulinAmount: Int = 0
     public private(set) var reasonId: Int = 0
+    /// Resume-pump-alert (RPA) timeout in minutes: how long the pump waits while suspended before
+    /// alerting that delivery is still stopped; 0 when unset. Added from upstream dev `ea361236`.
+    public private(set) var rpaTimeout: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
         guard raw.count >= 26 else { return }
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
+        preSuspendState = Bytes.readUint32(raw, 10)
         insulinAmount = Bytes.readShort(raw, 14)
         reasonId = Int(raw[16])
+        rpaTimeout = Int(raw[17])
     }
 }
 
@@ -833,14 +849,23 @@ public struct CgmAlertAckDexHistoryLog: HistoryLogEvent {
     public var cargo: [UInt8]
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
+    /// alertId is a single byte at offset 10 (upstream dev `d3d209c2`, PR #119 corrected this
+    /// from the earlier 4-byte read, which swallowed sensorType + padding).
     public private(set) var alertId: Int = 0
+    /// Type of glucose sensor which raised the alert (constant 3 in every captured record).
+    public private(set) var sensorType: Int = 0
+    /// Identifies what acknowledged the alert (e.g. pump GUI vs. a paired device). Added from
+    /// upstream dev `d3d209c2`; field name from tconnectsync's cloud-export schema.
+    public private(set) var ackSource: UInt32 = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
         guard raw.count >= 26 else { return }
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
-        alertId = Int(Bytes.readUint32(raw, 10))
+        alertId = Int(raw[10])
+        sensorType = Int(raw[11])
+        ackSource = Bytes.readUint32(raw, 14)
     }
 }
 
@@ -850,14 +875,31 @@ public struct CgmAlertActivatedDexHistoryLog: HistoryLogEvent {
     public var cargo: [UInt8]
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
+    /// alertId is a single byte at offset 10 (upstream dev `d3d209c2`, PR #119 corrected this
+    /// from the earlier 4-byte read, which swallowed sensorType + padding).
     public private(set) var alertId: Int = 0
+    /// Type of glucose sensor which raised the alert (constant 3 in every captured record).
+    public private(set) var sensorType: Int = 0
+    /// Opaque firmware-location code for the alert. Added from upstream dev `d3d209c2`;
+    /// field name/position from tconnectsync's cloud-export schema.
+    public private(set) var faultLocatorData: UInt32 = 0
+    /// Measured value associated with the alert (e.g. the glucose reading, mg/dL, that
+    /// triggered a threshold alert). Added from upstream dev `d3d209c2`.
+    public private(set) var param1: UInt32 = 0
+    /// Threshold / configured setpoint associated with the alert (e.g. 80.0 or 200.0 mg/dL).
+    /// Added from upstream dev `d3d209c2`.
+    public private(set) var param2: Float = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
         guard raw.count >= 26 else { return }
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
-        alertId = Int(Bytes.readUint32(raw, 10))
+        alertId = Int(raw[10])
+        sensorType = Int(raw[11])
+        faultLocatorData = Bytes.readUint32(raw, 14)
+        param1 = Bytes.readUint32(raw, 18)
+        param2 = Bytes.readFloat(raw, 22)
     }
 }
 
@@ -907,14 +949,19 @@ public struct CgmAlertClearedDexHistoryLog: HistoryLogEvent {
     public var cargo: [UInt8]
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
+    /// alertId is a single byte at offset 10 (upstream dev `d3d209c2`, PR #119 corrected this
+    /// from the earlier 4-byte read, which swallowed sensorType + padding).
     public private(set) var alertId: Int = 0
+    /// Type of glucose sensor which raised the alert (constant 3 in every captured record).
+    public private(set) var sensorType: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
         guard raw.count >= 26 else { return }
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
-        alertId = Int(Bytes.readUint32(raw, 10))
+        alertId = Int(raw[10])
+        sensorType = Int(raw[11])
     }
 }
 
@@ -1298,6 +1345,12 @@ public struct ControlIQPcmChangeHistoryLog: HistoryLogEvent {
     public private(set) var sequenceNum: UInt32 = 0
     public private(set) var currentPcmId: Int = 0
     public private(set) var previousPcmId: Int = 0
+    // Control-IQ decision-input flags (0/1). Added from upstream dev `d3d209c2` (PR #119).
+    public private(set) var pumpSuspended: Int = 0
+    public private(set) var calculationAvailable: Int = 0
+    public private(set) var cgmAvailable: Int = 0
+    public private(set) var closedLoopPreferred: Int = 0
+    public private(set) var sufficientClosedLoopParams: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
@@ -1306,6 +1359,11 @@ public struct ControlIQPcmChangeHistoryLog: HistoryLogEvent {
         sequenceNum = Bytes.readUint32(raw, 6)
         currentPcmId = Int(raw[10])
         previousPcmId = Int(raw[11])
+        pumpSuspended = Int(raw[12])
+        calculationAvailable = Int(raw[13])
+        cgmAvailable = Int(raw[14])
+        closedLoopPreferred = Int(raw[15])
+        sufficientClosedLoopParams = Int(raw[16])
     }
 }
 
@@ -1317,6 +1375,16 @@ public struct ControlIQUserModeChangeHistoryLog: HistoryLogEvent {
     public private(set) var sequenceNum: UInt32 = 0
     public private(set) var currentUserMode: Int = 0
     public private(set) var previousUserMode: Int = 0
+    // Control-IQ user-mode-change detail fields. Added from upstream dev `d3d209c2` (PR #119).
+    // Note the non-contiguous layout: bytes 13 and 16-17 are padding the pump zero-fills.
+    public private(set) var requestedAction: Int = 0
+    public private(set) var sleepStartedByGui: Int = 0
+    public private(set) var activeSleepSchedule: Int = 0
+    public private(set) var exerciseStoppedByTimer: Int = 0
+    public private(set) var exerciseChoice: Int = 0
+    /// Duration, in minutes, of a timed exercise activity (uint16 @20).
+    public private(set) var exerciseTime: Int = 0
+    public private(set) var eatingSoonStoppedByTimer: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
@@ -1325,6 +1393,13 @@ public struct ControlIQUserModeChangeHistoryLog: HistoryLogEvent {
         sequenceNum = Bytes.readUint32(raw, 6)
         currentUserMode = Int(raw[10])
         previousUserMode = Int(raw[11])
+        requestedAction = Int(raw[12])
+        sleepStartedByGui = Int(raw[14])
+        activeSleepSchedule = Int(raw[15])
+        exerciseStoppedByTimer = Int(raw[18])
+        exerciseChoice = Int(raw[19])
+        exerciseTime = Bytes.readShort(raw, 20)
+        eatingSoonStoppedByTimer = Int(raw[22])
     }
 }
 
