@@ -59,6 +59,10 @@ public enum BenchDriveability: Sendable, Equatable {
     case drivable
     /// Covered as the restore-half of the named primary's pair — recorded when that pair runs.
     case viaPrimaryPair(String)
+    /// Driven as a CONTEXT step inside the named workflow (not standalone) — e.g. PrimeTubingSuspend is
+    /// only meaningful during an active fill-tubing prime, so it is fired inside the EnterFillTubingMode↔Exit
+    /// pair and recorded when that (saline-gated) pair runs. Documented GAP until that workflow runs.
+    case viaWorkflow(String)
     /// Destructive / irreversible — GAP, documented, owner decides at the bench. (Reason for the runbook.)
     case manual(String)
     /// Reversible in principle; generic driver not yet wired — GAP, documented. (Reason for the runbook.)
@@ -218,47 +222,54 @@ public enum BenchAffordanceCatalog {
         write("SetDexcomG7PairingCodeRequest", .manualOnly, drive: .manual("changes the G7 pairing code — disrupts the sensor pairing"),
               "MANUAL: changes CGM G7 pairing — owner-only"),
 
-        // ── NON-DELIVERY signed writes — bespokePending (reversible, generic driver not yet wired) ──
-        write("PrimeTubingSuspendRequest", .bespokePending, drive: .pending("only meaningful during an active tubing prime; drive within the fill-tubing workflow"),
-              "PENDING: exercise within an active fill-tubing prime"),
-        write("SetAutoOffAlertRequest", .bespokePending, oracle: "PumpSettingsRequest",
-              drive: .pending("PumpSettings exposes enabled+duration but not the write's bitmask byte — no clean no-op re-apply"),
-              "PENDING: read-back lacks the bitmask field for a safe no-op re-apply"),
-        write("SetPumpAlertSnoozeRequest", .bespokePending, drive: .pending("no read-back for the snooze setting to capture/restore"),
-              "PENDING: no corresponding read to make it reversible"),
+        // ── NON-DELIVERY signed writes — captureReapply (bespoke read↔write no-op, now WIRED) ──
+        // Each reads its paired setting and re-applies the SAME value with the write's per-field CHANGE
+        // bitmask = 0 ("apply no field"), so the pump changes NOTHING while proving it accepts + round-trips
+        // the signed write. The pure read→write field mapping lives in `BenchReapplyMapping` (unit-tested).
+        write("SetAutoOffAlertRequest", .captureReapply, oracle: "PumpSettingsRequest", drive: .drivable,
+              "read PumpSettings auto-off enabled+duration, re-apply the SAME values with the change-bitmask 0 (applies nothing), verify unchanged"),
+        write("SetPumpSoundsRequest", .captureReapply, oracle: "PumpGlobalsRequest", drive: .drivable,
+              "read PumpGlobals annunciations, re-apply the SAME values with changeBitmask 0 (applies nothing), verify the readable annunciations unchanged"),
+        // CGM-alert config (needs a CGM session → plan() DEFERS these without a sensor; wired regardless).
+        write("CgmHighLowAlertRequest", .captureReapply, oracle: "CGMGlucoseAlertSettingsRequest", drive: .drivable,
+              "read CGM high+low glucose-alert settings, re-apply the SAME values (both alertTypes) with change-bitmask 0, verify unchanged (CGM session → DEFERRED without a sensor)"),
+        write("CgmOutOfRangeAlertRequest", .captureReapply, oracle: "CGMOORAlertSettingsRequest", drive: .drivable,
+              "read CGM out-of-range alert settings, re-apply the SAME values with change-bitmask 0, verify unchanged (CGM session → DEFERRED without a sensor)"),
+        write("CgmRiseFallAlertRequest", .captureReapply, oracle: "CGMRateAlertSettingsRequest", drive: .drivable,
+              "read CGM rise+fall rate-alert settings, re-apply the SAME values (both alertTypes) with change-bitmask 0, verify unchanged (CGM session → DEFERRED without a sensor)"),
+
+        // ── NON-DELIVERY signed write — context step inside the fill-tubing prime workflow (now WIRED) ──
+        write("PrimeTubingSuspendRequest", .reversiblePair, partner: "EnterFillTubingModeRequest",
+              oracle: "LoadStatusRequest", drive: .viaWorkflow("EnterFillTubingModeRequest"),
+              "context step inside the fill-tubing prime: enter fill-tubing → suspend the active prime → exit to restore; recorded when the EnterFillTubingMode saline pair runs (Mobi, saline-gated)"),
+
+        // ── NON-DELIVERY signed writes — bespokePending (STILL a documented GAP; honest reasons) ──
+        // These remain manual because a VERIFIABLE no-op cannot be built from the available reads (or the
+        // write edits a live dose-path profile / has no read-back at all). See docs/BENCH-COVERAGE.md.
+        write("SetPumpAlertSnoozeRequest", .bespokePending,
+              drive: .pending("no read-back exposes the snooze enabled/duration setting, so it is genuinely unrecoverable — cannot be made a verifiable no-op"),
+              "PENDING: no corresponding read → genuinely unrecoverable; documented manual"),
         write("SetQuickBolusSettingsRequest", .bespokePending, oracle: "PumpGlobalsRequest",
-              drive: .pending("needs the opaque 5-byte magic echoed from a prior read; bespoke mapping"),
-              "PENDING: opaque magic bytes require a bespoke capture-and-replay"),
+              drive: .pending("the write's 5-byte increment `magic` must EXACTLY match a known QuickBolusIncrement enum and the modeRaw↔magic mapping is not exposed by PumpGlobals; no change-bitmask to guarantee a no-op — echoing could alter the increment"),
+              "PENDING: opaque increment magic + no change-bitmask → cannot prove a no-op re-apply"),
         write("SetSleepScheduleRequest", .bespokePending, oracle: "ControlIQSleepScheduleRequest",
-              drive: .pending("needs a bespoke ControlIQSleepSchedule read↔write mapping"),
-              "PENDING: bespoke sleep-schedule read↔write mapping"),
-        write("SetPumpSoundsRequest", .bespokePending, oracle: "PumpGlobalsRequest",
-              drive: .pending("needs a bespoke PumpGlobals annunciation read↔write mapping"),
-              "PENDING: bespoke annunciation read↔write mapping"),
+              drive: .pending("ControlIQSleepSchedule exposes the 6 schedule bytes per slot but NOT the write's trailing `flag` byte, which has no documented semantics and no read-back — re-applying it cannot be proven a no-op (Mobi-only, Control-IQ-sleep-affecting)"),
+              "PENDING: undocumented `flag` byte not in the read-back → cannot prove a no-op"),
         write("SetBgReminderRequest", .bespokePending, oracle: "RemindersRequest",
-              drive: .pending("needs a bespoke Reminders read↔write mapping"),
-              "PENDING: bespoke reminder read↔write mapping"),
+              drive: .pending("Reminders exposes only the high/low BG thresholds, NOT the per-reminder enabled/minutes/type the write sets, so a no-op cannot be verified for the functional fields"),
+              "PENDING: Reminders read does not expose the reminder enabled/minutes/type fields"),
         write("SetSiteChangeReminderRequest", .bespokePending, oracle: "RemindersRequest",
-              drive: .pending("needs a bespoke Reminders read↔write mapping"),
-              "PENDING: bespoke reminder read↔write mapping"),
+              drive: .pending("Reminders exposes only siteChangeDays, NOT the write's enable/timeOfDay, so a no-op cannot be verified"),
+              "PENDING: Reminders read does not expose enable/timeOfDay"),
         write("SetMissedMealBolusReminderRequest", .bespokePending, oracle: "RemindersRequest",
-              drive: .pending("needs a bespoke Reminders read↔write mapping"),
-              "PENDING: bespoke reminder read↔write mapping"),
-        write("CgmHighLowAlertRequest", .bespokePending, oracle: "CGMGlucoseAlertSettingsRequest",
-              drive: .pending("needs a bespoke CGM-alert read↔write mapping (CGM session)"),
-              "PENDING: bespoke CGM high/low alert read↔write mapping"),
-        write("CgmOutOfRangeAlertRequest", .bespokePending, oracle: "CGMOORAlertSettingsRequest",
-              drive: .pending("needs a bespoke CGM-alert read↔write mapping (CGM session)"),
-              "PENDING: bespoke CGM out-of-range alert read↔write mapping"),
-        write("CgmRiseFallAlertRequest", .bespokePending, oracle: "CGMRateAlertSettingsRequest",
-              drive: .pending("needs a bespoke CGM-alert read↔write mapping (CGM session)"),
-              "PENDING: bespoke CGM rise/fall alert read↔write mapping"),
+              drive: .pending("Reminders exposes none of this write's fields (index/enabled/window/days), so a no-op cannot be verified"),
+              "PENDING: Reminders read exposes none of the missed-meal-reminder fields"),
         write("SetIDPSegmentRequest", .bespokePending, oracle: "IDPSegmentRequest",
-              drive: .pending("edits a live profile segment; capture/restore via IDPSegment is bespoke + profile-mutating"),
-              "PENDING: bespoke IDP-segment capture/restore"),
+              drive: .pending("edits a LIVE basal/delivery profile segment (basal rate, carb ratio, ISF, target); IDPSegment does not expose profileIndex and the operation selector must be MODIFY — a mis-map silently rewrites the dose-path profile, so it is not auto-fired"),
+              "PENDING: edits a live delivery-profile segment; profileIndex/operation not safely recoverable"),
         write("SetIDPSettingsRequest", .bespokePending, oracle: "IDPSettingsRequest",
-              drive: .pending("edits live profile settings; capture/restore via IDPSettings is bespoke + profile-mutating"),
-              "PENDING: bespoke IDP-settings capture/restore"),
+              drive: .pending("edits live insulin-duration (IOB/dose-path) + carb-entry; IDPSettings does not expose profileIndex and the changeType selector is required — a mis-map silently rewrites a dose-path setting, so it is not auto-fired"),
+              "PENDING: edits live insulin-duration; profileIndex/changeType not safely recoverable"),
     ]
 
     /// Name → affordance.

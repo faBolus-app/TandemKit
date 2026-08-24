@@ -148,6 +148,8 @@ public enum BenchCoverage {
                 return .gap("reversible affordance pending — \(reason)")
             case .viaPrimaryPair(let primary):
                 return .gap("restore-half of the \(primary) reversible pair — recorded when that pair runs behind the saline gate")
+            case .viaWorkflow(let workflow):
+                return .gap("context step inside the \(workflow) workflow — recorded when that (saline-gated) workflow runs")
             case .drivable:
                 if cmd.requiresCGM && !cfg.cgmPresent {
                     return .deferred("needs a CGM-present session (PUMP_CGM_PRESENT=1)")
