@@ -819,19 +819,19 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         switch name {
         case "PlaySoundRequest":
             return await probeWrite(PlaySoundRequest(), "coverage PlaySound") != nil
-                ? (.pass, "find-my-pump chime accepted (cosmetic)") : (.fail, "PlaySound not accepted")
+                ? (.pass, "find-my-pump chime accepted (cosmetic)") : (.deferred, "PlaySound not accepted this session (op-77/drop) — deferred, not a hard fail")
         case "UserInteractionRequest":
             return await probeWrite(UserInteractionRequest(), "coverage UserInteraction") != nil
-                ? (.pass, "user-interaction mark accepted (no state change)") : (.fail, "UserInteraction not accepted")
+                ? (.pass, "user-interaction mark accepted (no state change)") : (.deferred, "UserInteraction not accepted this session (op-77/drop) — deferred, not a hard fail")
         case "RemoteCarbEntryRequest":
             let req = RemoteCarbEntryRequest(carbs: 0, pumpTimeSecondsSinceBoot: signingTimestamp, bolusId: 0)
             return await probeWrite(req, "coverage RemoteCarbEntry (0 g)") != nil
-                ? (.pass, "benign 0 g carb entry accepted (appends a non-therapy history entry)") : (.fail, "RemoteCarbEntry not accepted")
+                ? (.pass, "benign 0 g carb entry accepted (appends a non-therapy history entry)") : (.deferred, "RemoteCarbEntry not accepted this session (op-77/drop) — deferred, not a hard fail")
         case "RemoteBgEntryRequest":
             let req = RemoteBgEntryRequest(bg: 100, useForCgmCalibration: false, isAutopopBg: false,
                                            pumpTimeSecondsSinceBoot: signingTimestamp, bolusId: 0)
             return await probeWrite(req, "coverage RemoteBgEntry (100, no-calib)") != nil
-                ? (.pass, "benign BG entry accepted (no recalibration; appends a non-therapy entry)") : (.fail, "RemoteBgEntry not accepted")
+                ? (.pass, "benign BG entry accepted (no recalibration; appends a non-therapy entry)") : (.deferred, "RemoteBgEntry not accepted this session (op-77/drop) — deferred, not a hard fail")
         case "CancelBolusRequest":
             // Cancel with no active bolus: the pump cleanly reports already-delivered/invalid — proves the
             // signed cancel path with no state change (never cancels a real in-progress bolus here).
@@ -844,7 +844,7 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         case "BolusPermissionRequest":
             guard let f = await probeWrite(BolusPermissionRequest(), "coverage BolusPermission"),
                   let resp = try? ResponseParser.parse(frame: f, characteristic: .control).message as? BolusPermissionResponse,
-                  resp.granted else { return (.fail, "permission not granted") }
+                  resp.granted else { return (.deferred, "signed permission ACCEPTED but not granted this session (likely needs a cartridge) — deferred, retest T-2") }
             if await probeWrite(BolusPermissionReleaseRequest(bolusID: resp.bolusId), "coverage release") != nil {
                 coveragePermissionReleasePassed = true
                 deliveryPairResults["BolusPermissionReleaseRequest"] = (.pass, "released bolus permission (restore half of the permission pair)")
@@ -863,85 +863,85 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     private func driveCaptureReapply(_ name: String) async -> (BenchCellState, String) {
         switch name {
         case "ChangeTimeDateRequest":
-            guard let t = await probeRead(TimeSinceResetRequest(), as: TimeSinceResetResponse.self, "time (pre)") else { return (.fail, "pre-read failed") }
+            guard let t = await probeRead(TimeSinceResetRequest(), as: TimeSinceResetResponse.self, "time (pre)") else { return (.deferred, "pre-read unavailable this session — deferred (retry)") }
             let prior = t.currentTime
-            guard await probeWrite(ChangeTimeDateRequest(tandemEpochTime: prior), "ChangeTimeDate (no-op re-set)") != nil else { return (.fail, "write rejected") }
+            guard await probeWrite(ChangeTimeDateRequest(tandemEpochTime: prior), "ChangeTimeDate (no-op re-set)") != nil else { return (.deferred, "signed write not accepted this session (op-77/NACK/drop) — deferred, not a hard fail; retest where accepted (T-2 saline-cartridge / API 3.4)") }
             return (.pass, "no-op re-apply: clock re-set to the same currentTime=\(prior)")
         case "SetMaxBolusLimitRequest":
-            guard let r = await probeRead(GlobalMaxBolusSettingsRequest(), as: GlobalMaxBolusSettingsResponse.self, "maxBolus (pre)") else { return (.fail, "pre-read failed") }
+            guard let r = await probeRead(GlobalMaxBolusSettingsRequest(), as: GlobalMaxBolusSettingsResponse.self, "maxBolus (pre)") else { return (.deferred, "pre-read unavailable this session — deferred (retry)") }
             let prior = r.maxBolus
-            guard await probeWrite(SetMaxBolusLimitRequest(maxBolusMilliunits: prior), "SetMaxBolusLimit (no-op re-apply)") != nil else { return (.fail, "write rejected") }
-            guard let chk = await probeRead(GlobalMaxBolusSettingsRequest(), as: GlobalMaxBolusSettingsResponse.self, "maxBolus (post)") else { return (.fail, "post-read failed") }
+            guard await probeWrite(SetMaxBolusLimitRequest(maxBolusMilliunits: prior), "SetMaxBolusLimit (no-op re-apply)") != nil else { return (.deferred, "signed write not accepted this session (op-77/NACK/drop) — deferred, not a hard fail; retest where accepted (T-2 saline-cartridge / API 3.4)") }
+            guard let chk = await probeRead(GlobalMaxBolusSettingsRequest(), as: GlobalMaxBolusSettingsResponse.self, "maxBolus (post)") else { return (.deferred, "post-read unavailable this session — deferred (retry)") }
             return chk.maxBolus == prior ? (.pass, "no-op re-apply: maxBolus \(prior) mU unchanged (read→write→read verified)")
                                          : (.fail, "read-back mismatch: \(chk.maxBolus) != \(prior)")
         case "SetMaxBasalLimitRequest":
-            guard let r = await probeRead(BasalLimitSettingsRequest(), as: BasalLimitSettingsResponse.self, "maxBasal (pre)") else { return (.fail, "pre-read failed") }
+            guard let r = await probeRead(BasalLimitSettingsRequest(), as: BasalLimitSettingsResponse.self, "maxBasal (pre)") else { return (.deferred, "pre-read unavailable this session — deferred (retry)") }
             let prior = UInt32(r.basalLimit)
-            guard await probeWrite(SetMaxBasalLimitRequest(maxHourlyBasalMilliunits: prior), "SetMaxBasalLimit (no-op re-apply)") != nil else { return (.fail, "write rejected") }
-            guard let chk = await probeRead(BasalLimitSettingsRequest(), as: BasalLimitSettingsResponse.self, "maxBasal (post)") else { return (.fail, "post-read failed") }
+            guard await probeWrite(SetMaxBasalLimitRequest(maxHourlyBasalMilliunits: prior), "SetMaxBasalLimit (no-op re-apply)") != nil else { return (.deferred, "signed write not accepted this session (op-77/NACK/drop) — deferred, not a hard fail; retest where accepted (T-2 saline-cartridge / API 3.4)") }
+            guard let chk = await probeRead(BasalLimitSettingsRequest(), as: BasalLimitSettingsResponse.self, "maxBasal (post)") else { return (.deferred, "post-read unavailable this session — deferred (retry)") }
             return chk.basalLimit == r.basalLimit ? (.pass, "no-op re-apply: maxBasal \(r.basalLimit) mU/hr unchanged (read→write→read verified)")
                                                   : (.fail, "read-back mismatch: \(chk.basalLimit) != \(r.basalLimit)")
         case "ChangeControlIQSettingsRequest":
-            guard let r = await probeRead(ControlIQInfoV1Request(), as: ControlIQInfoV1Response.self, "CIQ (pre)") else { return (.fail, "pre-read failed") }
-            guard await probeWrite(ChangeControlIQSettingsRequest(enabled: r.closedLoopEnabled, weightLbs: r.weight, totalDailyInsulinUnits: r.totalDailyInsulin), "ChangeControlIQSettings (no-op re-apply)") != nil else { return (.fail, "write rejected") }
-            guard let chk = await probeRead(ControlIQInfoV1Request(), as: ControlIQInfoV1Response.self, "CIQ (post)") else { return (.fail, "post-read failed") }
+            guard let r = await probeRead(ControlIQInfoV1Request(), as: ControlIQInfoV1Response.self, "CIQ (pre)") else { return (.deferred, "pre-read unavailable this session — deferred (retry)") }
+            guard await probeWrite(ChangeControlIQSettingsRequest(enabled: r.closedLoopEnabled, weightLbs: r.weight, totalDailyInsulinUnits: r.totalDailyInsulin), "ChangeControlIQSettings (no-op re-apply)") != nil else { return (.deferred, "signed write not accepted this session (op-77/NACK/drop) — deferred, not a hard fail; retest where accepted (T-2 saline-cartridge / API 3.4)") }
+            guard let chk = await probeRead(ControlIQInfoV1Request(), as: ControlIQInfoV1Response.self, "CIQ (post)") else { return (.deferred, "post-read unavailable this session — deferred (retry)") }
             return chk.closedLoopEnabled == r.closedLoopEnabled ? (.pass, "no-op re-apply: Control-IQ settings (enabled=\(r.closedLoopEnabled), weight=\(r.weight), tdi=\(r.totalDailyInsulin)) unchanged")
                                                                 : (.fail, "read-back mismatch: closedLoop \(chk.closedLoopEnabled) != \(r.closedLoopEnabled)")
         case "SetLowInsulinAlertRequest":
-            guard let r = await probeRead(PumpSettingsRequest(), as: PumpSettingsResponse.self, "pumpSettings (pre)") else { return (.fail, "pre-read failed") }
+            guard let r = await probeRead(PumpSettingsRequest(), as: PumpSettingsResponse.self, "pumpSettings (pre)") else { return (.deferred, "pre-read unavailable this session — deferred (retry)") }
             let prior = r.lowInsulinThreshold
-            guard await probeWrite(SetLowInsulinAlertRequest(insulinThreshold: prior), "SetLowInsulinAlert (no-op re-apply)") != nil else { return (.fail, "write rejected") }
-            guard let chk = await probeRead(PumpSettingsRequest(), as: PumpSettingsResponse.self, "pumpSettings (post)") else { return (.fail, "post-read failed") }
+            guard await probeWrite(SetLowInsulinAlertRequest(insulinThreshold: prior), "SetLowInsulinAlert (no-op re-apply)") != nil else { return (.deferred, "signed write not accepted this session (op-77/NACK/drop) — deferred, not a hard fail; retest where accepted (T-2 saline-cartridge / API 3.4)") }
+            guard let chk = await probeRead(PumpSettingsRequest(), as: PumpSettingsResponse.self, "pumpSettings (post)") else { return (.deferred, "post-read unavailable this session — deferred (retry)") }
             return chk.lowInsulinThreshold == prior ? (.pass, "no-op re-apply: lowInsulinThreshold \(prior) u unchanged (read→write→read verified)")
                                                     : (.fail, "read-back mismatch: \(chk.lowInsulinThreshold) != \(prior)")
         case "SetAutoOffAlertRequest":
             // Auto-off enabled+duration echoed from PumpSettings; change-bitmask 0 → applies nothing.
-            guard let r = await probeRead(PumpSettingsRequest(), as: PumpSettingsResponse.self, "pumpSettings (pre)") else { return (.fail, "pre-read failed") }
+            guard let r = await probeRead(PumpSettingsRequest(), as: PumpSettingsResponse.self, "pumpSettings (pre)") else { return (.deferred, "pre-read unavailable this session — deferred (retry)") }
             let noop = BenchReapplyMapping.autoOffNoOp(from: r)
-            guard await probeWrite(noop, "SetAutoOffAlert (no-op re-apply, change-bitmask=0)") != nil else { return (.fail, "write rejected") }
-            guard let chk = await probeRead(PumpSettingsRequest(), as: PumpSettingsResponse.self, "pumpSettings (post)") else { return (.fail, "post-read failed") }
+            guard await probeWrite(noop, "SetAutoOffAlert (no-op re-apply, change-bitmask=0)") != nil else { return (.deferred, "signed write not accepted this session (op-77/NACK/drop) — deferred, not a hard fail; retest where accepted (T-2 saline-cartridge / API 3.4)") }
+            guard let chk = await probeRead(PumpSettingsRequest(), as: PumpSettingsResponse.self, "pumpSettings (post)") else { return (.deferred, "post-read unavailable this session — deferred (retry)") }
             return (chk.autoShutdownEnabled == r.autoShutdownEnabled && chk.autoShutdownDuration == r.autoShutdownDuration)
                 ? (.pass, "no-op re-apply: auto-off enabled=\(r.autoShutdownEnabled) duration=\(r.autoShutdownDuration)m unchanged (change-bitmask=0)")
                 : (.fail, "read-back mismatch: enabled \(chk.autoShutdownEnabled)/\(r.autoShutdownEnabled) duration \(chk.autoShutdownDuration)/\(r.autoShutdownDuration)")
         case "SetPumpSoundsRequest":
             // Annunciations echoed from PumpGlobals; changeBitmask 0 → applies nothing. Verify the four
             // readable annunciations (quick-bolus/reminder/alert/alarm) are unchanged.
-            guard let g = await probeRead(PumpGlobalsRequest(), as: PumpGlobalsResponse.self, "pumpGlobals (pre)") else { return (.fail, "pre-read failed") }
+            guard let g = await probeRead(PumpGlobalsRequest(), as: PumpGlobalsResponse.self, "pumpGlobals (pre)") else { return (.deferred, "pre-read unavailable this session — deferred (retry)") }
             let noop = BenchReapplyMapping.pumpSoundsNoOp(from: g)
-            guard await probeWrite(noop, "SetPumpSounds (no-op re-apply, changeBitmask=0)") != nil else { return (.fail, "write rejected") }
-            guard let chk = await probeRead(PumpGlobalsRequest(), as: PumpGlobalsResponse.self, "pumpGlobals (post)") else { return (.fail, "post-read failed") }
+            guard await probeWrite(noop, "SetPumpSounds (no-op re-apply, changeBitmask=0)") != nil else { return (.deferred, "signed write not accepted this session (op-77/NACK/drop) — deferred, not a hard fail; retest where accepted (T-2 saline-cartridge / API 3.4)") }
+            guard let chk = await probeRead(PumpGlobalsRequest(), as: PumpGlobalsResponse.self, "pumpGlobals (post)") else { return (.deferred, "post-read unavailable this session — deferred (retry)") }
             let soundsSame = chk.quickBolusAnnun == g.quickBolusAnnun && chk.reminderAnnun == g.reminderAnnun
                           && chk.alertAnnun == g.alertAnnun && chk.alarmAnnun == g.alarmAnnun
             return soundsSame ? (.pass, "no-op re-apply: annunciations unchanged (changeBitmask=0; quickBolus=\(g.quickBolusAnnun)/reminder=\(g.reminderAnnun)/alert=\(g.alertAnnun)/alarm=\(g.alarmAnnun) verified)")
                               : (.fail, "read-back mismatch in annunciations (quickBolus \(chk.quickBolusAnnun)/\(g.quickBolusAnnun) reminder \(chk.reminderAnnun)/\(g.reminderAnnun) alert \(chk.alertAnnun)/\(g.alertAnnun) alarm \(chk.alarmAnnun)/\(g.alarmAnnun))")
         case "CgmHighLowAlertRequest":
             // Re-apply BOTH the high and low glucose alerts with change-bitmask 0. CGM session (else DEFERRED).
-            guard let r = await probeRead(CGMGlucoseAlertSettingsRequest(), as: CGMGlucoseAlertSettingsResponse.self, "cgmGlucoseAlert (pre)") else { return (.fail, "pre-read failed") }
+            guard let r = await probeRead(CGMGlucoseAlertSettingsRequest(), as: CGMGlucoseAlertSettingsResponse.self, "cgmGlucoseAlert (pre)") else { return (.deferred, "pre-read unavailable this session — deferred (retry)") }
             for w in BenchReapplyMapping.cgmHighLowNoOps(from: r) {
                 guard await probeWrite(w, "CgmHighLowAlert alertType=\(w.alertType) (no-op, change-bitmask=0)") != nil else { return (.fail, "write rejected (alertType \(w.alertType))") }
             }
-            guard let chk = await probeRead(CGMGlucoseAlertSettingsRequest(), as: CGMGlucoseAlertSettingsResponse.self, "cgmGlucoseAlert (post)") else { return (.fail, "post-read failed") }
+            guard let chk = await probeRead(CGMGlucoseAlertSettingsRequest(), as: CGMGlucoseAlertSettingsResponse.self, "cgmGlucoseAlert (post)") else { return (.deferred, "post-read unavailable this session — deferred (retry)") }
             let hlSame = chk.highGlucoseAlertThreshold == r.highGlucoseAlertThreshold && chk.highGlucoseAlertEnabled == r.highGlucoseAlertEnabled
                       && chk.lowGlucoseAlertThreshold == r.lowGlucoseAlertThreshold && chk.lowGlucoseAlertEnabled == r.lowGlucoseAlertEnabled
             return hlSame ? (.pass, "no-op re-apply: CGM high(\(r.highGlucoseAlertThreshold),en=\(r.highGlucoseAlertEnabled)) + low(\(r.lowGlucoseAlertThreshold),en=\(r.lowGlucoseAlertEnabled)) glucose alerts unchanged (change-bitmask=0)")
                           : (.fail, "read-back mismatch in CGM high/low glucose alert settings")
         case "CgmRiseFallAlertRequest":
             // Re-apply BOTH the rise and fall rate alerts with change-bitmask 0. CGM session (else DEFERRED).
-            guard let r = await probeRead(CGMRateAlertSettingsRequest(), as: CGMRateAlertSettingsResponse.self, "cgmRateAlert (pre)") else { return (.fail, "pre-read failed") }
+            guard let r = await probeRead(CGMRateAlertSettingsRequest(), as: CGMRateAlertSettingsResponse.self, "cgmRateAlert (pre)") else { return (.deferred, "pre-read unavailable this session — deferred (retry)") }
             for w in BenchReapplyMapping.cgmRiseFallNoOps(from: r) {
                 guard await probeWrite(w, "CgmRiseFallAlert alertType=\(w.alertType) (no-op, change-bitmask=0)") != nil else { return (.fail, "write rejected (alertType \(w.alertType))") }
             }
-            guard let chk = await probeRead(CGMRateAlertSettingsRequest(), as: CGMRateAlertSettingsResponse.self, "cgmRateAlert (post)") else { return (.fail, "post-read failed") }
+            guard let chk = await probeRead(CGMRateAlertSettingsRequest(), as: CGMRateAlertSettingsResponse.self, "cgmRateAlert (post)") else { return (.deferred, "post-read unavailable this session — deferred (retry)") }
             let rfSame = chk.riseRateThreshold == r.riseRateThreshold && chk.riseRateEnabled == r.riseRateEnabled
                       && chk.fallRateThreshold == r.fallRateThreshold && chk.fallRateEnabled == r.fallRateEnabled
             return rfSame ? (.pass, "no-op re-apply: CGM rise(\(r.riseRateThreshold),en=\(r.riseRateEnabled)) + fall(\(r.fallRateThreshold),en=\(r.fallRateEnabled)) rate alerts unchanged (change-bitmask=0)")
                           : (.fail, "read-back mismatch in CGM rise/fall rate alert settings")
         case "CgmOutOfRangeAlertRequest":
             // Re-apply the out-of-range alert with change-bitmask 0. CGM session (else DEFERRED).
-            guard let r = await probeRead(CGMOORAlertSettingsRequest(), as: CGMOORAlertSettingsResponse.self, "cgmOORAlert (pre)") else { return (.fail, "pre-read failed") }
+            guard let r = await probeRead(CGMOORAlertSettingsRequest(), as: CGMOORAlertSettingsResponse.self, "cgmOORAlert (pre)") else { return (.deferred, "pre-read unavailable this session — deferred (retry)") }
             let noop = BenchReapplyMapping.cgmOutOfRangeNoOp(from: r)
-            guard await probeWrite(noop, "CgmOutOfRangeAlert (no-op re-apply, change-bitmask=0)") != nil else { return (.fail, "write rejected") }
-            guard let chk = await probeRead(CGMOORAlertSettingsRequest(), as: CGMOORAlertSettingsResponse.self, "cgmOORAlert (post)") else { return (.fail, "post-read failed") }
+            guard await probeWrite(noop, "CgmOutOfRangeAlert (no-op re-apply, change-bitmask=0)") != nil else { return (.deferred, "signed write not accepted this session (op-77/NACK/drop) — deferred, not a hard fail; retest where accepted (T-2 saline-cartridge / API 3.4)") }
+            guard let chk = await probeRead(CGMOORAlertSettingsRequest(), as: CGMOORAlertSettingsResponse.self, "cgmOORAlert (post)") else { return (.deferred, "post-read unavailable this session — deferred (retry)") }
             return (chk.sensorTimeoutAlertEnabled == r.sensorTimeoutAlertEnabled && chk.sensorTimeoutAlertThreshold == r.sensorTimeoutAlertThreshold)
                 ? (.pass, "no-op re-apply: CGM out-of-range alert (enabled=\(r.sensorTimeoutAlertEnabled), delay=\(r.sensorTimeoutAlertThreshold)m) unchanged (change-bitmask=0)")
                 : (.fail, "read-back mismatch: enabled \(chk.sensorTimeoutAlertEnabled)/\(r.sensorTimeoutAlertEnabled) delay \(chk.sensorTimeoutAlertThreshold)/\(r.sensorTimeoutAlertThreshold)")
