@@ -852,6 +852,57 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
             guard let chk = await probeRead(PumpSettingsRequest(), as: PumpSettingsResponse.self, "pumpSettings (post)") else { return (.fail, "post-read failed") }
             return chk.lowInsulinThreshold == prior ? (.pass, "no-op re-apply: lowInsulinThreshold \(prior) u unchanged (read→write→read verified)")
                                                     : (.fail, "read-back mismatch: \(chk.lowInsulinThreshold) != \(prior)")
+        case "SetAutoOffAlertRequest":
+            // Auto-off enabled+duration echoed from PumpSettings; change-bitmask 0 → applies nothing.
+            guard let r = await probeRead(PumpSettingsRequest(), as: PumpSettingsResponse.self, "pumpSettings (pre)") else { return (.fail, "pre-read failed") }
+            let noop = BenchReapplyMapping.autoOffNoOp(from: r)
+            guard await probeWrite(noop, "SetAutoOffAlert (no-op re-apply, change-bitmask=0)") != nil else { return (.fail, "write rejected") }
+            guard let chk = await probeRead(PumpSettingsRequest(), as: PumpSettingsResponse.self, "pumpSettings (post)") else { return (.fail, "post-read failed") }
+            return (chk.autoShutdownEnabled == r.autoShutdownEnabled && chk.autoShutdownDuration == r.autoShutdownDuration)
+                ? (.pass, "no-op re-apply: auto-off enabled=\(r.autoShutdownEnabled) duration=\(r.autoShutdownDuration)m unchanged (change-bitmask=0)")
+                : (.fail, "read-back mismatch: enabled \(chk.autoShutdownEnabled)/\(r.autoShutdownEnabled) duration \(chk.autoShutdownDuration)/\(r.autoShutdownDuration)")
+        case "SetPumpSoundsRequest":
+            // Annunciations echoed from PumpGlobals; changeBitmask 0 → applies nothing. Verify the four
+            // readable annunciations (quick-bolus/reminder/alert/alarm) are unchanged.
+            guard let g = await probeRead(PumpGlobalsRequest(), as: PumpGlobalsResponse.self, "pumpGlobals (pre)") else { return (.fail, "pre-read failed") }
+            let noop = BenchReapplyMapping.pumpSoundsNoOp(from: g)
+            guard await probeWrite(noop, "SetPumpSounds (no-op re-apply, changeBitmask=0)") != nil else { return (.fail, "write rejected") }
+            guard let chk = await probeRead(PumpGlobalsRequest(), as: PumpGlobalsResponse.self, "pumpGlobals (post)") else { return (.fail, "post-read failed") }
+            let soundsSame = chk.quickBolusAnnun == g.quickBolusAnnun && chk.reminderAnnun == g.reminderAnnun
+                          && chk.alertAnnun == g.alertAnnun && chk.alarmAnnun == g.alarmAnnun
+            return soundsSame ? (.pass, "no-op re-apply: annunciations unchanged (changeBitmask=0; quickBolus=\(g.quickBolusAnnun)/reminder=\(g.reminderAnnun)/alert=\(g.alertAnnun)/alarm=\(g.alarmAnnun) verified)")
+                              : (.fail, "read-back mismatch in annunciations (quickBolus \(chk.quickBolusAnnun)/\(g.quickBolusAnnun) reminder \(chk.reminderAnnun)/\(g.reminderAnnun) alert \(chk.alertAnnun)/\(g.alertAnnun) alarm \(chk.alarmAnnun)/\(g.alarmAnnun))")
+        case "CgmHighLowAlertRequest":
+            // Re-apply BOTH the high and low glucose alerts with change-bitmask 0. CGM session (else DEFERRED).
+            guard let r = await probeRead(CGMGlucoseAlertSettingsRequest(), as: CGMGlucoseAlertSettingsResponse.self, "cgmGlucoseAlert (pre)") else { return (.fail, "pre-read failed") }
+            for w in BenchReapplyMapping.cgmHighLowNoOps(from: r) {
+                guard await probeWrite(w, "CgmHighLowAlert alertType=\(w.alertType) (no-op, change-bitmask=0)") != nil else { return (.fail, "write rejected (alertType \(w.alertType))") }
+            }
+            guard let chk = await probeRead(CGMGlucoseAlertSettingsRequest(), as: CGMGlucoseAlertSettingsResponse.self, "cgmGlucoseAlert (post)") else { return (.fail, "post-read failed") }
+            let hlSame = chk.highGlucoseAlertThreshold == r.highGlucoseAlertThreshold && chk.highGlucoseAlertEnabled == r.highGlucoseAlertEnabled
+                      && chk.lowGlucoseAlertThreshold == r.lowGlucoseAlertThreshold && chk.lowGlucoseAlertEnabled == r.lowGlucoseAlertEnabled
+            return hlSame ? (.pass, "no-op re-apply: CGM high(\(r.highGlucoseAlertThreshold),en=\(r.highGlucoseAlertEnabled)) + low(\(r.lowGlucoseAlertThreshold),en=\(r.lowGlucoseAlertEnabled)) glucose alerts unchanged (change-bitmask=0)")
+                          : (.fail, "read-back mismatch in CGM high/low glucose alert settings")
+        case "CgmRiseFallAlertRequest":
+            // Re-apply BOTH the rise and fall rate alerts with change-bitmask 0. CGM session (else DEFERRED).
+            guard let r = await probeRead(CGMRateAlertSettingsRequest(), as: CGMRateAlertSettingsResponse.self, "cgmRateAlert (pre)") else { return (.fail, "pre-read failed") }
+            for w in BenchReapplyMapping.cgmRiseFallNoOps(from: r) {
+                guard await probeWrite(w, "CgmRiseFallAlert alertType=\(w.alertType) (no-op, change-bitmask=0)") != nil else { return (.fail, "write rejected (alertType \(w.alertType))") }
+            }
+            guard let chk = await probeRead(CGMRateAlertSettingsRequest(), as: CGMRateAlertSettingsResponse.self, "cgmRateAlert (post)") else { return (.fail, "post-read failed") }
+            let rfSame = chk.riseRateThreshold == r.riseRateThreshold && chk.riseRateEnabled == r.riseRateEnabled
+                      && chk.fallRateThreshold == r.fallRateThreshold && chk.fallRateEnabled == r.fallRateEnabled
+            return rfSame ? (.pass, "no-op re-apply: CGM rise(\(r.riseRateThreshold),en=\(r.riseRateEnabled)) + fall(\(r.fallRateThreshold),en=\(r.fallRateEnabled)) rate alerts unchanged (change-bitmask=0)")
+                          : (.fail, "read-back mismatch in CGM rise/fall rate alert settings")
+        case "CgmOutOfRangeAlertRequest":
+            // Re-apply the out-of-range alert with change-bitmask 0. CGM session (else DEFERRED).
+            guard let r = await probeRead(CGMOORAlertSettingsRequest(), as: CGMOORAlertSettingsResponse.self, "cgmOORAlert (pre)") else { return (.fail, "pre-read failed") }
+            let noop = BenchReapplyMapping.cgmOutOfRangeNoOp(from: r)
+            guard await probeWrite(noop, "CgmOutOfRangeAlert (no-op re-apply, change-bitmask=0)") != nil else { return (.fail, "write rejected") }
+            guard let chk = await probeRead(CGMOORAlertSettingsRequest(), as: CGMOORAlertSettingsResponse.self, "cgmOORAlert (post)") else { return (.fail, "post-read failed") }
+            return (chk.sensorTimeoutAlertEnabled == r.sensorTimeoutAlertEnabled && chk.sensorTimeoutAlertThreshold == r.sensorTimeoutAlertThreshold)
+                ? (.pass, "no-op re-apply: CGM out-of-range alert (enabled=\(r.sensorTimeoutAlertEnabled), delay=\(r.sensorTimeoutAlertThreshold)m) unchanged (change-bitmask=0)")
+                : (.fail, "read-back mismatch: enabled \(chk.sensorTimeoutAlertEnabled)/\(r.sensorTimeoutAlertEnabled) delay \(chk.sensorTimeoutAlertThreshold)/\(r.sensorTimeoutAlertThreshold)")
         default:
             return (.gap, "no capture-reapply driver for \(name)")
         }
@@ -964,18 +1015,29 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         return (.pass, "entered cartridge-change mode (\(midNote)); exited to restore\(exited ? "" : " — ⚠️ exit FAILED")")
     }
 
-    /// EnterFillTubingMode↔Exit: enter (primes tubing on saline) → confirm LoadStatus → ALWAYS exit to restore.
+    /// EnterFillTubingMode↔Exit: enter (primes tubing on saline) → confirm LoadStatus → suspend the active
+    /// prime (PrimeTubingSuspend context step) → ALWAYS exit to restore.
     private func driveFillTubingPair() async -> (BenchCellState, String) {
         guard await awaitPaired() else { return (.fail, "not paired") }
         let entered = await probeWrite(EnterFillTubingModeRequest(), "EnterFillTubingMode") != nil
         let mid = entered ? await probeRead(LoadStatusRequest(), as: LoadStatusResponse.self, "loadStatus (fill-tubing)") : nil
+        // Context step: PrimeTubingSuspend is only meaningful WHILE a fill-tubing prime is active, so fire it
+        // here (never standalone). Exiting fill-tubing mode below restores state regardless of the outcome.
+        var primeSuspendNote = ""
+        if entered {
+            let suspended = await probeWrite(PrimeTubingSuspendRequest(), "PrimeTubingSuspend (context: suspend the active prime)") != nil
+            deliveryPairResults["PrimeTubingSuspendRequest"] = suspended
+                ? (.pass, "suspended the active fill-tubing prime (context step inside EnterFillTubingMode↔Exit)")
+                : (.fail, "PrimeTubingSuspend NACKed inside the fill-tubing prime — exit still restores")
+            primeSuspendNote = suspended ? "; prime suspended" : "; prime-suspend NACKed"
+        }
         let exited = await probeWrite(ExitFillTubingModeRequest(), "ExitFillTubingMode (restore)") != nil
         deliveryPairResults["ExitFillTubingModeRequest"] = exited
             ? (.pass, "exited fill-tubing mode (restore half of the pair)")
             : (.fail, "ExitFillTubingMode NACKed — ⚠️ VERIFY the pump left fill-tubing mode")
         guard entered else { return (.fail, "EnterFillTubingMode not accepted") }
         let midNote = mid.map { "primeStatus=\($0.primeStatusId)" } ?? "LoadStatus inconclusive"
-        return (.pass, "entered fill-tubing mode (\(midNote)); exited to restore\(exited ? "" : " — ⚠️ exit FAILED")")
+        return (.pass, "entered fill-tubing mode (\(midNote))\(primeSuspendNote); exited to restore\(exited ? "" : " — ⚠️ exit FAILED")")
     }
 
     /// CreateIDP→DeleteIDP: capture profile count → create a throwaway IDP → confirm it appeared → DELETE it.
