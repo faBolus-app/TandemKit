@@ -93,13 +93,21 @@ On a t:slim session the 11 Mobi-only deliveries record as `notApplicable`; only 
   `PUMPX2_DELIVER_SALINE` needed, because these do not dispense. Two strategies:
   - **captureReapply** — read the CURRENT value, re-send the SAME value (a provable no-op), verify the
     read-back is unchanged: `ChangeTimeDate`, `SetMaxBolusLimit`, `SetMaxBasalLimit`,
-    `ChangeControlIQSettings`, `SetLowInsulinAlert`.
+    `ChangeControlIQSettings`, `SetLowInsulinAlert`, and the newly-converted `SetAutoOffAlert`,
+    `SetPumpSounds`, and the three CGM-alert configs `CgmHighLowAlert` / `CgmOutOfRangeAlert` /
+    `CgmRiseFallAlert` (CGM-alert cells DEFER without a sensor). For the alert/auto-off/sounds writes the
+    re-applied value additionally carries the pump's per-field CHANGE bitmask set to **0** ("apply no
+    field"), so the write is a guaranteed no-op even if a field were mis-mapped; the pure read→write field
+    mapping is `BenchReapplyMapping` (unit-tested). `PrimeTubingSuspend` is driven as a **context step**
+    inside the fill-tubing prime workflow (enter fill-tubing → suspend the active prime → exit to restore),
+    so it is recorded when that saline-gated Mobi pair runs — never standalone.
   - **benignProbe** — signed accept/NACK with no persistent setting change: the `BolusPermission`(+release)
     pair, `PlaySound`, `UserInteraction`, `RemoteCarbEntry`/`RemoteBgEntry` (benign metadata), and
     `CancelBolus` (with no active bolus).
   The `benchExercisableSignedWrites` allowlist is now **derived** from the affordance catalog, so it grows
   automatically. Everything else stays a documented `gap`: `.manualOnly` (destructive / irreversible /
-  session-disrupting — owner-only) or `.bespokePending` (reversible but its generic driver isn't wired yet).
+  session-disrupting — owner-only) or `.bespokePending` (reversible in principle but NOT yet a verifiable
+  no-op — see the honest per-command reasons in the reversible-affordances section below).
 - **Lane B — delivery (14 commands):** attempted ONLY behind the SINGLE saline gate
   (`PUMPX2_DELIVER_SALINE=1`, plus cartridge + `PUMP_SALINE_ATTESTED=1` in the session detection). Every one
   of the 14 is now driven by a reversible affordance, verified by the pump's OWN read-back:
@@ -168,13 +176,36 @@ Strategies (`BenchAffordanceKind`):
 | `reversiblePair` | drive, confirm, ALWAYS send the restore partner | state read-back | `Suspend↔Resume`, `SetTempRate↔StopTempRate`, `EnterFillTubingMode↔exit`, `EnterChangeCartridgeMode↔exit` |
 | `throwawayCreateDelete` | create a throwaway resource, confirm, delete it | `ProfileStatus` count | `CreateIDP→DeleteIDP` |
 | `captureSetRestore` | read prior, set different, verify, restore prior | state read-back | `SetModes`, `SetActiveIDP`, `RenameIDP` |
-| `captureReapply` | read current, re-send the SAME value, verify unchanged | the setting's read | `ChangeTimeDate`, `SetMaxBolusLimit`, `SetMaxBasalLimit`, `ChangeControlIQSettings`, `SetLowInsulinAlert` |
+| `captureReapply` | read current, re-send the SAME value (change-bitmask 0 where the write has one), verify unchanged | the setting's read | `ChangeTimeDate`, `SetMaxBolusLimit`, `SetMaxBasalLimit`, `ChangeControlIQSettings`, `SetLowInsulinAlert`, `SetAutoOffAlert`, `SetPumpSounds`, `CgmHighLowAlert`/`CgmOutOfRangeAlert`/`CgmRiseFallAlert` (CGM-alert cells DEFER without a sensor) |
 | `benignProbe` | signed accept/NACK; self-reversing or benign append | acceptance itself | `BolusPermission(+release)`, `PlaySound`, `UserInteraction`, `RemoteCarb/BgEntry`, `CancelBolus` |
+| context (`viaWorkflow`) | driven inside a named workflow, not standalone | that workflow's read-back | `PrimeTubingSuspend` (inside the fill-tubing prime; recorded when the saline Mobi pair runs) |
 | `manualOnly` | **never auto-fired** — documented GAP, owner decides at the bench | — | see below |
-| `bespokePending` | reversible in principle, generic driver not yet wired — documented GAP | — | reminders, CGM alerts, IDP-segment/settings edits, sounds, sleep schedule, auto-off/snooze, prime-suspend |
+| `bespokePending` | reversible in principle but NOT yet a **verifiable** no-op — documented GAP | — | 3 reminders (`SetBgReminder`/`SetSiteChangeReminder`/`SetMissedMealBolusReminder`), `SetSleepSchedule`, `SetQuickBolusSettings`, `SetIDPSegment`/`SetIDPSettings`, `SetPumpAlertSnooze` |
 
 **Every restore is attempted even if the drive step failed**, and a NACKed restore prints a LOUD warning
 (`⚠️ VERIFY … on the pump`) so a bench operator never trusts an un-restored state.
+
+### Still `bespokePending` — and WHY (honest gaps, not failures)
+
+These 8 signed writes stay manual because a **verifiable** no-op cannot be built from the available reads
+(safety-first: we never auto-fire an unrecoverable write, nor one whose no-op we cannot re-read and confirm):
+
+- **No read-back at all** — `SetPumpAlertSnooze`: no response exposes the snooze setting → genuinely
+  unrecoverable.
+- **Read does not expose the fields the write sets** — `SetBgReminder` (Reminders exposes only high/low BG
+  thresholds, not the reminder enabled/minutes/type), `SetSiteChangeReminder` (only `siteChangeDays`, not
+  enable/timeOfDay), `SetMissedMealBolusReminder` (none of index/enabled/window/days) → cannot verify a no-op
+  for the functional fields, and these writes have no change-selector we can trust to suppress them safely.
+- **Undocumented trailing byte** — `SetSleepSchedule`: `ControlIQSleepSchedule` exposes the 6 schedule bytes
+  per slot but NOT the write's `flag` byte (no documented meaning, no read-back) → re-applying it can't be
+  proven a no-op (Mobi-only, Control-IQ-sleep-affecting).
+- **Opaque increment magic, no change-selector** — `SetQuickBolusSettings`: the 5-byte increment `magic`
+  must EXACTLY match a known increment enum and PumpGlobals doesn't expose the `modeRaw`↔`magic` mapping;
+  there is no change-bitmask to guarantee a no-op.
+- **Edits a live dose-path profile** — `SetIDPSegment` (basal rate / carb ratio / ISF / target) and
+  `SetIDPSettings` (insulin duration / carb entry): the read does not expose `profileIndex` and the
+  operation/change selector is required, so a mis-map would silently rewrite a delivery profile → never
+  auto-fired.
 
 ### MANUAL / owner-judgment exceptions (never auto-fired — decide each at the bench)
 
@@ -280,6 +311,11 @@ prerequisite gating (`plan`), matrix cell classification, and accumulation/merge
 state-changing command has an affordance (completeness), the 14 delivery affordances are saline-gated, the
 reversible pairs are symmetric, all partner/oracle cross-references are real catalog commands, destructive
 commands are `manualOnly` and never runner-drivable, the `benchExercisableSignedWrites` allowlist is derived
-+ grown, and the Lane-B delivery planning is correct across configs. The BLE driving itself can only be
-validated on a real pump at the bench — **nothing in the committed matrix is a verified PASS until a bench
++ grown, and the Lane-B delivery planning is correct across configs. The `BenchReapplyMappingTests` and
+`BenchBespokeConversionTests` suites prove the bespoke conversions: each read→write mapping in
+`BenchReapplyMapping` echoes the paired read's CURRENT value into the SET request and sets the per-field
+CHANGE bitmask to 0 (so the write changes nothing), the 6 converted commands are drivable/context in the
+catalog, the 8 genuinely-unrecoverable writes stay honestly `bespokePending`, and the classifier defers the
+CGM-alert writes without a sensor while exercising the auto-off/sounds writes in any config. The BLE driving
+itself can only be validated on a real pump at the bench — **nothing in the committed matrix is a verified PASS until a bench
 session records one.**

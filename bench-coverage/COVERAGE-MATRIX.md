@@ -1,6 +1,6 @@
 # TandemKit bench command-coverage matrix
 
-_Generated 2026-08-23T22:06:40Z · schema v1 · 625 recorded cells across 3 session config(s)._
+_Generated 2026-08-24T01:04:21Z · schema v1 · 625 recorded cells across 3 session config(s)._
 
 This matrix accumulates ACROSS bench sessions. Each session fills only the cells its hardware config (pump model × firmware × cartridge × CGM) allows; the rest stay `deferred` (coverable later) or `n/a` (another model's matrix). A delivery cell PASSES only when the pump's OWN history-log read-back equals the requested units.
 
@@ -8,10 +8,10 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 
 | state | count |
 |---|---|
-| `gap` | 71 |
+| `gap` | 56 |
 | `notApplicable` | 32 |
-| `deferred` | 43 |
-| `untested` | 229 |
+| `deferred` | 46 |
+| `untested` | 241 |
 
 ## Coverage by session config
 
@@ -39,9 +39,9 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | mobi | API 3.6 | `CGMStatusRequest` | read | • `untested` | exercisable (lane: read) |
 | mobi | API 3.6 | `CancelBolusRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
 | mobi | API 3.6 | `CentralChallengeRequest` | pairing | ⏳ `deferred` | needs a legacyV1-pairing session |
-| mobi | API 3.6 | `CgmHighLowAlertRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke CGM-alert read↔write mapping (CGM session) |
-| mobi | API 3.6 | `CgmOutOfRangeAlertRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke CGM-alert read↔write mapping (CGM session) |
-| mobi | API 3.6 | `CgmRiseFallAlertRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke CGM-alert read↔write mapping (CGM session) |
+| mobi | API 3.6 | `CgmHighLowAlertRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| mobi | API 3.6 | `CgmOutOfRangeAlertRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| mobi | API 3.6 | `CgmRiseFallAlertRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
 | mobi | API 3.6 | `CgmStatusV2Request` | read | • `untested` | exercisable (lane: read) |
 | mobi | API 3.6 | `CgmSupportPackageStatusRequest` | read | ⏳ `deferred` | needs mobi firmware on API ≥ 99.99 |
 | mobi | API 3.6 | `ChangeControlIQSettingsRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
@@ -96,7 +96,7 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | mobi | API 3.6 | `MalfunctionStatusRequest` | read | • `untested` | exercisable (lane: read) |
 | mobi | API 3.6 | `NonControlIQIOBRequest` | read | • `untested` | exercisable (lane: read) |
 | mobi | API 3.6 | `PlaySoundRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
-| mobi | API 3.6 | `PrimeTubingSuspendRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — only meaningful during an active tubing prime; drive within the fill-tubing workflow |
+| mobi | API 3.6 | `PrimeTubingSuspendRequest` | signedWrite | 🚫 `gap` | context step inside the EnterFillTubingModeRequest workflow — recorded when that (saline-gated) workflow runs |
 | mobi | API 3.6 | `ProfileStatusRequest` | read | • `untested` | exercisable (lane: read) |
 | mobi | API 3.6 | `PumpChallengeRequest` | pairing | ⏳ `deferred` | needs a legacyV1-pairing session |
 | mobi | API 3.6 | `PumpFeaturesV1Request` | read | • `untested` | exercisable (lane: read) |
@@ -113,23 +113,23 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | mobi | API 3.6 | `SecretMenuRequest` | read | • `untested` | exercisable (lane: read) |
 | mobi | API 3.6 | `SendTipsControlGenericTestRequest` | signedWrite | 🚫 `gap` | MANUAL — undocumented internal test op — effect unknown; owner decides at the bench, never auto-fired |
 | mobi | API 3.6 | `SetActiveIDPRequest` | delivery | • `untested` | exercisable (lane: delivery) |
-| mobi | API 3.6 | `SetAutoOffAlertRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — PumpSettings exposes enabled+duration but not the write's bitmask byte — no clean no-op re-apply |
-| mobi | API 3.6 | `SetBgReminderRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke Reminders read↔write mapping |
+| mobi | API 3.6 | `SetAutoOffAlertRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| mobi | API 3.6 | `SetBgReminderRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — Reminders exposes only the high/low BG thresholds, NOT the per-reminder enabled/minutes/type the write sets, so a no-op cannot be verified for the functional fields |
 | mobi | API 3.6 | `SetDexcomG7PairingCodeRequest` | signedWrite | 🚫 `gap` | MANUAL — changes the G7 pairing code — disrupts the sensor pairing; owner decides at the bench, never auto-fired |
 | mobi | API 3.6 | `SetG6TransmitterIdRequest` | signedWrite | 🚫 `gap` | MANUAL — changes the paired CGM transmitter id — disrupts the sensor pairing; owner decides at the bench, never auto-fired |
-| mobi | API 3.6 | `SetIDPSegmentRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — edits a live profile segment; capture/restore via IDPSegment is bespoke + profile-mutating |
-| mobi | API 3.6 | `SetIDPSettingsRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — edits live profile settings; capture/restore via IDPSettings is bespoke + profile-mutating |
+| mobi | API 3.6 | `SetIDPSegmentRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — edits a LIVE basal/delivery profile segment (basal rate, carb ratio, ISF, target); IDPSegment does not expose profileIndex and the operation selector must be MODIFY — a mis-map silently rewrites the dose-path profile, so it is not auto-fired |
+| mobi | API 3.6 | `SetIDPSettingsRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — edits live insulin-duration (IOB/dose-path) + carb-entry; IDPSettings does not expose profileIndex and the changeType selector is required — a mis-map silently rewrites a dose-path setting, so it is not auto-fired |
 | mobi | API 3.6 | `SetLowInsulinAlertRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
 | mobi | API 3.6 | `SetMaxBasalLimitRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
 | mobi | API 3.6 | `SetMaxBolusLimitRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
-| mobi | API 3.6 | `SetMissedMealBolusReminderRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke Reminders read↔write mapping |
+| mobi | API 3.6 | `SetMissedMealBolusReminderRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — Reminders exposes none of this write's fields (index/enabled/window/days), so a no-op cannot be verified |
 | mobi | API 3.6 | `SetModesRequest` | delivery | • `untested` | exercisable (lane: delivery) |
-| mobi | API 3.6 | `SetPumpAlertSnoozeRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — no read-back for the snooze setting to capture/restore |
-| mobi | API 3.6 | `SetPumpSoundsRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke PumpGlobals annunciation read↔write mapping |
-| mobi | API 3.6 | `SetQuickBolusSettingsRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs the opaque 5-byte magic echoed from a prior read; bespoke mapping |
+| mobi | API 3.6 | `SetPumpAlertSnoozeRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — no read-back exposes the snooze enabled/duration setting, so it is genuinely unrecoverable — cannot be made a verifiable no-op |
+| mobi | API 3.6 | `SetPumpSoundsRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| mobi | API 3.6 | `SetQuickBolusSettingsRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — the write's 5-byte increment `magic` must EXACTLY match a known QuickBolusIncrement enum and the modeRaw↔magic mapping is not exposed by PumpGlobals; no change-bitmask to guarantee a no-op — echoing could alter the increment |
 | mobi | API 3.6 | `SetSensorTypeRequest` | signedWrite | 🚫 `gap` | MANUAL — switches the CGM sensor type — disrupts the active sensor; owner decides at the bench, never auto-fired |
-| mobi | API 3.6 | `SetSiteChangeReminderRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke Reminders read↔write mapping |
-| mobi | API 3.6 | `SetSleepScheduleRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke ControlIQSleepSchedule read↔write mapping |
+| mobi | API 3.6 | `SetSiteChangeReminderRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — Reminders exposes only siteChangeDays, NOT the write's enable/timeOfDay, so a no-op cannot be verified |
+| mobi | API 3.6 | `SetSleepScheduleRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — ControlIQSleepSchedule exposes the 6 schedule bytes per slot but NOT the write's trailing `flag` byte, which has no documented semantics and no read-back — re-applying it cannot be proven a no-op (Mobi-only, Control-IQ-sleep-affecting) |
 | mobi | API 3.6 | `SetTempRateRequest` | delivery | • `untested` | exercisable (lane: delivery) |
 | mobi | API 3.6 | `StartDexcomG6SensorSessionRequest` | signedWrite | 🚫 `gap` | MANUAL — starts a CGM sensor session — disrupts an in-progress sensor; owner decides at the bench, never auto-fired |
 | mobi | API 3.6 | `StopDexcomCGMSensorSessionRequest` | signedWrite | 🚫 `gap` | MANUAL — stops the CGM sensor session — disrupts an in-progress sensor; owner decides at the bench, never auto-fired |
@@ -164,9 +164,9 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | tslim | API 2.5 | `CGMStatusRequest` | read | ⏳ `deferred` | needs a CGM-present session (PUMP_CGM_PRESENT=1) |
 | tslim | API 2.5 | `CancelBolusRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
 | tslim | API 2.5 | `CentralChallengeRequest` | pairing | • `untested` | exercisable (lane: pairing) |
-| tslim | API 2.5 | `CgmHighLowAlertRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke CGM-alert read↔write mapping (CGM session) |
-| tslim | API 2.5 | `CgmOutOfRangeAlertRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke CGM-alert read↔write mapping (CGM session) |
-| tslim | API 2.5 | `CgmRiseFallAlertRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke CGM-alert read↔write mapping (CGM session) |
+| tslim | API 2.5 | `CgmHighLowAlertRequest` | signedWrite | ⏳ `deferred` | needs a CGM-present session (PUMP_CGM_PRESENT=1) |
+| tslim | API 2.5 | `CgmOutOfRangeAlertRequest` | signedWrite | ⏳ `deferred` | needs a CGM-present session (PUMP_CGM_PRESENT=1) |
+| tslim | API 2.5 | `CgmRiseFallAlertRequest` | signedWrite | ⏳ `deferred` | needs a CGM-present session (PUMP_CGM_PRESENT=1) |
 | tslim | API 2.5 | `CgmStatusV2Request` | read | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
 | tslim | API 2.5 | `CgmSupportPackageStatusRequest` | read | ⏳ `deferred` | needs tslim firmware on API ≥ 99.99 |
 | tslim | API 2.5 | `ChangeControlIQSettingsRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
@@ -221,7 +221,7 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | tslim | API 2.5 | `MalfunctionStatusRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 2.5 | `NonControlIQIOBRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 2.5 | `PlaySoundRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
-| tslim | API 2.5 | `PrimeTubingSuspendRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — only meaningful during an active tubing prime; drive within the fill-tubing workflow |
+| tslim | API 2.5 | `PrimeTubingSuspendRequest` | signedWrite | 🚫 `gap` | context step inside the EnterFillTubingModeRequest workflow — recorded when that (saline-gated) workflow runs |
 | tslim | API 2.5 | `ProfileStatusRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 2.5 | `PumpChallengeRequest` | pairing | • `untested` | exercisable (lane: pairing) |
 | tslim | API 2.5 | `PumpFeaturesV1Request` | read | • `untested` | exercisable (lane: read) |
@@ -238,8 +238,8 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | tslim | API 2.5 | `SecretMenuRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 2.5 | `SendTipsControlGenericTestRequest` | signedWrite | 🚫 `gap` | MANUAL — undocumented internal test op — effect unknown; owner decides at the bench, never auto-fired |
 | tslim | API 2.5 | `SetActiveIDPRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
-| tslim | API 2.5 | `SetAutoOffAlertRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — PumpSettings exposes enabled+duration but not the write's bitmask byte — no clean no-op re-apply |
-| tslim | API 2.5 | `SetBgReminderRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke Reminders read↔write mapping |
+| tslim | API 2.5 | `SetAutoOffAlertRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| tslim | API 2.5 | `SetBgReminderRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — Reminders exposes only the high/low BG thresholds, NOT the per-reminder enabled/minutes/type the write sets, so a no-op cannot be verified for the functional fields |
 | tslim | API 2.5 | `SetDexcomG7PairingCodeRequest` | signedWrite | 🚫 `gap` | MANUAL — changes the G7 pairing code — disrupts the sensor pairing; owner decides at the bench, never auto-fired |
 | tslim | API 2.5 | `SetG6TransmitterIdRequest` | signedWrite | ⏳ `deferred` | needs tslim firmware on API ≥ 3.5 |
 | tslim | API 2.5 | `SetIDPSegmentRequest` | signedWrite | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
@@ -247,13 +247,13 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | tslim | API 2.5 | `SetLowInsulinAlertRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
 | tslim | API 2.5 | `SetMaxBasalLimitRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
 | tslim | API 2.5 | `SetMaxBolusLimitRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
-| tslim | API 2.5 | `SetMissedMealBolusReminderRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke Reminders read↔write mapping |
+| tslim | API 2.5 | `SetMissedMealBolusReminderRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — Reminders exposes none of this write's fields (index/enabled/window/days), so a no-op cannot be verified |
 | tslim | API 2.5 | `SetModesRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
-| tslim | API 2.5 | `SetPumpAlertSnoozeRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — no read-back for the snooze setting to capture/restore |
-| tslim | API 2.5 | `SetPumpSoundsRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke PumpGlobals annunciation read↔write mapping |
-| tslim | API 2.5 | `SetQuickBolusSettingsRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs the opaque 5-byte magic echoed from a prior read; bespoke mapping |
+| tslim | API 2.5 | `SetPumpAlertSnoozeRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — no read-back exposes the snooze enabled/duration setting, so it is genuinely unrecoverable — cannot be made a verifiable no-op |
+| tslim | API 2.5 | `SetPumpSoundsRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| tslim | API 2.5 | `SetQuickBolusSettingsRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — the write's 5-byte increment `magic` must EXACTLY match a known QuickBolusIncrement enum and the modeRaw↔magic mapping is not exposed by PumpGlobals; no change-bitmask to guarantee a no-op — echoing could alter the increment |
 | tslim | API 2.5 | `SetSensorTypeRequest` | signedWrite | 🚫 `gap` | MANUAL — switches the CGM sensor type — disrupts the active sensor; owner decides at the bench, never auto-fired |
-| tslim | API 2.5 | `SetSiteChangeReminderRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke Reminders read↔write mapping |
+| tslim | API 2.5 | `SetSiteChangeReminderRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — Reminders exposes only siteChangeDays, NOT the write's enable/timeOfDay, so a no-op cannot be verified |
 | tslim | API 2.5 | `SetSleepScheduleRequest` | signedWrite | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
 | tslim | API 2.5 | `SetTempRateRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
 | tslim | API 2.5 | `StartDexcomG6SensorSessionRequest` | signedWrite | 🚫 `gap` | MANUAL — starts a CGM sensor session — disrupts an in-progress sensor; owner decides at the bench, never auto-fired |
@@ -289,9 +289,9 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | tslim | API 3.4 | `CGMStatusRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 3.4 | `CancelBolusRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
 | tslim | API 3.4 | `CentralChallengeRequest` | pairing | ⏳ `deferred` | needs a legacyV1-pairing session |
-| tslim | API 3.4 | `CgmHighLowAlertRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke CGM-alert read↔write mapping (CGM session) |
-| tslim | API 3.4 | `CgmOutOfRangeAlertRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke CGM-alert read↔write mapping (CGM session) |
-| tslim | API 3.4 | `CgmRiseFallAlertRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke CGM-alert read↔write mapping (CGM session) |
+| tslim | API 3.4 | `CgmHighLowAlertRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| tslim | API 3.4 | `CgmOutOfRangeAlertRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| tslim | API 3.4 | `CgmRiseFallAlertRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
 | tslim | API 3.4 | `CgmStatusV2Request` | read | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
 | tslim | API 3.4 | `CgmSupportPackageStatusRequest` | read | ⏳ `deferred` | needs tslim firmware on API ≥ 99.99 |
 | tslim | API 3.4 | `ChangeControlIQSettingsRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
@@ -346,7 +346,7 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | tslim | API 3.4 | `MalfunctionStatusRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 3.4 | `NonControlIQIOBRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 3.4 | `PlaySoundRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
-| tslim | API 3.4 | `PrimeTubingSuspendRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — only meaningful during an active tubing prime; drive within the fill-tubing workflow |
+| tslim | API 3.4 | `PrimeTubingSuspendRequest` | signedWrite | 🚫 `gap` | context step inside the EnterFillTubingModeRequest workflow — recorded when that (saline-gated) workflow runs |
 | tslim | API 3.4 | `ProfileStatusRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 3.4 | `PumpChallengeRequest` | pairing | ⏳ `deferred` | needs a legacyV1-pairing session |
 | tslim | API 3.4 | `PumpFeaturesV1Request` | read | • `untested` | exercisable (lane: read) |
@@ -363,8 +363,8 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | tslim | API 3.4 | `SecretMenuRequest` | read | • `untested` | exercisable (lane: read) |
 | tslim | API 3.4 | `SendTipsControlGenericTestRequest` | signedWrite | 🚫 `gap` | MANUAL — undocumented internal test op — effect unknown; owner decides at the bench, never auto-fired |
 | tslim | API 3.4 | `SetActiveIDPRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
-| tslim | API 3.4 | `SetAutoOffAlertRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — PumpSettings exposes enabled+duration but not the write's bitmask byte — no clean no-op re-apply |
-| tslim | API 3.4 | `SetBgReminderRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke Reminders read↔write mapping |
+| tslim | API 3.4 | `SetAutoOffAlertRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| tslim | API 3.4 | `SetBgReminderRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — Reminders exposes only the high/low BG thresholds, NOT the per-reminder enabled/minutes/type the write sets, so a no-op cannot be verified for the functional fields |
 | tslim | API 3.4 | `SetDexcomG7PairingCodeRequest` | signedWrite | 🚫 `gap` | MANUAL — changes the G7 pairing code — disrupts the sensor pairing; owner decides at the bench, never auto-fired |
 | tslim | API 3.4 | `SetG6TransmitterIdRequest` | signedWrite | ⏳ `deferred` | needs tslim firmware on API ≥ 3.5 |
 | tslim | API 3.4 | `SetIDPSegmentRequest` | signedWrite | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
@@ -372,13 +372,13 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | tslim | API 3.4 | `SetLowInsulinAlertRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
 | tslim | API 3.4 | `SetMaxBasalLimitRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
 | tslim | API 3.4 | `SetMaxBolusLimitRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
-| tslim | API 3.4 | `SetMissedMealBolusReminderRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke Reminders read↔write mapping |
+| tslim | API 3.4 | `SetMissedMealBolusReminderRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — Reminders exposes none of this write's fields (index/enabled/window/days), so a no-op cannot be verified |
 | tslim | API 3.4 | `SetModesRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
-| tslim | API 3.4 | `SetPumpAlertSnoozeRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — no read-back for the snooze setting to capture/restore |
-| tslim | API 3.4 | `SetPumpSoundsRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke PumpGlobals annunciation read↔write mapping |
-| tslim | API 3.4 | `SetQuickBolusSettingsRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs the opaque 5-byte magic echoed from a prior read; bespoke mapping |
+| tslim | API 3.4 | `SetPumpAlertSnoozeRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — no read-back exposes the snooze enabled/duration setting, so it is genuinely unrecoverable — cannot be made a verifiable no-op |
+| tslim | API 3.4 | `SetPumpSoundsRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| tslim | API 3.4 | `SetQuickBolusSettingsRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — the write's 5-byte increment `magic` must EXACTLY match a known QuickBolusIncrement enum and the modeRaw↔magic mapping is not exposed by PumpGlobals; no change-bitmask to guarantee a no-op — echoing could alter the increment |
 | tslim | API 3.4 | `SetSensorTypeRequest` | signedWrite | 🚫 `gap` | MANUAL — switches the CGM sensor type — disrupts the active sensor; owner decides at the bench, never auto-fired |
-| tslim | API 3.4 | `SetSiteChangeReminderRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — needs a bespoke Reminders read↔write mapping |
+| tslim | API 3.4 | `SetSiteChangeReminderRequest` | signedWrite | 🚫 `gap` | reversible affordance pending — Reminders exposes only siteChangeDays, NOT the write's enable/timeOfDay, so a no-op cannot be verified |
 | tslim | API 3.4 | `SetSleepScheduleRequest` | signedWrite | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
 | tslim | API 3.4 | `SetTempRateRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
 | tslim | API 3.4 | `StartDexcomG6SensorSessionRequest` | signedWrite | 🚫 `gap` | MANUAL — starts a CGM sensor session — disrupts an in-progress sensor; owner decides at the bench, never auto-fired |
@@ -601,6 +601,12 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
   - `CancelBolusRequest` (mobi/API 3.6, untested)
   - `CancelBolusRequest` (tslim/API 2.5, untested)
   - `CancelBolusRequest` (tslim/API 3.4, untested)
+  - `CgmHighLowAlertRequest` (mobi/API 3.6, untested)
+  - `CgmHighLowAlertRequest` (tslim/API 3.4, untested)
+  - `CgmOutOfRangeAlertRequest` (mobi/API 3.6, untested)
+  - `CgmOutOfRangeAlertRequest` (tslim/API 3.4, untested)
+  - `CgmRiseFallAlertRequest` (mobi/API 3.6, untested)
+  - `CgmRiseFallAlertRequest` (tslim/API 3.4, untested)
   - `ChangeControlIQSettingsRequest` (mobi/API 3.6, untested)
   - `ChangeControlIQSettingsRequest` (tslim/API 2.5, untested)
   - `ChangeControlIQSettingsRequest` (tslim/API 3.4, untested)
@@ -616,6 +622,9 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
   - `RemoteCarbEntryRequest` (mobi/API 3.6, untested)
   - `RemoteCarbEntryRequest` (tslim/API 2.5, untested)
   - `RemoteCarbEntryRequest` (tslim/API 3.4, untested)
+  - `SetAutoOffAlertRequest` (mobi/API 3.6, untested)
+  - `SetAutoOffAlertRequest` (tslim/API 2.5, untested)
+  - `SetAutoOffAlertRequest` (tslim/API 3.4, untested)
   - `SetLowInsulinAlertRequest` (mobi/API 3.6, untested)
   - `SetLowInsulinAlertRequest` (tslim/API 2.5, untested)
   - `SetLowInsulinAlertRequest` (tslim/API 3.4, untested)
@@ -625,6 +634,9 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
   - `SetMaxBolusLimitRequest` (mobi/API 3.6, untested)
   - `SetMaxBolusLimitRequest` (tslim/API 2.5, untested)
   - `SetMaxBolusLimitRequest` (tslim/API 3.4, untested)
+  - `SetPumpSoundsRequest` (mobi/API 3.6, untested)
+  - `SetPumpSoundsRequest` (tslim/API 2.5, untested)
+  - `SetPumpSoundsRequest` (tslim/API 3.4, untested)
   - `UserInteractionRequest` (mobi/API 3.6, untested)
   - `UserInteractionRequest` (tslim/API 2.5, untested)
   - `UserInteractionRequest` (tslim/API 3.4, untested)
@@ -634,6 +646,9 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
   - `CGMOORAlertSettingsRequest` (tslim/API 2.5, deferred)
   - `CGMRateAlertSettingsRequest` (tslim/API 2.5, deferred)
   - `CGMStatusRequest` (tslim/API 2.5, deferred)
+  - `CgmHighLowAlertRequest` (tslim/API 2.5, deferred)
+  - `CgmOutOfRangeAlertRequest` (tslim/API 2.5, deferred)
+  - `CgmRiseFallAlertRequest` (tslim/API 2.5, deferred)
   - `CurrentEGVGuiDataRequest` (tslim/API 2.5, deferred)
   - `GetG6TransmitterHardwareInfoRequest` (tslim/API 2.5, deferred)
   - `GetSavedG7PairingCodeRequest` (tslim/API 2.5, deferred)
@@ -717,6 +732,10 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
   - `SendTipsControlGenericTestRequest` (mobi/API 3.6)
   - `SendTipsControlGenericTestRequest` (tslim/API 2.5)
   - `SendTipsControlGenericTestRequest` (tslim/API 3.4)
+- **context step inside the EnterFillTubingModeRequest workflow — recorded when that (saline-gated) workflow runs**
+  - `PrimeTubingSuspendRequest` (mobi/API 3.6)
+  - `PrimeTubingSuspendRequest` (tslim/API 2.5)
+  - `PrimeTubingSuspendRequest` (tslim/API 3.4)
 - **restore-half of the BolusPermissionRequest reversible pair — recorded when that pair runs behind the saline gate**
   - `BolusPermissionReleaseRequest` (mobi/API 3.6)
   - `BolusPermissionReleaseRequest` (tslim/API 2.5)
@@ -729,49 +748,29 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
   - `ExitFillTubingModeRequest` (mobi/API 3.6)
   - `ExitFillTubingModeRequest` (tslim/API 2.5)
   - `ExitFillTubingModeRequest` (tslim/API 3.4)
-- **reversible affordance pending — PumpSettings exposes enabled+duration but not the write's bitmask byte — no clean no-op re-apply**
-  - `SetAutoOffAlertRequest` (mobi/API 3.6)
-  - `SetAutoOffAlertRequest` (tslim/API 2.5)
-  - `SetAutoOffAlertRequest` (tslim/API 3.4)
-- **reversible affordance pending — edits a live profile segment; capture/restore via IDPSegment is bespoke + profile-mutating**
-  - `SetIDPSegmentRequest` (mobi/API 3.6)
-- **reversible affordance pending — edits live profile settings; capture/restore via IDPSettings is bespoke + profile-mutating**
-  - `SetIDPSettingsRequest` (mobi/API 3.6)
-- **reversible affordance pending — needs a bespoke CGM-alert read↔write mapping (CGM session)**
-  - `CgmHighLowAlertRequest` (mobi/API 3.6)
-  - `CgmHighLowAlertRequest` (tslim/API 2.5)
-  - `CgmHighLowAlertRequest` (tslim/API 3.4)
-  - `CgmOutOfRangeAlertRequest` (mobi/API 3.6)
-  - `CgmOutOfRangeAlertRequest` (tslim/API 2.5)
-  - `CgmOutOfRangeAlertRequest` (tslim/API 3.4)
-  - `CgmRiseFallAlertRequest` (mobi/API 3.6)
-  - `CgmRiseFallAlertRequest` (tslim/API 2.5)
-  - `CgmRiseFallAlertRequest` (tslim/API 3.4)
-- **reversible affordance pending — needs a bespoke ControlIQSleepSchedule read↔write mapping**
+- **reversible affordance pending — ControlIQSleepSchedule exposes the 6 schedule bytes per slot but NOT the write's trailing `flag` byte, which has no documented semantics and no read-back — re-applying it cannot be proven a no-op (Mobi-only, Control-IQ-sleep-affecting)**
   - `SetSleepScheduleRequest` (mobi/API 3.6)
-- **reversible affordance pending — needs a bespoke PumpGlobals annunciation read↔write mapping**
-  - `SetPumpSoundsRequest` (mobi/API 3.6)
-  - `SetPumpSoundsRequest` (tslim/API 2.5)
-  - `SetPumpSoundsRequest` (tslim/API 3.4)
-- **reversible affordance pending — needs a bespoke Reminders read↔write mapping**
-  - `SetBgReminderRequest` (mobi/API 3.6)
-  - `SetBgReminderRequest` (tslim/API 2.5)
-  - `SetBgReminderRequest` (tslim/API 3.4)
+- **reversible affordance pending — Reminders exposes none of this write's fields (index/enabled/window/days), so a no-op cannot be verified**
   - `SetMissedMealBolusReminderRequest` (mobi/API 3.6)
   - `SetMissedMealBolusReminderRequest` (tslim/API 2.5)
   - `SetMissedMealBolusReminderRequest` (tslim/API 3.4)
+- **reversible affordance pending — Reminders exposes only siteChangeDays, NOT the write's enable/timeOfDay, so a no-op cannot be verified**
   - `SetSiteChangeReminderRequest` (mobi/API 3.6)
   - `SetSiteChangeReminderRequest` (tslim/API 2.5)
   - `SetSiteChangeReminderRequest` (tslim/API 3.4)
-- **reversible affordance pending — needs the opaque 5-byte magic echoed from a prior read; bespoke mapping**
-  - `SetQuickBolusSettingsRequest` (mobi/API 3.6)
-  - `SetQuickBolusSettingsRequest` (tslim/API 2.5)
-  - `SetQuickBolusSettingsRequest` (tslim/API 3.4)
-- **reversible affordance pending — no read-back for the snooze setting to capture/restore**
+- **reversible affordance pending — Reminders exposes only the high/low BG thresholds, NOT the per-reminder enabled/minutes/type the write sets, so a no-op cannot be verified for the functional fields**
+  - `SetBgReminderRequest` (mobi/API 3.6)
+  - `SetBgReminderRequest` (tslim/API 2.5)
+  - `SetBgReminderRequest` (tslim/API 3.4)
+- **reversible affordance pending — edits a LIVE basal/delivery profile segment (basal rate, carb ratio, ISF, target); IDPSegment does not expose profileIndex and the operation selector must be MODIFY — a mis-map silently rewrites the dose-path profile, so it is not auto-fired**
+  - `SetIDPSegmentRequest` (mobi/API 3.6)
+- **reversible affordance pending — edits live insulin-duration (IOB/dose-path) + carb-entry; IDPSettings does not expose profileIndex and the changeType selector is required — a mis-map silently rewrites a dose-path setting, so it is not auto-fired**
+  - `SetIDPSettingsRequest` (mobi/API 3.6)
+- **reversible affordance pending — no read-back exposes the snooze enabled/duration setting, so it is genuinely unrecoverable — cannot be made a verifiable no-op**
   - `SetPumpAlertSnoozeRequest` (mobi/API 3.6)
   - `SetPumpAlertSnoozeRequest` (tslim/API 2.5)
   - `SetPumpAlertSnoozeRequest` (tslim/API 3.4)
-- **reversible affordance pending — only meaningful during an active tubing prime; drive within the fill-tubing workflow**
-  - `PrimeTubingSuspendRequest` (mobi/API 3.6)
-  - `PrimeTubingSuspendRequest` (tslim/API 2.5)
-  - `PrimeTubingSuspendRequest` (tslim/API 3.4)
+- **reversible affordance pending — the write's 5-byte increment `magic` must EXACTLY match a known QuickBolusIncrement enum and the modeRaw↔magic mapping is not exposed by PumpGlobals; no change-bitmask to guarantee a no-op — echoing could alter the increment**
+  - `SetQuickBolusSettingsRequest` (mobi/API 3.6)
+  - `SetQuickBolusSettingsRequest` (tslim/API 2.5)
+  - `SetQuickBolusSettingsRequest` (tslim/API 3.4)
