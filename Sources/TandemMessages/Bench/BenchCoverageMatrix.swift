@@ -125,6 +125,13 @@ public enum BenchCoverage {
         if let floor = cmd.minApi, cfg.apiVersion < floor {
             return .deferred("needs \(cfg.modelName) firmware on API ≥ \(floor.major).\(floor.minor)")
         }
+        // Bench-observed firmware rejection: a command this firmware answers with op-77 (and then drops the
+        // link) is deferred here AND never sent by the runner — so one sweep isn't torn down by a cascade of
+        // reject→disconnect→re-pair cycles that exhausts the reconnect ladder. Pure fact table (see
+        // `BenchCommandCatalog.benchObservedUnsupported`); applies to every lane.
+        if let note = BenchCommandCatalog.firmwareUnsupportedNote(command: cmd.name, model: cfg.model, api: cfg.apiVersion) {
+            return .deferred(note)
+        }
 
         switch cmd.lane {
         case .read:

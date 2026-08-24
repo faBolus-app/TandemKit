@@ -229,6 +229,55 @@ public enum BenchCommandCatalog {
         return type.init()
     }
 
+    // MARK: - Empirically firmware-unsupported commands (bench-observed op-77 rejections)
+    //
+    // Some commands a pump's firmware does NOT implement answer with an op-77 ErrorResponse and then DROP
+    // the BLE link (validated on hardware: a legacy API-2.5 t:slim). That is a firmware-CAPABILITY signal,
+    // not a defect in the command — so the coverage classifier records these `deferred` (coverable on a
+    // firmware that accepts them) and, crucially, the runner NEVER SENDS one to a firmware known to reject
+    // it, so a single sweep is not torn down by a cascade of reject→disconnect→re-pair cycles that
+    // eventually exhausts the reconnect ladder.
+    //
+    // This table is BENCH-LAYER ONLY and deliberately NOT `MessageProps.minApi`: an op-77 on ONE pump is an
+    // empirical fact for THAT (model, firmware), not a proven monotonic API floor for the whole fleet (e.g.
+    // Basal-IQ ops are feature-gated, not version-gated), and `minApi` feeds the SHIPPING send-gate
+    // (`isSupported(onModel:apiVersion:)`) — which must not shift on a single bench observation. Each entry
+    // is a pure FACT: "on <model> at API ≤ <maxApiInclusive>, <command> answered op-77 on the saline bench."
+    public struct BenchFirmwareUnsupported: Sendable {
+        public let model: PumpModel
+        /// Inclusive API ceiling this observation applies to (a pump at or below this API rejects the command).
+        public let maxApiInclusive: ApiVersion
+        public let commands: Set<String>
+        /// Where/when this was observed — carried into the matrix note so nothing is asserted without provenance.
+        public let provenance: String
+    }
+
+    /// Commands empirically observed to op-77 + drop-link on a given (model, firmware ≤ api). Grows as bench
+    /// sessions on other configs surface more; keep each entry a measured fact, never a guess.
+    public static let benchObservedUnsupported: [BenchFirmwareUnsupported] = [
+        BenchFirmwareUnsupported(
+            model: .tslim, maxApiInclusive: .v2_5,
+            commands: [
+                "LoadStatusRequest", "ExtendedBolusStatusV2Request", "TempRateStatusRequest",
+                "BasalIQStatusRequest", "BasalIQSettingsRequest", "BasalIQAlertInfoRequest",
+                "BleSoftwareInfoRequest", "SecretMenuRequest", "HistoryLogRequest", "IDPSettingsRequest",
+            ],
+            provenance: "op-77 reject observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1)"),
+    ]
+
+    /// If `command` is bench-observed to be rejected on `model` at `api`, return a note explaining why it is
+    /// deferred; else nil. Pure + unit-tested; consulted by `BenchCoverage.plan` so the runner never sends a
+    /// firmware-rejecting opcode (which would op-77 + tear down the link).
+    public static func firmwareUnsupportedNote(command: String, model: PumpModel, api: ApiVersion) -> String? {
+        for entry in benchObservedUnsupported
+            where entry.model == model && api <= entry.maxApiInclusive && entry.commands.contains(command) {
+            return "bench-observed op-77 reject on \(BenchSessionConfig.name(for: model)) API ≤ "
+                + "\(entry.maxApiInclusive.major).\(entry.maxApiInclusive.minor) — deferred pending a firmware "
+                + "that accepts it (\(entry.provenance))"
+        }
+        return nil
+    }
+
     // MARK: - Convenience slices (used by tests + the runner's summary)
 
     /// Every delivery-class command (`modifiesInsulinDelivery: true`). Per prior research this is exactly

@@ -88,6 +88,24 @@ import Foundation
         #expect(BenchCommandCatalog.makeReadInstance("InitiateBolusRequest") == nil)
         #expect(BenchCommandCatalog.makeReadInstance("NotARealRequest") == nil)
     }
+
+    /// The bench-observed op-77 table gates exactly the observed (model, firmware ≤ api) commands — a pure
+    /// fact table so the runner never sends an opcode a firmware tears the link down on (T-1 hardening).
+    @Test func firmwareUnsupportedNoteMatchesTheObservedSet() {
+        let observed = ["LoadStatusRequest", "ExtendedBolusStatusV2Request", "TempRateStatusRequest",
+                        "BasalIQStatusRequest", "BasalIQSettingsRequest", "BasalIQAlertInfoRequest",
+                        "BleSoftwareInfoRequest", "SecretMenuRequest", "HistoryLogRequest", "IDPSettingsRequest"]
+        for name in observed {
+            #expect(BenchCommandCatalog.firmwareUnsupportedNote(command: name, model: .tslim, api: .v2_5) != nil,
+                    "\(name) is bench-observed op-77 on tslim API 2.5")
+            // Outside the observation window (newer firmware, other model) → not gated by this table.
+            #expect(BenchCommandCatalog.firmwareUnsupportedNote(command: name, model: .tslim, api: .v3_4) == nil)
+            #expect(BenchCommandCatalog.firmwareUnsupportedNote(command: name, model: .mobi, api: .mobi_v3_6) == nil)
+        }
+        // A supported read is never gated; and the older v2.1 t:slim is within the ≤ 2.5 window.
+        #expect(BenchCommandCatalog.firmwareUnsupportedNote(command: "InsulinStatusRequest", model: .tslim, api: .v2_5) == nil)
+        #expect(BenchCommandCatalog.firmwareUnsupportedNote(command: "SecretMenuRequest", model: .tslim, api: .v2_1) != nil)
+    }
 }
 
 @Suite struct BenchCoveragePlanTests {
@@ -133,6 +151,22 @@ import Foundation
         if case .deferred = plan("CurrentEgvGuiDataV2Request", Self.mobiSalineCgm) {} else {
             Issue.record("an API_FUTURE-floored read must defer even on the fullest config")
         }
+    }
+
+    /// A bench-observed op-77 command defers on the firmware that rejected it (and so is never sent), but is
+    /// still exercised on a firmware outside the observation window — the T-1 disconnect-cascade fix.
+    @Test func benchObservedUnsupportedDefersOnRejectingFirmwareOnly() {
+        // On the legacy API-2.5 t:slim these answered op-77 + dropped the link → now deferred, never sent.
+        for name in ["BasalIQStatusRequest", "LoadStatusRequest", "SecretMenuRequest", "IDPSettingsRequest"] {
+            if case .deferred(let r) = plan(name, Self.oldTslim) {
+                #expect(r.contains("op-77"), "\(name) should defer with the bench-observed op-77 note")
+            } else {
+                Issue.record("\(name) should defer on the API-2.5 t:slim that rejected it")
+            }
+        }
+        // On the newer API-3.4 t:slim (outside the observation window) they're still probed as reads.
+        #expect(plan("BasalIQStatusRequest", Self.newTslim) == .exercise(.read))
+        #expect(plan("LoadStatusRequest", Self.newTslim) == .exercise(.read))
     }
 
     /// A universal delivery command: deferred without a cartridge, deferred without saline attest, then exercised.

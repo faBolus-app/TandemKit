@@ -78,6 +78,13 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     /// header block above `probeTxIdMatch`).
     var nackProbeActive = false
     var nackProbeEchoedTxId: UInt8?
+    /// Set once the shared reconnect ladder exhausts AND our bench-layer recovery budget is spent — the
+    /// remaining coverage reads then defer IMMEDIATELY instead of each burning a 45 s `awaitPaired` timeout
+    /// against a dead link. Revived by any fresh `.ready`.
+    var linkGaveUp = false
+    /// How many times this session we've re-kicked a scan to recover an exhausted reconnect ladder.
+    var exhaustionRecoveries = 0
+    static let maxExhaustionRecoveries = 3
     /// Control-IQ closed-loop state (from ControlIQInfoV1) — decides the temp-basal (needs OFF) vs
     /// SetModes (needs ON) preconditions when interpreting the Mobi-only write probes.
     var ciqClosedLoopEnabled: Bool?
@@ -115,7 +122,24 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     func pumpClient(_ c: PumpBLEClient, didChange state: PumpBLEClient.State) {
         print("[state] \(state)")
         if state != .ready { isPaired = false }   // a drop clears paired; the probe waits for re-pair
+        if state == .ready { linkGaveUp = false }  // a fresh, healthy link revives the sweep
         if state == .idle { c.startScan() }
+        // Bench-layer recovery: the SHARED reconnect ladder gave up (`maxReconnectAttempts`). A legacy pump
+        // that tore the link down on an op-77 must not strand the rest of the sweep. Re-kick a fresh scan →
+        // `connect` (which clears `reconnectExhausted`), capped so a truly-gone pump can't spin forever. This
+        // only reacts to the shared client's state — it does NOT change the shared ladder's semantics.
+        if state == .reconnectExhausted {
+            if exhaustionRecoveries < Self.maxExhaustionRecoveries {
+                exhaustionRecoveries += 1
+                print("  ↻ [recovery] reconnect ladder exhausted — re-scanning to recover "
+                    + "(attempt \(exhaustionRecoveries)/\(Self.maxExhaustionRecoveries))")
+                c.startScan()
+            } else {
+                linkGaveUp = true
+                print("  ⛔️ [recovery] reconnect ladder exhausted \(Self.maxExhaustionRecoveries)× — giving up "
+                    + "the link; remaining cells recorded `deferred` (retry a fresh session)")
+            }
+        }
     }
 
     func pumpClient(_ c: PumpBLEClient, didDiscover peripheral: CBPeripheral, rssi: Int) {
@@ -677,6 +701,10 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         matrix.record(planned)
         print("\n--- Exercising this session's coverable cells ---")
 
+        // Incremental persistence: flush the matrix every few exercised cells so a mid-sweep wedge or an
+        // exhausted link never loses this session's real results (the end-only save left a stuck sweep with
+        // zero pass/fail on disk). Cheap: only exercisable cells reach this loop.
+        var exercisedSinceFlush = 0
         for cell in planned where cell.state == .untested {
             guard let cmd = BenchCommandCatalog.all.first(where: { $0.name == cell.command }) else { continue }
             var updated = cell
@@ -686,7 +714,8 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
                     updated.state = .pass   // already read (+ raw-logged) above
                     updated.note = "read + raw targetBg cargo logged"
                 } else if let inst = BenchCommandCatalog.makeReadInstance(cmd.name) {
-                    updated.state = await coverageRead(inst, cmd.name)
+                    let (st, note) = await coverageRead(inst, cmd.name)
+                    updated.state = st; updated.note = note
                 } else {
                     updated.state = .gap; updated.note = "no read instance / response opcode to correlate"
                 }
@@ -702,6 +731,11 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
             updated.timestamp = ts
             matrix.record(updated)
             print("  [\(updated.state.rawValue)] \(cmd.name) (\(cmd.lane.rawValue))")
+            exercisedSinceFlush += 1
+            if exercisedSinceFlush >= 5 {
+                exercisedSinceFlush = 0
+                try? BenchCoverageStore.save(matrix, generatedAt: ts)   // incremental flush; ignore transient I/O errors
+            }
         }
 
         // Fold in RESTORE-PARTNER results for the signed-write Exit* partners driven inside a delivery pair
@@ -743,17 +777,25 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     }
 
     /// A generic read probe for the coverage sweep: send `req` read-only and await its correlated response.
-    /// PASS if the pump answers (a typed frame on the expected opcode), FAIL on NACK/timeout/drop (recovers).
-    private func coverageRead(_ req: Message, _ name: String) async -> BenchCellState {
-        guard await awaitPaired() else { return .deferred }
-        guard req.props.responseOpCode != nil else { return .gap }
+    /// PASS if the pump answers a typed frame on the expected opcode. A reject/drop is recorded `deferred`,
+    /// NOT `fail`: an op-77 is a firmware-CAPABILITY signal (this firmware doesn't implement the read), not a
+    /// defect in the command — a hard `fail` in the matrix would wrongly imply the command is broken, and (via
+    /// merge precedence) a real result would then be needed to override it. `deferred` lets a firmware that
+    /// DOES accept it cleanly record the pass later.
+    private func coverageRead(_ req: Message, _ name: String) async -> (BenchCellState, String) {
+        guard !linkGaveUp else {
+            return (.deferred, "link gave up this session (reconnect ladder exhausted) — retry a fresh session")
+        }
+        guard await awaitPaired() else { return (.deferred, "not paired this session (link unavailable)") }
+        guard req.props.responseOpCode != nil else { return (.gap, "no response opcode to correlate") }
         do {
             _ = try await client.withWritePolicy(.readOnly) {
                 try await self.client.sendAwaitingResponse(req, deadline: 10)
             }
-            return .pass
+            return (.pass, "typed response parsed this session")
         } catch {
-            _ = await awaitPaired(); return .fail
+            _ = await awaitPaired()   // recover the link (the pump drops it after an op-77) before the next cell
+            return (.deferred, "send rejected/dropped this session (op-77 or link drop) — deferred, not a hard fail")
         }
     }
 
@@ -1258,8 +1300,11 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
                 // Attribute the error to the read that triggered it via the echoed txId (this legacy
                 // pump zeroes requestCodeId, so the cargo alone can't name the read).
                 let who = pollTxMap[parsed.txId] ?? "unknown"
+                // VA-04: also dump the RAW op-77 cargo bytes so `reqCodeId=0 errorCode=0` can be confirmed as
+                // genuine legacy-firmware behavior vs a decode-offset bug — the decoded fields alone can't tell.
+                let rawHex = m.cargo.map { String(format: "%02x", $0) }.joined()
                 print("⚠️ [error-response] pump REJECTED \(who) read (txId=\(parsed.txId)) "
-                    + "— reqCodeId=\(m.requestCodeId) errorCode=\(m.errorCodeId) (op-77)")
+                    + "— reqCodeId=\(m.requestCodeId) errorCode=\(m.errorCodeId) (op-77) rawCargo=\(rawHex.isEmpty ? "∅" : rawHex)")
             case let m as ControlIQIOBResponse:
                 // iobUnits uses swan6hrIOB (matches the pump display, verified on hardware).
                 print("[status] IOB = \(m.iobUnits) u")
