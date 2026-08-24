@@ -3010,7 +3010,7 @@
       "note" : "MANUAL — activates shelf\/storage mode — takes the pump offline; owner decides at the bench, never auto-fired",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "gap",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|ActiveAamBitsRequest" : {
       "cartridge" : false,
@@ -3022,7 +3022,7 @@
       "note" : "needs tslim firmware on API ≥ 3.5",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|AdditionalBolusRequest" : {
       "cartridge" : false,
@@ -3034,7 +3034,7 @@
       "note" : "needs a cartridge (saline) session on tslim",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|AlarmStatusRequest" : {
       "cartridge" : false,
@@ -3043,10 +3043,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|AlertStatusRequest" : {
       "cartridge" : false,
@@ -3055,10 +3055,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|ApiVersionRequest" : {
       "cartridge" : false,
@@ -3067,10 +3067,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|BasalIQAlertInfoRequest" : {
       "cartridge" : false,
@@ -3082,7 +3082,7 @@
       "note" : "bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4))",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|BasalIQSettingsRequest" : {
       "cartridge" : false,
@@ -3094,7 +3094,7 @@
       "note" : "bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4))",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|BasalIQStatusRequest" : {
       "cartridge" : false,
@@ -3106,7 +3106,7 @@
       "note" : "bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4))",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|BasalLimitSettingsRequest" : {
       "cartridge" : false,
@@ -3115,10 +3115,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|BleSoftwareInfoRequest" : {
       "cartridge" : false,
@@ -3130,7 +3130,7 @@
       "note" : "bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4))",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|BolusCalcDataSnapshotRequest" : {
       "cartridge" : false,
@@ -3139,10 +3139,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|BolusPermissionChangeReasonRequest" : {
       "cartridge" : false,
@@ -3154,7 +3154,7 @@
       "note" : "needs tslim firmware on API ≥ 99.99",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|BolusPermissionReleaseRequest" : {
       "cartridge" : false,
@@ -3166,7 +3166,7 @@
       "note" : "restore-half of the BolusPermissionRequest reversible pair — recorded when that pair runs behind the saline gate",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "gap",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|BolusPermissionRequest" : {
       "cartridge" : false,
@@ -3175,10 +3175,10 @@
       "firmware" : "API 2.5",
       "lane" : "signedWrite",
       "model" : "tslim",
-      "note" : "exercisable (lane: signedWrite)",
+      "note" : "signed permission ACCEPTED but not granted this session (likely needs a cartridge) — deferred, retest T-2",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "deferred",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|CGMGlucoseAlertSettingsRequest" : {
       "cartridge" : false,
@@ -3190,7 +3190,19 @@
       "note" : "needs a CGM-present session (PUMP_CGM_PRESENT=1)",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
+    },
+    "tslim|API 2.5|cart:0|cgm:0|CGMGlucoseAlertSettingsRequest·no-cgm-probe" : {
+      "cartridge" : false,
+      "cgm" : false,
+      "command" : "CGMGlucoseAlertSettingsRequest·no-cgm-probe",
+      "firmware" : "API 2.5",
+      "lane" : "read",
+      "model" : "tslim",
+      "note" : "no-CGM probe: pump ANSWERED (typed response parsed) — command works without a sensor (returns a no-sensor state)",
+      "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|CGMHardwareInfoRequest" : {
       "cartridge" : false,
@@ -3202,7 +3214,19 @@
       "note" : "needs a CGM-present session (PUMP_CGM_PRESENT=1)",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
+    },
+    "tslim|API 2.5|cart:0|cgm:0|CGMHardwareInfoRequest·no-cgm-probe" : {
+      "cartridge" : false,
+      "cgm" : false,
+      "command" : "CGMHardwareInfoRequest·no-cgm-probe",
+      "firmware" : "API 2.5",
+      "lane" : "read",
+      "model" : "tslim",
+      "note" : "no-CGM probe: pump ANSWERED (typed response parsed) — command works without a sensor (returns a no-sensor state)",
+      "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|CGMOORAlertSettingsRequest" : {
       "cartridge" : false,
@@ -3214,7 +3238,19 @@
       "note" : "needs a CGM-present session (PUMP_CGM_PRESENT=1)",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
+    },
+    "tslim|API 2.5|cart:0|cgm:0|CGMOORAlertSettingsRequest·no-cgm-probe" : {
+      "cartridge" : false,
+      "cgm" : false,
+      "command" : "CGMOORAlertSettingsRequest·no-cgm-probe",
+      "firmware" : "API 2.5",
+      "lane" : "read",
+      "model" : "tslim",
+      "note" : "no-CGM probe: pump ANSWERED (typed response parsed) — command works without a sensor (returns a no-sensor state)",
+      "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|CGMRateAlertSettingsRequest" : {
       "cartridge" : false,
@@ -3226,7 +3262,19 @@
       "note" : "needs a CGM-present session (PUMP_CGM_PRESENT=1)",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
+    },
+    "tslim|API 2.5|cart:0|cgm:0|CGMRateAlertSettingsRequest·no-cgm-probe" : {
+      "cartridge" : false,
+      "cgm" : false,
+      "command" : "CGMRateAlertSettingsRequest·no-cgm-probe",
+      "firmware" : "API 2.5",
+      "lane" : "read",
+      "model" : "tslim",
+      "note" : "no-CGM probe: pump ANSWERED (typed response parsed) — command works without a sensor (returns a no-sensor state)",
+      "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|CGMStatusRequest" : {
       "cartridge" : false,
@@ -3238,7 +3286,19 @@
       "note" : "needs a CGM-present session (PUMP_CGM_PRESENT=1)",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
+    },
+    "tslim|API 2.5|cart:0|cgm:0|CGMStatusRequest·no-cgm-probe" : {
+      "cartridge" : false,
+      "cgm" : false,
+      "command" : "CGMStatusRequest·no-cgm-probe",
+      "firmware" : "API 2.5",
+      "lane" : "read",
+      "model" : "tslim",
+      "note" : "no-CGM probe: pump ANSWERED (typed response parsed) — command works without a sensor (returns a no-sensor state)",
+      "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|CancelBolusRequest" : {
       "cartridge" : false,
@@ -3247,10 +3307,10 @@
       "firmware" : "API 2.5",
       "lane" : "signedWrite",
       "model" : "tslim",
-      "note" : "exercisable (lane: signedWrite)",
+      "note" : "signed cancel NACKed as expected (no active bolus)",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|CentralChallengeRequest" : {
       "cartridge" : false,
@@ -3259,10 +3319,10 @@
       "firmware" : "API 2.5",
       "lane" : "pairing",
       "model" : "tslim",
-      "note" : "exercisable (lane: pairing)",
+      "note" : "paired via legacyV1 this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|CgmHighLowAlertRequest" : {
       "cartridge" : false,
@@ -3274,7 +3334,7 @@
       "note" : "needs a CGM-present session (PUMP_CGM_PRESENT=1)",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|CgmOutOfRangeAlertRequest" : {
       "cartridge" : false,
@@ -3286,7 +3346,7 @@
       "note" : "needs a CGM-present session (PUMP_CGM_PRESENT=1)",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|CgmRiseFallAlertRequest" : {
       "cartridge" : false,
@@ -3298,7 +3358,7 @@
       "note" : "needs a CGM-present session (PUMP_CGM_PRESENT=1)",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|CgmStatusV2Request" : {
       "cartridge" : false,
@@ -3310,7 +3370,7 @@
       "note" : "model-restricted to mobi — covered in a mobi session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "notApplicable",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|CgmSupportPackageStatusRequest" : {
       "cartridge" : false,
@@ -3322,7 +3382,7 @@
       "note" : "needs tslim firmware on API ≥ 99.99",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|ChangeControlIQSettingsRequest" : {
       "cartridge" : false,
@@ -3334,7 +3394,7 @@
       "note" : "bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4))",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|ChangeTimeDateRequest" : {
       "cartridge" : false,
@@ -3346,7 +3406,7 @@
       "note" : "bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4))",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|CommonSoftwareInfoRequest" : {
       "cartridge" : false,
@@ -3358,7 +3418,7 @@
       "note" : "needs tslim firmware on API ≥ 99.99",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|ControlIQIOBRequest" : {
       "cartridge" : false,
@@ -3367,10 +3427,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|ControlIQInfoV1Request" : {
       "cartridge" : false,
@@ -3379,10 +3439,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|ControlIQInfoV2Request" : {
       "cartridge" : false,
@@ -3391,10 +3451,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|ControlIQSleepScheduleRequest" : {
       "cartridge" : false,
@@ -3403,10 +3463,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|CreateHistoryLogRequest" : {
       "cartridge" : false,
@@ -3418,7 +3478,7 @@
       "note" : "bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4))",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|CreateIDPRequest" : {
       "cartridge" : false,
@@ -3430,7 +3490,7 @@
       "note" : "model-restricted to mobi — covered in a mobi session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "notApplicable",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|CurrentActiveIdpValuesRequest" : {
       "cartridge" : false,
@@ -3439,10 +3499,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "read + raw targetBg cargo logged",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|CurrentBasalStatusRequest" : {
       "cartridge" : false,
@@ -3451,10 +3511,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|CurrentBatteryV1Request" : {
       "cartridge" : false,
@@ -3463,10 +3523,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|CurrentBatteryV2Request" : {
       "cartridge" : false,
@@ -3475,10 +3535,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|CurrentBolusStatusRequest" : {
       "cartridge" : false,
@@ -3487,10 +3547,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|CurrentEGVGuiDataRequest" : {
       "cartridge" : false,
@@ -3502,7 +3562,19 @@
       "note" : "needs a CGM-present session (PUMP_CGM_PRESENT=1)",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
+    },
+    "tslim|API 2.5|cart:0|cgm:0|CurrentEGVGuiDataRequest·no-cgm-probe" : {
+      "cartridge" : false,
+      "cgm" : false,
+      "command" : "CurrentEGVGuiDataRequest·no-cgm-probe",
+      "firmware" : "API 2.5",
+      "lane" : "read",
+      "model" : "tslim",
+      "note" : "no-CGM probe: pump ANSWERED (typed response parsed) — command works without a sensor (returns a no-sensor state)",
+      "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|CurrentEgvGuiDataV2Request" : {
       "cartridge" : false,
@@ -3514,7 +3586,7 @@
       "note" : "needs tslim firmware on API ≥ 99.99",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|DeleteIDPRequest" : {
       "cartridge" : false,
@@ -3526,7 +3598,7 @@
       "note" : "model-restricted to mobi — covered in a mobi session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "notApplicable",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|DisconnectPumpRequest" : {
       "cartridge" : false,
@@ -3538,7 +3610,7 @@
       "note" : "needs tslim firmware on API ≥ 3.5",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|EnterChangeCartridgeModeRequest" : {
       "cartridge" : false,
@@ -3550,7 +3622,7 @@
       "note" : "needs a cartridge (saline) session on tslim",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|EnterFillTubingModeRequest" : {
       "cartridge" : false,
@@ -3562,7 +3634,7 @@
       "note" : "model-restricted to mobi — covered in a mobi session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "notApplicable",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|ExitChangeCartridgeModeRequest" : {
       "cartridge" : false,
@@ -3574,7 +3646,7 @@
       "note" : "restore-half of the EnterChangeCartridgeModeRequest reversible pair — recorded when that pair runs behind the saline gate",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "gap",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|ExitFillTubingModeRequest" : {
       "cartridge" : false,
@@ -3586,7 +3658,7 @@
       "note" : "restore-half of the EnterFillTubingModeRequest reversible pair — recorded when that pair runs behind the saline gate",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "gap",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|ExtendedBolusStatusRequest" : {
       "cartridge" : false,
@@ -3595,10 +3667,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|ExtendedBolusStatusV2Request" : {
       "cartridge" : false,
@@ -3610,7 +3682,7 @@
       "note" : "bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4))",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|FactoryResetBRequest" : {
       "cartridge" : false,
@@ -3622,7 +3694,7 @@
       "note" : "MANUAL — ERASES the pump to factory state (B variant) — irreversible; owner decides at the bench, never auto-fired",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "gap",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|FactoryResetRequest" : {
       "cartridge" : false,
@@ -3634,7 +3706,7 @@
       "note" : "MANUAL — ERASES the pump to factory state — irreversible; owner decides at the bench, never auto-fired",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "gap",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|FillCannulaRequest" : {
       "cartridge" : false,
@@ -3646,7 +3718,7 @@
       "note" : "model-restricted to mobi — covered in a mobi session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "notApplicable",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|GetG6TransmitterHardwareInfoRequest" : {
       "cartridge" : false,
@@ -3658,7 +3730,19 @@
       "note" : "needs a CGM-present session (PUMP_CGM_PRESENT=1)",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
+    },
+    "tslim|API 2.5|cart:0|cgm:0|GetG6TransmitterHardwareInfoRequest·no-cgm-probe" : {
+      "cartridge" : false,
+      "cgm" : false,
+      "command" : "GetG6TransmitterHardwareInfoRequest·no-cgm-probe",
+      "firmware" : "API 2.5",
+      "lane" : "read",
+      "model" : "tslim",
+      "note" : "no-CGM probe: send rejected\/dropped this session (op-77 or link drop) — deferred, not a hard fail",
+      "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
+      "state" : "deferred",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|GetSavedG7PairingCodeRequest" : {
       "cartridge" : false,
@@ -3670,7 +3754,19 @@
       "note" : "needs a CGM-present session (PUMP_CGM_PRESENT=1)",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
+    },
+    "tslim|API 2.5|cart:0|cgm:0|GetSavedG7PairingCodeRequest·no-cgm-probe" : {
+      "cartridge" : false,
+      "cgm" : false,
+      "command" : "GetSavedG7PairingCodeRequest·no-cgm-probe",
+      "firmware" : "API 2.5",
+      "lane" : "read",
+      "model" : "tslim",
+      "note" : "no-CGM probe: send rejected\/dropped this session (op-77 or link drop) — deferred, not a hard fail",
+      "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
+      "state" : "deferred",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|GlobalMaxBolusSettingsRequest" : {
       "cartridge" : false,
@@ -3679,10 +3775,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|HighestAamRequest" : {
       "cartridge" : false,
@@ -3691,10 +3787,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|HistoryLogRequest" : {
       "cartridge" : false,
@@ -3706,7 +3802,7 @@
       "note" : "bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4))",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|HistoryLogStatusRequest" : {
       "cartridge" : false,
@@ -3715,10 +3811,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|HomeScreenMirrorRequest" : {
       "cartridge" : false,
@@ -3727,10 +3823,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|IDPSegmentRequest" : {
       "cartridge" : false,
@@ -3742,7 +3838,7 @@
       "note" : "bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4))",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|IDPSettingsRequest" : {
       "cartridge" : false,
@@ -3754,7 +3850,7 @@
       "note" : "bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4))",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|InitiateBolusRequest" : {
       "cartridge" : false,
@@ -3766,7 +3862,19 @@
       "note" : "needs a cartridge (saline) session on tslim",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
+    },
+    "tslim|API 2.5|cart:0|cgm:0|InitiateBolusRequest·no-cartridge-reject" : {
+      "cartridge" : false,
+      "cgm" : false,
+      "command" : "InitiateBolusRequest·no-cartridge-reject",
+      "firmware" : "API 2.5",
+      "lane" : "delivery",
+      "model" : "tslim",
+      "note" : "permission exchange produced no clean response this session (link churn) — deferred, retry",
+      "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
+      "state" : "deferred",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|InsulinStatusRequest" : {
       "cartridge" : false,
@@ -3775,10 +3883,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|Jpake1aRequest" : {
       "cartridge" : false,
@@ -3790,7 +3898,7 @@
       "note" : "needs a session on API ≥ 3.2 (JPAKE firmware)",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|Jpake1bRequest" : {
       "cartridge" : false,
@@ -3802,7 +3910,7 @@
       "note" : "needs a session on API ≥ 3.2 (JPAKE firmware)",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|Jpake2Request" : {
       "cartridge" : false,
@@ -3814,7 +3922,7 @@
       "note" : "needs a session on API ≥ 3.2 (JPAKE firmware)",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|Jpake3SessionKeyRequest" : {
       "cartridge" : false,
@@ -3826,7 +3934,7 @@
       "note" : "needs a session on API ≥ 3.2 (JPAKE firmware)",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|Jpake4KeyConfirmationRequest" : {
       "cartridge" : false,
@@ -3838,7 +3946,7 @@
       "note" : "needs a session on API ≥ 3.2 (JPAKE firmware)",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|LastBGRequest" : {
       "cartridge" : false,
@@ -3847,10 +3955,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|LastBolusStatusRequest" : {
       "cartridge" : false,
@@ -3859,10 +3967,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|LastBolusStatusV2Request" : {
       "cartridge" : false,
@@ -3871,10 +3979,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|LastBolusStatusV3Request" : {
       "cartridge" : false,
@@ -3886,7 +3994,7 @@
       "note" : "needs tslim firmware on API ≥ 3.5",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|LoadStatusRequest" : {
       "cartridge" : false,
@@ -3898,7 +4006,7 @@
       "note" : "bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4))",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|LocalizationRequest" : {
       "cartridge" : false,
@@ -3907,10 +4015,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|MalfunctionStatusRequest" : {
       "cartridge" : false,
@@ -3919,10 +4027,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|NonControlIQIOBRequest" : {
       "cartridge" : false,
@@ -3931,10 +4039,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|PlaySoundRequest" : {
       "cartridge" : false,
@@ -3946,7 +4054,7 @@
       "note" : "bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4))",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|PrimeTubingSuspendRequest" : {
       "cartridge" : false,
@@ -3958,7 +4066,7 @@
       "note" : "context step inside the EnterFillTubingModeRequest workflow — recorded when that (saline-gated) workflow runs",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "gap",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|ProfileStatusRequest" : {
       "cartridge" : false,
@@ -3967,10 +4075,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|PumpChallengeRequest" : {
       "cartridge" : false,
@@ -3979,10 +4087,10 @@
       "firmware" : "API 2.5",
       "lane" : "pairing",
       "model" : "tslim",
-      "note" : "exercisable (lane: pairing)",
+      "note" : "paired via legacyV1 this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|PumpFeaturesV1Request" : {
       "cartridge" : false,
@@ -3991,10 +4099,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|PumpFeaturesV2Request" : {
       "cartridge" : false,
@@ -4003,10 +4111,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|PumpGlobalsRequest" : {
       "cartridge" : false,
@@ -4015,10 +4123,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|PumpSettingsRequest" : {
       "cartridge" : false,
@@ -4027,10 +4135,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|PumpVersionBRequest" : {
       "cartridge" : false,
@@ -4039,10 +4147,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|PumpVersionRequest" : {
       "cartridge" : false,
@@ -4051,10 +4159,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|RemindersRequest" : {
       "cartridge" : false,
@@ -4063,10 +4171,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|RemoteBgEntryRequest" : {
       "cartridge" : false,
@@ -4075,10 +4183,10 @@
       "firmware" : "API 2.5",
       "lane" : "signedWrite",
       "model" : "tslim",
-      "note" : "exercisable (lane: signedWrite)",
+      "note" : "benign BG entry accepted (no recalibration; appends a non-therapy entry)",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|RemoteCarbEntryRequest" : {
       "cartridge" : false,
@@ -4087,10 +4195,10 @@
       "firmware" : "API 2.5",
       "lane" : "signedWrite",
       "model" : "tslim",
-      "note" : "exercisable (lane: signedWrite)",
+      "note" : "benign 0 g carb entry accepted (appends a non-therapy history entry)",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|RenameIDPRequest" : {
       "cartridge" : false,
@@ -4102,7 +4210,7 @@
       "note" : "model-restricted to mobi — covered in a mobi session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "notApplicable",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|ResumePumpingRequest" : {
       "cartridge" : false,
@@ -4114,7 +4222,7 @@
       "note" : "model-restricted to mobi — covered in a mobi session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "notApplicable",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|SecretMenuRequest" : {
       "cartridge" : false,
@@ -4126,7 +4234,7 @@
       "note" : "bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4))",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|SendTipsControlGenericTestRequest" : {
       "cartridge" : false,
@@ -4138,7 +4246,7 @@
       "note" : "MANUAL — undocumented internal test op — effect unknown; owner decides at the bench, never auto-fired",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "gap",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|SetActiveIDPRequest" : {
       "cartridge" : false,
@@ -4150,7 +4258,7 @@
       "note" : "model-restricted to mobi — covered in a mobi session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "notApplicable",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|SetAutoOffAlertRequest" : {
       "cartridge" : false,
@@ -4162,7 +4270,7 @@
       "note" : "bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4))",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|SetBgReminderRequest" : {
       "cartridge" : false,
@@ -4174,7 +4282,7 @@
       "note" : "reversible affordance pending — Reminders exposes only the high\/low BG thresholds, NOT the per-reminder enabled\/minutes\/type the write sets, so a no-op cannot be verified for the functional fields",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "gap",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|SetDexcomG7PairingCodeRequest" : {
       "cartridge" : false,
@@ -4186,7 +4294,7 @@
       "note" : "MANUAL — changes the G7 pairing code — disrupts the sensor pairing; owner decides at the bench, never auto-fired",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "gap",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|SetG6TransmitterIdRequest" : {
       "cartridge" : false,
@@ -4198,7 +4306,7 @@
       "note" : "needs tslim firmware on API ≥ 3.5",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|SetIDPSegmentRequest" : {
       "cartridge" : false,
@@ -4210,7 +4318,7 @@
       "note" : "model-restricted to mobi — covered in a mobi session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "notApplicable",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|SetIDPSettingsRequest" : {
       "cartridge" : false,
@@ -4222,7 +4330,7 @@
       "note" : "model-restricted to mobi — covered in a mobi session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "notApplicable",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|SetLowInsulinAlertRequest" : {
       "cartridge" : false,
@@ -4234,7 +4342,7 @@
       "note" : "bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4))",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|SetMaxBasalLimitRequest" : {
       "cartridge" : false,
@@ -4246,7 +4354,7 @@
       "note" : "bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4))",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|SetMaxBolusLimitRequest" : {
       "cartridge" : false,
@@ -4258,7 +4366,7 @@
       "note" : "bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4))",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|SetMissedMealBolusReminderRequest" : {
       "cartridge" : false,
@@ -4270,7 +4378,7 @@
       "note" : "reversible affordance pending — Reminders exposes none of this write's fields (index\/enabled\/window\/days), so a no-op cannot be verified",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "gap",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|SetModesRequest" : {
       "cartridge" : false,
@@ -4282,7 +4390,7 @@
       "note" : "model-restricted to mobi — covered in a mobi session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "notApplicable",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|SetPumpAlertSnoozeRequest" : {
       "cartridge" : false,
@@ -4294,7 +4402,7 @@
       "note" : "reversible affordance pending — no read-back exposes the snooze enabled\/duration setting, so it is genuinely unrecoverable — cannot be made a verifiable no-op",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "gap",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|SetPumpSoundsRequest" : {
       "cartridge" : false,
@@ -4306,7 +4414,7 @@
       "note" : "bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4))",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|SetQuickBolusSettingsRequest" : {
       "cartridge" : false,
@@ -4318,7 +4426,7 @@
       "note" : "reversible affordance pending — the write's 5-byte increment `magic` must EXACTLY match a known QuickBolusIncrement enum and the modeRaw↔magic mapping is not exposed by PumpGlobals; no change-bitmask to guarantee a no-op — echoing could alter the increment",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "gap",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|SetSensorTypeRequest" : {
       "cartridge" : false,
@@ -4330,7 +4438,7 @@
       "note" : "MANUAL — switches the CGM sensor type — disrupts the active sensor; owner decides at the bench, never auto-fired",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "gap",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|SetSiteChangeReminderRequest" : {
       "cartridge" : false,
@@ -4342,7 +4450,7 @@
       "note" : "reversible affordance pending — Reminders exposes only siteChangeDays, NOT the write's enable\/timeOfDay, so a no-op cannot be verified",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "gap",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|SetSleepScheduleRequest" : {
       "cartridge" : false,
@@ -4354,7 +4462,7 @@
       "note" : "model-restricted to mobi — covered in a mobi session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "notApplicable",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|SetTempRateRequest" : {
       "cartridge" : false,
@@ -4366,7 +4474,7 @@
       "note" : "model-restricted to mobi — covered in a mobi session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "notApplicable",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|StartDexcomG6SensorSessionRequest" : {
       "cartridge" : false,
@@ -4378,7 +4486,7 @@
       "note" : "MANUAL — starts a CGM sensor session — disrupts an in-progress sensor; owner decides at the bench, never auto-fired",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "gap",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|StopDexcomCGMSensorSessionRequest" : {
       "cartridge" : false,
@@ -4390,7 +4498,7 @@
       "note" : "MANUAL — stops the CGM sensor session — disrupts an in-progress sensor; owner decides at the bench, never auto-fired",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "gap",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|StopTempRateRequest" : {
       "cartridge" : false,
@@ -4402,7 +4510,7 @@
       "note" : "model-restricted to mobi — covered in a mobi session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "notApplicable",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|StreamDataPreflightRequest" : {
       "cartridge" : false,
@@ -4414,7 +4522,7 @@
       "note" : "needs tslim firmware on API ≥ 99.99",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|StreamDataReadinessRequest" : {
       "cartridge" : false,
@@ -4426,7 +4534,7 @@
       "note" : "bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4))",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|SuspendPumpingRequest" : {
       "cartridge" : false,
@@ -4438,7 +4546,7 @@
       "note" : "model-restricted to mobi — covered in a mobi session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "notApplicable",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|TempRateRequest" : {
       "cartridge" : false,
@@ -4447,10 +4555,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|TempRateStatusRequest" : {
       "cartridge" : false,
@@ -4462,7 +4570,7 @@
       "note" : "bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4))",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|TimeSinceResetRequest" : {
       "cartridge" : false,
@@ -4471,10 +4579,10 @@
       "firmware" : "API 2.5",
       "lane" : "read",
       "model" : "tslim",
-      "note" : "exercisable (lane: read)",
+      "note" : "typed response parsed this session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
-      "state" : "untested",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "state" : "pass",
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|UnknownMobiOpcode110Request" : {
       "cartridge" : false,
@@ -4486,7 +4594,7 @@
       "note" : "model-restricted to mobi — covered in a mobi session",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "notApplicable",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 2.5|cart:0|cgm:0|UserInteractionRequest" : {
       "cartridge" : false,
@@ -4498,7 +4606,7 @@
       "note" : "bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4))",
       "session" : "tslim · API 2.5 · legacyV1 · cart=no · cgm=no",
       "state" : "deferred",
-      "timestamp" : "2026-08-24T03:06:45Z"
+      "timestamp" : "2026-08-24T03:12:21Z"
     },
     "tslim|API 3.4|cart:1|cgm:0|ActivateShelfModeRequest" : {
       "cartridge" : true,

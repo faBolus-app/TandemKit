@@ -1,6 +1,6 @@
 # TandemKit bench command-coverage matrix
 
-_Generated 2026-08-24T03:06:45Z · schema v1 · 625 recorded cells across 3 session config(s)._
+_Generated 2026-08-24T03:12:21Z · schema v1 · 634 recorded cells across 3 session config(s)._
 
 This matrix accumulates ACROSS bench sessions. Each session fills only the cells its hardware config (pump model × firmware × cartridge × CGM) allows; the rest stay `deferred` (coverable later) or `n/a` (another model's matrix). A delivery cell PASSES only when the pump's OWN history-log read-back equals the requested units.
 
@@ -8,10 +8,11 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 
 | state | count |
 |---|---|
+| `pass` | 47 |
 | `gap` | 56 |
 | `notApplicable` | 32 |
-| `deferred` | 68 |
-| `untested` | 219 |
+| `deferred` | 72 |
+| `untested` | 177 |
 
 ## Coverage by session config
 
@@ -145,25 +146,30 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | tslim | API 2.5 | `ActivateShelfModeRequest` | signedWrite | 🚫 `gap` | MANUAL — activates shelf/storage mode — takes the pump offline; owner decides at the bench, never auto-fired |
 | tslim | API 2.5 | `ActiveAamBitsRequest` | read | ⏳ `deferred` | needs tslim firmware on API ≥ 3.5 |
 | tslim | API 2.5 | `AdditionalBolusRequest` | delivery | ⏳ `deferred` | needs a cartridge (saline) session on tslim |
-| tslim | API 2.5 | `AlarmStatusRequest` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 2.5 | `AlertStatusRequest` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 2.5 | `ApiVersionRequest` | read | • `untested` | exercisable (lane: read) |
+| tslim | API 2.5 | `AlarmStatusRequest` | read | ✅ `pass` | typed response parsed this session |
+| tslim | API 2.5 | `AlertStatusRequest` | read | ✅ `pass` | typed response parsed this session |
+| tslim | API 2.5 | `ApiVersionRequest` | read | ✅ `pass` | typed response parsed this session |
 | tslim | API 2.5 | `BasalIQAlertInfoRequest` | read | ⏳ `deferred` | bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4)) |
 | tslim | API 2.5 | `BasalIQSettingsRequest` | read | ⏳ `deferred` | bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4)) |
 | tslim | API 2.5 | `BasalIQStatusRequest` | read | ⏳ `deferred` | bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4)) |
-| tslim | API 2.5 | `BasalLimitSettingsRequest` | read | • `untested` | exercisable (lane: read) |
+| tslim | API 2.5 | `BasalLimitSettingsRequest` | read | ✅ `pass` | typed response parsed this session |
 | tslim | API 2.5 | `BleSoftwareInfoRequest` | read | ⏳ `deferred` | bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4)) |
-| tslim | API 2.5 | `BolusCalcDataSnapshotRequest` | read | • `untested` | exercisable (lane: read) |
+| tslim | API 2.5 | `BolusCalcDataSnapshotRequest` | read | ✅ `pass` | typed response parsed this session |
 | tslim | API 2.5 | `BolusPermissionChangeReasonRequest` | read | ⏳ `deferred` | needs tslim firmware on API ≥ 99.99 |
 | tslim | API 2.5 | `BolusPermissionReleaseRequest` | signedWrite | 🚫 `gap` | restore-half of the BolusPermissionRequest reversible pair — recorded when that pair runs behind the saline gate |
-| tslim | API 2.5 | `BolusPermissionRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| tslim | API 2.5 | `BolusPermissionRequest` | signedWrite | ⏳ `deferred` | signed permission ACCEPTED but not granted this session (likely needs a cartridge) — deferred, retest T-2 |
 | tslim | API 2.5 | `CGMGlucoseAlertSettingsRequest` | read | ⏳ `deferred` | needs a CGM-present session (PUMP_CGM_PRESENT=1) |
+| tslim | API 2.5 | `CGMGlucoseAlertSettingsRequest·no-cgm-probe` | read | ✅ `pass` | no-CGM probe: pump ANSWERED (typed response parsed) — command works without a sensor (returns a no-sensor state) |
 | tslim | API 2.5 | `CGMHardwareInfoRequest` | read | ⏳ `deferred` | needs a CGM-present session (PUMP_CGM_PRESENT=1) |
+| tslim | API 2.5 | `CGMHardwareInfoRequest·no-cgm-probe` | read | ✅ `pass` | no-CGM probe: pump ANSWERED (typed response parsed) — command works without a sensor (returns a no-sensor state) |
 | tslim | API 2.5 | `CGMOORAlertSettingsRequest` | read | ⏳ `deferred` | needs a CGM-present session (PUMP_CGM_PRESENT=1) |
+| tslim | API 2.5 | `CGMOORAlertSettingsRequest·no-cgm-probe` | read | ✅ `pass` | no-CGM probe: pump ANSWERED (typed response parsed) — command works without a sensor (returns a no-sensor state) |
 | tslim | API 2.5 | `CGMRateAlertSettingsRequest` | read | ⏳ `deferred` | needs a CGM-present session (PUMP_CGM_PRESENT=1) |
+| tslim | API 2.5 | `CGMRateAlertSettingsRequest·no-cgm-probe` | read | ✅ `pass` | no-CGM probe: pump ANSWERED (typed response parsed) — command works without a sensor (returns a no-sensor state) |
 | tslim | API 2.5 | `CGMStatusRequest` | read | ⏳ `deferred` | needs a CGM-present session (PUMP_CGM_PRESENT=1) |
-| tslim | API 2.5 | `CancelBolusRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
-| tslim | API 2.5 | `CentralChallengeRequest` | pairing | • `untested` | exercisable (lane: pairing) |
+| tslim | API 2.5 | `CGMStatusRequest·no-cgm-probe` | read | ✅ `pass` | no-CGM probe: pump ANSWERED (typed response parsed) — command works without a sensor (returns a no-sensor state) |
+| tslim | API 2.5 | `CancelBolusRequest` | signedWrite | ✅ `pass` | signed cancel NACKed as expected (no active bolus) |
+| tslim | API 2.5 | `CentralChallengeRequest` | pairing | ✅ `pass` | paired via legacyV1 this session |
 | tslim | API 2.5 | `CgmHighLowAlertRequest` | signedWrite | ⏳ `deferred` | needs a CGM-present session (PUMP_CGM_PRESENT=1) |
 | tslim | API 2.5 | `CgmOutOfRangeAlertRequest` | signedWrite | ⏳ `deferred` | needs a CGM-present session (PUMP_CGM_PRESENT=1) |
 | tslim | API 2.5 | `CgmRiseFallAlertRequest` | signedWrite | ⏳ `deferred` | needs a CGM-present session (PUMP_CGM_PRESENT=1) |
@@ -172,18 +178,19 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | tslim | API 2.5 | `ChangeControlIQSettingsRequest` | signedWrite | ⏳ `deferred` | bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4)) |
 | tslim | API 2.5 | `ChangeTimeDateRequest` | signedWrite | ⏳ `deferred` | bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4)) |
 | tslim | API 2.5 | `CommonSoftwareInfoRequest` | read | ⏳ `deferred` | needs tslim firmware on API ≥ 99.99 |
-| tslim | API 2.5 | `ControlIQIOBRequest` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 2.5 | `ControlIQInfoV1Request` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 2.5 | `ControlIQInfoV2Request` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 2.5 | `ControlIQSleepScheduleRequest` | read | • `untested` | exercisable (lane: read) |
+| tslim | API 2.5 | `ControlIQIOBRequest` | read | ✅ `pass` | typed response parsed this session |
+| tslim | API 2.5 | `ControlIQInfoV1Request` | read | ✅ `pass` | typed response parsed this session |
+| tslim | API 2.5 | `ControlIQInfoV2Request` | read | ✅ `pass` | typed response parsed this session |
+| tslim | API 2.5 | `ControlIQSleepScheduleRequest` | read | ✅ `pass` | typed response parsed this session |
 | tslim | API 2.5 | `CreateHistoryLogRequest` | read | ⏳ `deferred` | bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4)) |
 | tslim | API 2.5 | `CreateIDPRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
-| tslim | API 2.5 | `CurrentActiveIdpValuesRequest` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 2.5 | `CurrentBasalStatusRequest` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 2.5 | `CurrentBatteryV1Request` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 2.5 | `CurrentBatteryV2Request` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 2.5 | `CurrentBolusStatusRequest` | read | • `untested` | exercisable (lane: read) |
+| tslim | API 2.5 | `CurrentActiveIdpValuesRequest` | read | ✅ `pass` | read + raw targetBg cargo logged |
+| tslim | API 2.5 | `CurrentBasalStatusRequest` | read | ✅ `pass` | typed response parsed this session |
+| tslim | API 2.5 | `CurrentBatteryV1Request` | read | ✅ `pass` | typed response parsed this session |
+| tslim | API 2.5 | `CurrentBatteryV2Request` | read | ✅ `pass` | typed response parsed this session |
+| tslim | API 2.5 | `CurrentBolusStatusRequest` | read | ✅ `pass` | typed response parsed this session |
 | tslim | API 2.5 | `CurrentEGVGuiDataRequest` | read | ⏳ `deferred` | needs a CGM-present session (PUMP_CGM_PRESENT=1) |
+| tslim | API 2.5 | `CurrentEGVGuiDataRequest·no-cgm-probe` | read | ✅ `pass` | no-CGM probe: pump ANSWERED (typed response parsed) — command works without a sensor (returns a no-sensor state) |
 | tslim | API 2.5 | `CurrentEgvGuiDataV2Request` | read | ⏳ `deferred` | needs tslim firmware on API ≥ 99.99 |
 | tslim | API 2.5 | `DeleteIDPRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
 | tslim | API 2.5 | `DisconnectPumpRequest` | signedWrite | ⏳ `deferred` | needs tslim firmware on API ≥ 3.5 |
@@ -191,48 +198,51 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | tslim | API 2.5 | `EnterFillTubingModeRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
 | tslim | API 2.5 | `ExitChangeCartridgeModeRequest` | signedWrite | 🚫 `gap` | restore-half of the EnterChangeCartridgeModeRequest reversible pair — recorded when that pair runs behind the saline gate |
 | tslim | API 2.5 | `ExitFillTubingModeRequest` | signedWrite | 🚫 `gap` | restore-half of the EnterFillTubingModeRequest reversible pair — recorded when that pair runs behind the saline gate |
-| tslim | API 2.5 | `ExtendedBolusStatusRequest` | read | • `untested` | exercisable (lane: read) |
+| tslim | API 2.5 | `ExtendedBolusStatusRequest` | read | ✅ `pass` | typed response parsed this session |
 | tslim | API 2.5 | `ExtendedBolusStatusV2Request` | read | ⏳ `deferred` | bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4)) |
 | tslim | API 2.5 | `FactoryResetBRequest` | signedWrite | 🚫 `gap` | MANUAL — ERASES the pump to factory state (B variant) — irreversible; owner decides at the bench, never auto-fired |
 | tslim | API 2.5 | `FactoryResetRequest` | signedWrite | 🚫 `gap` | MANUAL — ERASES the pump to factory state — irreversible; owner decides at the bench, never auto-fired |
 | tslim | API 2.5 | `FillCannulaRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
 | tslim | API 2.5 | `GetG6TransmitterHardwareInfoRequest` | read | ⏳ `deferred` | needs a CGM-present session (PUMP_CGM_PRESENT=1) |
+| tslim | API 2.5 | `GetG6TransmitterHardwareInfoRequest·no-cgm-probe` | read | ⏳ `deferred` | no-CGM probe: send rejected/dropped this session (op-77 or link drop) — deferred, not a hard fail |
 | tslim | API 2.5 | `GetSavedG7PairingCodeRequest` | read | ⏳ `deferred` | needs a CGM-present session (PUMP_CGM_PRESENT=1) |
-| tslim | API 2.5 | `GlobalMaxBolusSettingsRequest` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 2.5 | `HighestAamRequest` | read | • `untested` | exercisable (lane: read) |
+| tslim | API 2.5 | `GetSavedG7PairingCodeRequest·no-cgm-probe` | read | ⏳ `deferred` | no-CGM probe: send rejected/dropped this session (op-77 or link drop) — deferred, not a hard fail |
+| tslim | API 2.5 | `GlobalMaxBolusSettingsRequest` | read | ✅ `pass` | typed response parsed this session |
+| tslim | API 2.5 | `HighestAamRequest` | read | ✅ `pass` | typed response parsed this session |
 | tslim | API 2.5 | `HistoryLogRequest` | read | ⏳ `deferred` | bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4)) |
-| tslim | API 2.5 | `HistoryLogStatusRequest` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 2.5 | `HomeScreenMirrorRequest` | read | • `untested` | exercisable (lane: read) |
+| tslim | API 2.5 | `HistoryLogStatusRequest` | read | ✅ `pass` | typed response parsed this session |
+| tslim | API 2.5 | `HomeScreenMirrorRequest` | read | ✅ `pass` | typed response parsed this session |
 | tslim | API 2.5 | `IDPSegmentRequest` | read | ⏳ `deferred` | bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4)) |
 | tslim | API 2.5 | `IDPSettingsRequest` | read | ⏳ `deferred` | bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4)) |
 | tslim | API 2.5 | `InitiateBolusRequest` | delivery | ⏳ `deferred` | needs a cartridge (saline) session on tslim |
-| tslim | API 2.5 | `InsulinStatusRequest` | read | • `untested` | exercisable (lane: read) |
+| tslim | API 2.5 | `InitiateBolusRequest·no-cartridge-reject` | delivery | ⏳ `deferred` | permission exchange produced no clean response this session (link churn) — deferred, retry |
+| tslim | API 2.5 | `InsulinStatusRequest` | read | ✅ `pass` | typed response parsed this session |
 | tslim | API 2.5 | `Jpake1aRequest` | pairing | ⏳ `deferred` | needs a session on API ≥ 3.2 (JPAKE firmware) |
 | tslim | API 2.5 | `Jpake1bRequest` | pairing | ⏳ `deferred` | needs a session on API ≥ 3.2 (JPAKE firmware) |
 | tslim | API 2.5 | `Jpake2Request` | pairing | ⏳ `deferred` | needs a session on API ≥ 3.2 (JPAKE firmware) |
 | tslim | API 2.5 | `Jpake3SessionKeyRequest` | pairing | ⏳ `deferred` | needs a session on API ≥ 3.2 (JPAKE firmware) |
 | tslim | API 2.5 | `Jpake4KeyConfirmationRequest` | pairing | ⏳ `deferred` | needs a session on API ≥ 3.2 (JPAKE firmware) |
-| tslim | API 2.5 | `LastBGRequest` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 2.5 | `LastBolusStatusRequest` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 2.5 | `LastBolusStatusV2Request` | read | • `untested` | exercisable (lane: read) |
+| tslim | API 2.5 | `LastBGRequest` | read | ✅ `pass` | typed response parsed this session |
+| tslim | API 2.5 | `LastBolusStatusRequest` | read | ✅ `pass` | typed response parsed this session |
+| tslim | API 2.5 | `LastBolusStatusV2Request` | read | ✅ `pass` | typed response parsed this session |
 | tslim | API 2.5 | `LastBolusStatusV3Request` | read | ⏳ `deferred` | needs tslim firmware on API ≥ 3.5 |
 | tslim | API 2.5 | `LoadStatusRequest` | read | ⏳ `deferred` | bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4)) |
-| tslim | API 2.5 | `LocalizationRequest` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 2.5 | `MalfunctionStatusRequest` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 2.5 | `NonControlIQIOBRequest` | read | • `untested` | exercisable (lane: read) |
+| tslim | API 2.5 | `LocalizationRequest` | read | ✅ `pass` | typed response parsed this session |
+| tslim | API 2.5 | `MalfunctionStatusRequest` | read | ✅ `pass` | typed response parsed this session |
+| tslim | API 2.5 | `NonControlIQIOBRequest` | read | ✅ `pass` | typed response parsed this session |
 | tslim | API 2.5 | `PlaySoundRequest` | signedWrite | ⏳ `deferred` | bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4)) |
 | tslim | API 2.5 | `PrimeTubingSuspendRequest` | signedWrite | 🚫 `gap` | context step inside the EnterFillTubingModeRequest workflow — recorded when that (saline-gated) workflow runs |
-| tslim | API 2.5 | `ProfileStatusRequest` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 2.5 | `PumpChallengeRequest` | pairing | • `untested` | exercisable (lane: pairing) |
-| tslim | API 2.5 | `PumpFeaturesV1Request` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 2.5 | `PumpFeaturesV2Request` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 2.5 | `PumpGlobalsRequest` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 2.5 | `PumpSettingsRequest` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 2.5 | `PumpVersionBRequest` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 2.5 | `PumpVersionRequest` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 2.5 | `RemindersRequest` | read | • `untested` | exercisable (lane: read) |
-| tslim | API 2.5 | `RemoteBgEntryRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
-| tslim | API 2.5 | `RemoteCarbEntryRequest` | signedWrite | • `untested` | exercisable (lane: signedWrite) |
+| tslim | API 2.5 | `ProfileStatusRequest` | read | ✅ `pass` | typed response parsed this session |
+| tslim | API 2.5 | `PumpChallengeRequest` | pairing | ✅ `pass` | paired via legacyV1 this session |
+| tslim | API 2.5 | `PumpFeaturesV1Request` | read | ✅ `pass` | typed response parsed this session |
+| tslim | API 2.5 | `PumpFeaturesV2Request` | read | ✅ `pass` | typed response parsed this session |
+| tslim | API 2.5 | `PumpGlobalsRequest` | read | ✅ `pass` | typed response parsed this session |
+| tslim | API 2.5 | `PumpSettingsRequest` | read | ✅ `pass` | typed response parsed this session |
+| tslim | API 2.5 | `PumpVersionBRequest` | read | ✅ `pass` | typed response parsed this session |
+| tslim | API 2.5 | `PumpVersionRequest` | read | ✅ `pass` | typed response parsed this session |
+| tslim | API 2.5 | `RemindersRequest` | read | ✅ `pass` | typed response parsed this session |
+| tslim | API 2.5 | `RemoteBgEntryRequest` | signedWrite | ✅ `pass` | benign BG entry accepted (no recalibration; appends a non-therapy entry) |
+| tslim | API 2.5 | `RemoteCarbEntryRequest` | signedWrite | ✅ `pass` | benign 0 g carb entry accepted (appends a non-therapy history entry) |
 | tslim | API 2.5 | `RenameIDPRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
 | tslim | API 2.5 | `ResumePumpingRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
 | tslim | API 2.5 | `SecretMenuRequest` | read | ⏳ `deferred` | bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4)) |
@@ -262,9 +272,9 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
 | tslim | API 2.5 | `StreamDataPreflightRequest` | signedWrite | ⏳ `deferred` | needs tslim firmware on API ≥ 99.99 |
 | tslim | API 2.5 | `StreamDataReadinessRequest` | read | ⏳ `deferred` | bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4)) |
 | tslim | API 2.5 | `SuspendPumpingRequest` | delivery | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
-| tslim | API 2.5 | `TempRateRequest` | read | • `untested` | exercisable (lane: read) |
+| tslim | API 2.5 | `TempRateRequest` | read | ✅ `pass` | typed response parsed this session |
 | tslim | API 2.5 | `TempRateStatusRequest` | read | ⏳ `deferred` | bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4)) |
-| tslim | API 2.5 | `TimeSinceResetRequest` | read | • `untested` | exercisable (lane: read) |
+| tslim | API 2.5 | `TimeSinceResetRequest` | read | ✅ `pass` | typed response parsed this session |
 | tslim | API 2.5 | `UnknownMobiOpcode110Request` | read | ➖ `notApplicable` | model-restricted to mobi — covered in a mobi session |
 | tslim | API 2.5 | `UserInteractionRequest` | signedWrite | ⏳ `deferred` | bench-observed op-77 reject on tslim API ≤ 2.5 — deferred pending a firmware that accepts it (op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4)) |
 | tslim | API 3.4 | `ActivateShelfModeRequest` | signedWrite | 🚫 `gap` | MANUAL — activates shelf/storage mode — takes the pump offline; owner decides at the bench, never auto-fired |
@@ -437,7 +447,6 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
   - `StopTempRateRequest` (mobi/API 3.6, untested)
   - `SuspendPumpingRequest` (mobi/API 3.6, untested)
 - **exercisable (lane: pairing)**
-  - `CentralChallengeRequest` (tslim/API 2.5, untested)
   - `Jpake1aRequest` (mobi/API 3.6, untested)
   - `Jpake1aRequest` (tslim/API 3.4, untested)
   - `Jpake1bRequest` (mobi/API 3.6, untested)
@@ -448,17 +457,13 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
   - `Jpake3SessionKeyRequest` (tslim/API 3.4, untested)
   - `Jpake4KeyConfirmationRequest` (mobi/API 3.6, untested)
   - `Jpake4KeyConfirmationRequest` (tslim/API 3.4, untested)
-  - `PumpChallengeRequest` (tslim/API 2.5, untested)
 - **exercisable (lane: read)**
   - `ActiveAamBitsRequest` (mobi/API 3.6, untested)
   - `AlarmStatusRequest` (mobi/API 3.6, untested)
-  - `AlarmStatusRequest` (tslim/API 2.5, untested)
   - `AlarmStatusRequest` (tslim/API 3.4, untested)
   - `AlertStatusRequest` (mobi/API 3.6, untested)
-  - `AlertStatusRequest` (tslim/API 2.5, untested)
   - `AlertStatusRequest` (tslim/API 3.4, untested)
   - `ApiVersionRequest` (mobi/API 3.6, untested)
-  - `ApiVersionRequest` (tslim/API 2.5, untested)
   - `ApiVersionRequest` (tslim/API 3.4, untested)
   - `BasalIQAlertInfoRequest` (mobi/API 3.6, untested)
   - `BasalIQAlertInfoRequest` (tslim/API 3.4, untested)
@@ -467,12 +472,10 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
   - `BasalIQStatusRequest` (mobi/API 3.6, untested)
   - `BasalIQStatusRequest` (tslim/API 3.4, untested)
   - `BasalLimitSettingsRequest` (mobi/API 3.6, untested)
-  - `BasalLimitSettingsRequest` (tslim/API 2.5, untested)
   - `BasalLimitSettingsRequest` (tslim/API 3.4, untested)
   - `BleSoftwareInfoRequest` (mobi/API 3.6, untested)
   - `BleSoftwareInfoRequest` (tslim/API 3.4, untested)
   - `BolusCalcDataSnapshotRequest` (mobi/API 3.6, untested)
-  - `BolusCalcDataSnapshotRequest` (tslim/API 2.5, untested)
   - `BolusCalcDataSnapshotRequest` (tslim/API 3.4, untested)
   - `CGMGlucoseAlertSettingsRequest` (mobi/API 3.6, untested)
   - `CGMGlucoseAlertSettingsRequest` (tslim/API 3.4, untested)
@@ -486,38 +489,28 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
   - `CGMStatusRequest` (tslim/API 3.4, untested)
   - `CgmStatusV2Request` (mobi/API 3.6, untested)
   - `ControlIQIOBRequest` (mobi/API 3.6, untested)
-  - `ControlIQIOBRequest` (tslim/API 2.5, untested)
   - `ControlIQIOBRequest` (tslim/API 3.4, untested)
   - `ControlIQInfoV1Request` (mobi/API 3.6, untested)
-  - `ControlIQInfoV1Request` (tslim/API 2.5, untested)
   - `ControlIQInfoV1Request` (tslim/API 3.4, untested)
   - `ControlIQInfoV2Request` (mobi/API 3.6, untested)
-  - `ControlIQInfoV2Request` (tslim/API 2.5, untested)
   - `ControlIQInfoV2Request` (tslim/API 3.4, untested)
   - `ControlIQSleepScheduleRequest` (mobi/API 3.6, untested)
-  - `ControlIQSleepScheduleRequest` (tslim/API 2.5, untested)
   - `ControlIQSleepScheduleRequest` (tslim/API 3.4, untested)
   - `CreateHistoryLogRequest` (mobi/API 3.6, untested)
   - `CreateHistoryLogRequest` (tslim/API 3.4, untested)
   - `CurrentActiveIdpValuesRequest` (mobi/API 3.6, untested)
-  - `CurrentActiveIdpValuesRequest` (tslim/API 2.5, untested)
   - `CurrentActiveIdpValuesRequest` (tslim/API 3.4, untested)
   - `CurrentBasalStatusRequest` (mobi/API 3.6, untested)
-  - `CurrentBasalStatusRequest` (tslim/API 2.5, untested)
   - `CurrentBasalStatusRequest` (tslim/API 3.4, untested)
   - `CurrentBatteryV1Request` (mobi/API 3.6, untested)
-  - `CurrentBatteryV1Request` (tslim/API 2.5, untested)
   - `CurrentBatteryV1Request` (tslim/API 3.4, untested)
   - `CurrentBatteryV2Request` (mobi/API 3.6, untested)
-  - `CurrentBatteryV2Request` (tslim/API 2.5, untested)
   - `CurrentBatteryV2Request` (tslim/API 3.4, untested)
   - `CurrentBolusStatusRequest` (mobi/API 3.6, untested)
-  - `CurrentBolusStatusRequest` (tslim/API 2.5, untested)
   - `CurrentBolusStatusRequest` (tslim/API 3.4, untested)
   - `CurrentEGVGuiDataRequest` (mobi/API 3.6, untested)
   - `CurrentEGVGuiDataRequest` (tslim/API 3.4, untested)
   - `ExtendedBolusStatusRequest` (mobi/API 3.6, untested)
-  - `ExtendedBolusStatusRequest` (tslim/API 2.5, untested)
   - `ExtendedBolusStatusRequest` (tslim/API 3.4, untested)
   - `ExtendedBolusStatusV2Request` (mobi/API 3.6, untested)
   - `ExtendedBolusStatusV2Request` (tslim/API 3.4, untested)
@@ -526,90 +519,67 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
   - `GetSavedG7PairingCodeRequest` (mobi/API 3.6, untested)
   - `GetSavedG7PairingCodeRequest` (tslim/API 3.4, untested)
   - `GlobalMaxBolusSettingsRequest` (mobi/API 3.6, untested)
-  - `GlobalMaxBolusSettingsRequest` (tslim/API 2.5, untested)
   - `GlobalMaxBolusSettingsRequest` (tslim/API 3.4, untested)
   - `HighestAamRequest` (mobi/API 3.6, untested)
-  - `HighestAamRequest` (tslim/API 2.5, untested)
   - `HighestAamRequest` (tslim/API 3.4, untested)
   - `HistoryLogRequest` (mobi/API 3.6, untested)
   - `HistoryLogRequest` (tslim/API 3.4, untested)
   - `HistoryLogStatusRequest` (mobi/API 3.6, untested)
-  - `HistoryLogStatusRequest` (tslim/API 2.5, untested)
   - `HistoryLogStatusRequest` (tslim/API 3.4, untested)
   - `HomeScreenMirrorRequest` (mobi/API 3.6, untested)
-  - `HomeScreenMirrorRequest` (tslim/API 2.5, untested)
   - `HomeScreenMirrorRequest` (tslim/API 3.4, untested)
   - `IDPSegmentRequest` (mobi/API 3.6, untested)
   - `IDPSegmentRequest` (tslim/API 3.4, untested)
   - `IDPSettingsRequest` (mobi/API 3.6, untested)
   - `IDPSettingsRequest` (tslim/API 3.4, untested)
   - `InsulinStatusRequest` (mobi/API 3.6, untested)
-  - `InsulinStatusRequest` (tslim/API 2.5, untested)
   - `InsulinStatusRequest` (tslim/API 3.4, untested)
   - `LastBGRequest` (mobi/API 3.6, untested)
-  - `LastBGRequest` (tslim/API 2.5, untested)
   - `LastBGRequest` (tslim/API 3.4, untested)
   - `LastBolusStatusRequest` (mobi/API 3.6, untested)
-  - `LastBolusStatusRequest` (tslim/API 2.5, untested)
   - `LastBolusStatusRequest` (tslim/API 3.4, untested)
   - `LastBolusStatusV2Request` (mobi/API 3.6, untested)
-  - `LastBolusStatusV2Request` (tslim/API 2.5, untested)
   - `LastBolusStatusV2Request` (tslim/API 3.4, untested)
   - `LastBolusStatusV3Request` (mobi/API 3.6, untested)
   - `LoadStatusRequest` (mobi/API 3.6, untested)
   - `LoadStatusRequest` (tslim/API 3.4, untested)
   - `LocalizationRequest` (mobi/API 3.6, untested)
-  - `LocalizationRequest` (tslim/API 2.5, untested)
   - `LocalizationRequest` (tslim/API 3.4, untested)
   - `MalfunctionStatusRequest` (mobi/API 3.6, untested)
-  - `MalfunctionStatusRequest` (tslim/API 2.5, untested)
   - `MalfunctionStatusRequest` (tslim/API 3.4, untested)
   - `NonControlIQIOBRequest` (mobi/API 3.6, untested)
-  - `NonControlIQIOBRequest` (tslim/API 2.5, untested)
   - `NonControlIQIOBRequest` (tslim/API 3.4, untested)
   - `ProfileStatusRequest` (mobi/API 3.6, untested)
-  - `ProfileStatusRequest` (tslim/API 2.5, untested)
   - `ProfileStatusRequest` (tslim/API 3.4, untested)
   - `PumpFeaturesV1Request` (mobi/API 3.6, untested)
-  - `PumpFeaturesV1Request` (tslim/API 2.5, untested)
   - `PumpFeaturesV1Request` (tslim/API 3.4, untested)
   - `PumpFeaturesV2Request` (mobi/API 3.6, untested)
-  - `PumpFeaturesV2Request` (tslim/API 2.5, untested)
   - `PumpFeaturesV2Request` (tslim/API 3.4, untested)
   - `PumpGlobalsRequest` (mobi/API 3.6, untested)
-  - `PumpGlobalsRequest` (tslim/API 2.5, untested)
   - `PumpGlobalsRequest` (tslim/API 3.4, untested)
   - `PumpSettingsRequest` (mobi/API 3.6, untested)
-  - `PumpSettingsRequest` (tslim/API 2.5, untested)
   - `PumpSettingsRequest` (tslim/API 3.4, untested)
   - `PumpVersionBRequest` (mobi/API 3.6, untested)
-  - `PumpVersionBRequest` (tslim/API 2.5, untested)
   - `PumpVersionBRequest` (tslim/API 3.4, untested)
   - `PumpVersionRequest` (mobi/API 3.6, untested)
-  - `PumpVersionRequest` (tslim/API 2.5, untested)
   - `PumpVersionRequest` (tslim/API 3.4, untested)
   - `RemindersRequest` (mobi/API 3.6, untested)
-  - `RemindersRequest` (tslim/API 2.5, untested)
   - `RemindersRequest` (tslim/API 3.4, untested)
   - `SecretMenuRequest` (mobi/API 3.6, untested)
   - `SecretMenuRequest` (tslim/API 3.4, untested)
   - `StreamDataReadinessRequest` (mobi/API 3.6, untested)
   - `StreamDataReadinessRequest` (tslim/API 3.4, untested)
   - `TempRateRequest` (mobi/API 3.6, untested)
-  - `TempRateRequest` (tslim/API 2.5, untested)
   - `TempRateRequest` (tslim/API 3.4, untested)
   - `TempRateStatusRequest` (mobi/API 3.6, untested)
   - `TempRateStatusRequest` (tslim/API 3.4, untested)
   - `TimeSinceResetRequest` (mobi/API 3.6, untested)
-  - `TimeSinceResetRequest` (tslim/API 2.5, untested)
   - `TimeSinceResetRequest` (tslim/API 3.4, untested)
   - `UnknownMobiOpcode110Request` (mobi/API 3.6, untested)
 - **exercisable (lane: signedWrite)**
   - `BolusPermissionRequest` (mobi/API 3.6, untested)
-  - `BolusPermissionRequest` (tslim/API 2.5, untested)
   - `BolusPermissionRequest` (tslim/API 3.4, untested)
   - `CancelBolusRequest` (mobi/API 3.6, untested)
-  - `CancelBolusRequest` (tslim/API 2.5, untested)
   - `CancelBolusRequest` (tslim/API 3.4, untested)
   - `CgmHighLowAlertRequest` (mobi/API 3.6, untested)
   - `CgmHighLowAlertRequest` (tslim/API 3.4, untested)
@@ -624,10 +594,8 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
   - `PlaySoundRequest` (mobi/API 3.6, untested)
   - `PlaySoundRequest` (tslim/API 3.4, untested)
   - `RemoteBgEntryRequest` (mobi/API 3.6, untested)
-  - `RemoteBgEntryRequest` (tslim/API 2.5, untested)
   - `RemoteBgEntryRequest` (tslim/API 3.4, untested)
   - `RemoteCarbEntryRequest` (mobi/API 3.6, untested)
-  - `RemoteCarbEntryRequest` (tslim/API 2.5, untested)
   - `RemoteCarbEntryRequest` (tslim/API 3.4, untested)
   - `SetAutoOffAlertRequest` (mobi/API 3.6, untested)
   - `SetAutoOffAlertRequest` (tslim/API 3.4, untested)
@@ -694,6 +662,13 @@ This matrix accumulates ACROSS bench sessions. Each session fills only the cells
   - `CurrentEgvGuiDataV2Request` (tslim/API 3.4, deferred)
   - `StreamDataPreflightRequest` (tslim/API 2.5, deferred)
   - `StreamDataPreflightRequest` (tslim/API 3.4, deferred)
+- **no-CGM probe: send rejected/dropped this session (op-77 or link drop) — deferred, not a hard fail**
+  - `GetG6TransmitterHardwareInfoRequest·no-cgm-probe` (tslim/API 2.5, deferred)
+  - `GetSavedG7PairingCodeRequest·no-cgm-probe` (tslim/API 2.5, deferred)
+- **permission exchange produced no clean response this session (link churn) — deferred, retry**
+  - `InitiateBolusRequest·no-cartridge-reject` (tslim/API 2.5, deferred)
+- **signed permission ACCEPTED but not granted this session (likely needs a cartridge) — deferred, retest T-2**
+  - `BolusPermissionRequest` (tslim/API 2.5, deferred)
 
 ## Not auto-fired (manual / owner-judgment at the bench)
 
