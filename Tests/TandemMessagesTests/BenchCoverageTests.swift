@@ -157,13 +157,26 @@ import Foundation
         #expect(plan("SetTempRateRequest", Self.mobiSaline) == .exercise(.delivery))
     }
 
-    /// Destructive + non-allowlisted settings writes are GAPs (never auto-fired); the permission pair + sound are exercised.
-    @Test func signedWriteGapVsAllowlist() {
-        if case .gap(let r) = plan("FactoryResetRequest", Self.oldTslim) { #expect(r.contains("destructive")) }
-        else { Issue.record("expected gap for FactoryReset") }
-        if case .gap = plan("SetMaxBolusLimitRequest", Self.oldTslim) {} else { Issue.record("expected gap for SetMaxBolusLimit") }
-        #expect(plan("BolusPermissionRequest", Self.oldTslim) == .exercise(.signedWrite))
-        #expect(plan("PlaySoundRequest", Self.oldTslim) == .exercise(.signedWrite))
+    /// Signed-write disposition now follows the reversible-affordance catalog: destructive/irreversible →
+    /// MANUAL gap; reversible-but-not-yet-wired → pending gap; a wired reversible affordance → exercise.
+    @Test func signedWriteDispositionFollowsAffordanceCatalog() {
+        // Destructive → MANUAL gap (never auto-fired).
+        if case .gap(let r) = plan("FactoryResetRequest", Self.oldTslim) { #expect(r.contains("MANUAL")) }
+        else { Issue.record("expected MANUAL gap for FactoryReset") }
+        if case .gap(let r) = plan("ActivateShelfModeRequest", Self.oldTslim) { #expect(r.contains("MANUAL")) }
+        else { Issue.record("expected MANUAL gap for ActivateShelfMode") }
+        // Reversible-but-unwired → pending gap.
+        if case .gap(let r) = plan("SetBgReminderRequest", Self.oldTslim) { #expect(r.contains("pending")) }
+        else { Issue.record("expected pending gap for SetBgReminder") }
+        // Wired reversible affordances → exercise (no PUMPX2_DELIVER_SALINE needed).
+        #expect(plan("SetMaxBolusLimitRequest", Self.oldTslim) == .exercise(.signedWrite))   // captureReapply
+        #expect(plan("ChangeTimeDateRequest", Self.oldTslim) == .exercise(.signedWrite))     // captureReapply
+        #expect(plan("BolusPermissionRequest", Self.oldTslim) == .exercise(.signedWrite))    // benignProbe
+        #expect(plan("PlaySoundRequest", Self.oldTslim) == .exercise(.signedWrite))          // benignProbe
+        #expect(plan("CancelBolusRequest", Self.oldTslim) == .exercise(.signedWrite))        // benignProbe
+        // Restore-half of a delivery pair → GAP (recorded when the primary pair runs behind the saline gate).
+        if case .gap(let r) = plan("ExitChangeCartridgeModeRequest", Self.oldTslim) { #expect(r.contains("restore-half")) }
+        else { Issue.record("expected restore-half gap for ExitChangeCartridgeMode") }
     }
 
     /// Pairing coverage is attributed by scheme + API floor.
@@ -281,5 +294,122 @@ import Foundation
         #expect(md.contains("## Summary"))
         #expect(md.contains("## Coverage by session config"))
         #expect(md.contains("Still uncovered"))
+        #expect(md.contains("Not auto-fired"))   // the manual/owner-judgment GAP section
+    }
+}
+
+// Pure-logic tests for the reversible-affordance layer (scope extension). These prove the affordance
+// metadata + reversibility pairing + runner lane planning the coverage runner rests on — all
+// transport-free and deterministic (the BLE driving itself can only be validated at the bench).
+@Suite struct BenchAffordanceCatalogTests {
+
+    private func aff(_ n: String) -> BenchAffordance { BenchAffordanceCatalog.affordance(for: n)! }
+    private func cmd(_ n: String) -> BenchCommand { BenchCommandCatalog.all.first { $0.name == n }! }
+
+    /// Completeness: EVERY state-changing catalog command (delivery + signed-write lane) has an affordance,
+    /// so nothing falls through to an "unclassified" gap. Guards against drift as messages are added.
+    @Test func everyStateChangingCommandHasAnAffordance() {
+        for c in BenchCommandCatalog.all where c.lane == .delivery || c.lane == .signedWrite {
+            #expect(BenchAffordanceCatalog.affordance(for: c.name) != nil,
+                    "\(c.name) (lane \(c.lane.rawValue)) has no reversible-affordance entry")
+        }
+        // Reads and pairing are NOT expected to have write affordances.
+        #expect(BenchAffordanceCatalog.affordance(for: "InsulinStatusRequest") == nil)
+    }
+
+    /// The 14 delivery-class commands each have a saline-gated affordance; the 2 bolus ones are deliver-oracles.
+    @Test func deliveryAffordancesAreFourteenAndGated() {
+        let delivery = BenchAffordanceCatalog.deliveryAffordances
+        #expect(delivery.count == 14, "expected 14 delivery affordances, got \(delivery.count)")
+        #expect(delivery.allSatisfy { $0.gatedOnSalineDelivery }, "every delivery affordance must require the saline gate")
+        #expect(aff("InitiateBolusRequest").kind == .deliverOracle)
+        #expect(aff("AdditionalBolusRequest").kind == .deliverOracle)
+        #expect(aff("FillCannulaRequest").oracleRead == "LoadStatusRequest")
+    }
+
+    /// The capture→set→restore delivery ones capture prior state via a specific oracle read.
+    @Test func captureSetRestoreDeliveryOnes() {
+        #expect(aff("SetModesRequest").kind == .captureSetRestore)
+        #expect(aff("SetActiveIDPRequest").kind == .captureSetRestore)
+        #expect(aff("RenameIDPRequest").kind == .captureSetRestore)
+        #expect(aff("SetActiveIDPRequest").oracleRead == "ProfileStatusRequest")
+        #expect(aff("RenameIDPRequest").oracleRead == "IDPSettingsRequest")
+    }
+
+    /// Reversible pairs are SYMMETRIC: each primary names its restore partner, and the partner points back
+    /// with role `.restorePartner`. Covers the four delivery pairs + the throwaway create/delete + the two
+    /// signed-write exit partners + the permission pair.
+    @Test func reversiblePairsAreSymmetric() {
+        let pairs = [
+            ("SuspendPumpingRequest", "ResumePumpingRequest"),
+            ("SetTempRateRequest", "StopTempRateRequest"),
+            ("EnterChangeCartridgeModeRequest", "ExitChangeCartridgeModeRequest"),
+            ("EnterFillTubingModeRequest", "ExitFillTubingModeRequest"),
+            ("CreateIDPRequest", "DeleteIDPRequest"),
+            ("BolusPermissionRequest", "BolusPermissionReleaseRequest"),
+        ]
+        for (primary, partner) in pairs {
+            #expect(aff(primary).role == .primary, "\(primary) should be the primary")
+            #expect(aff(primary).partner == partner, "\(primary) should pair with \(partner)")
+            #expect(aff(partner).role == .restorePartner, "\(partner) should be the restore partner")
+            #expect(aff(partner).partner == primary, "\(partner) should point back to \(primary)")
+        }
+    }
+
+    /// Every partner + oracleRead name references a REAL catalog command (no typos, no drift).
+    @Test func affordanceCrossRefsAreRealCommands() {
+        let names = Set(BenchCommandCatalog.all.map { $0.name })
+        for a in BenchAffordanceCatalog.all {
+            if let p = a.partner { #expect(names.contains(p), "\(a.command) partner \(p) is not a catalog command") }
+            if let o = a.oracleRead { #expect(names.contains(o), "\(a.command) oracleRead \(o) is not a catalog command") }
+        }
+    }
+
+    /// Destructive / irreversible commands are `.manualOnly` and are NEVER in the drivable allowlist.
+    @Test func destructiveCommandsAreManualOnly() {
+        let manual = Set(BenchAffordanceCatalog.manualOnly.map { $0.command })
+        for n in ["ActivateShelfModeRequest", "DisconnectPumpRequest", "FactoryResetRequest",
+                  "FactoryResetBRequest", "StopDexcomCGMSensorSessionRequest", "SetDexcomG7PairingCodeRequest"] {
+            #expect(manual.contains(n), "\(n) must be manual-only")
+            #expect(!BenchAffordanceCatalog.isRunnerDrivable(n), "\(n) must never be runner-drivable")
+        }
+    }
+
+    /// The derived `benchExercisableSignedWrites` allowlist GREW beyond the old 3 and contains only
+    /// non-delivery, runner-drivable writes (captureReapply + benignProbe). It replaces the hand-list.
+    @Test func exercisableSignedWritesAreDerivedAndGrown() {
+        let allow = BenchCommandCatalog.benchExercisableSignedWrites
+        #expect(allow == Set(BenchAffordanceCatalog.drivableSignedWrites.map { $0.command }))
+        #expect(allow.count > 3, "the allowlist should have grown past the original 3 (got \(allow.count))")
+        // Sample of the newly-covered writes.
+        for n in ["ChangeTimeDateRequest", "SetMaxBolusLimitRequest", "SetMaxBasalLimitRequest",
+                  "ChangeControlIQSettingsRequest", "SetLowInsulinAlertRequest", "PlaySoundRequest",
+                  "UserInteractionRequest", "RemoteCarbEntryRequest", "CancelBolusRequest"] {
+            #expect(allow.contains(n), "\(n) should now be runner-drivable")
+        }
+        // Delivery writes and destructive writes are NOT in the non-delivery allowlist.
+        #expect(!allow.contains("InitiateBolusRequest"))
+        #expect(!allow.contains("FactoryResetRequest"))
+    }
+
+    /// Runner lane planning: on a saline Mobi (+CGM) every one of the 14 delivery commands is exercisable;
+    /// on a no-cartridge t:slim the universal ones defer (no cartridge) and the Mobi-only ones are N/A.
+    @Test func l0BdeliveryPlanningAcrossConfigs() {
+        let mobiFull = BenchCoveragePlanTests.mobiSalineCgm
+        for a in BenchAffordanceCatalog.deliveryAffordances {
+            let c = cmd(a.command)
+            // Mobi + CGM + saline: exercisable regardless of model (all 14 are Mobi-legal or universal).
+            #expect(BenchCoverage.plan(for: c, in: mobiFull) == .exercise(.delivery),
+                    "\(a.command) should be exercisable on a saline Mobi+CGM session")
+        }
+        // No-cartridge t:slim: universal delivery defers on cartridge; Mobi-only delivery is N/A.
+        if case .deferred = BenchCoverage.plan(for: cmd("EnterChangeCartridgeModeRequest"), in: BenchCoveragePlanTests.oldTslim) {} else {
+            Issue.record("universal delivery should defer (no cartridge) on the old t:slim")
+        }
+        if case .notApplicable = BenchCoverage.plan(for: cmd("SuspendPumpingRequest"), in: BenchCoveragePlanTests.oldTslim) {} else {
+            Issue.record("Mobi-only delivery should be N/A on a t:slim")
+        }
+        // Drivable signed writes are exercisable even on the no-cartridge old t:slim (no saline gate needed).
+        #expect(BenchCoverage.plan(for: cmd("SetMaxBolusLimitRequest"), in: BenchCoveragePlanTests.oldTslim) == .exercise(.signedWrite))
     }
 }

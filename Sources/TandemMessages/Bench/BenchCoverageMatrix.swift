@@ -134,17 +134,26 @@ public enum BenchCoverage {
             return .exercise(.read)
 
         case .signedWrite:
-            guard cmd.isAutoFireable else {
-                if cmd.risk == .destructive {
-                    return .gap("destructive command — never auto-fired on a bench pump")
+            // Consult the reversible-affordance catalog: a signed write is exercisable only when the runner
+            // has a wired, self-reversing driver for it (captureReapply / benignProbe). Everything else is a
+            // documented GAP — `.manualOnly` (destructive / irreversible / owner-only) or `.bespokePending`
+            // (reversible but its generic driver isn't wired), or the restore-half of a delivery pair.
+            guard let aff = BenchAffordanceCatalog.affordance(for: cmd.name) else {
+                return .gap("state-mutating signed write — no classified affordance; drive via the `probe` subcommand")
+            }
+            switch aff.driveability {
+            case .manual(let reason):
+                return .gap("MANUAL — \(reason); owner decides at the bench, never auto-fired")
+            case .pending(let reason):
+                return .gap("reversible affordance pending — \(reason)")
+            case .viaPrimaryPair(let primary):
+                return .gap("restore-half of the \(primary) reversible pair — recorded when that pair runs behind the saline gate")
+            case .drivable:
+                if cmd.requiresCGM && !cfg.cgmPresent {
+                    return .deferred("needs a CGM-present session (PUMP_CGM_PRESENT=1)")
                 }
-                return .gap("state-mutating signed write — no auto-fired reversible affordance; "
-                    + "drive via the curated `probe` subcommand")
+                return .exercise(.signedWrite)
             }
-            if cmd.requiresCGM && !cfg.cgmPresent {
-                return .deferred("needs a CGM-present session (PUMP_CGM_PRESENT=1)")
-            }
-            return .exercise(.signedWrite)
 
         case .delivery:
             if !cfg.cartridgePresent {
@@ -367,6 +376,24 @@ public struct BenchCoverageMatrix: Sendable, Codable {
                 out += "- **\(escape(note))**\n"
                 for r in byNote[note]!.sorted(by: { $0.command < $1.command }) {
                     out += "  - `\(r.command)` (\(r.model)/\(r.firmware), \(r.best.rawValue))\n"
+                }
+            }
+        }
+
+        // GAP cells — commands with NO safe auto-fire affordance. These are NOT "coverable-but-missing"
+        // (so they are excluded from `remaining()`), but they are documented here so a manual/destructive
+        // command is never silently dropped: the owner decides each at the bench.
+        let gaps = rolls.filter { $0.best == .gap }
+        out += "\n## Not auto-fired (manual / owner-judgment at the bench)\n\n"
+        if gaps.isEmpty {
+            out += "_No gap cells — every applicable command has an auto-fired affordance._\n"
+        } else {
+            var byNote: [String: [Rollup]] = [:]
+            for g in gaps { byNote[g.note, default: []].append(g) }
+            for note in byNote.keys.sorted() {
+                out += "- **\(escape(note))**\n"
+                for g in byNote[note]!.sorted(by: { $0.command < $1.command }) {
+                    out += "  - `\(g.command)` (\(g.model)/\(g.firmware))\n"
                 }
             }
         }

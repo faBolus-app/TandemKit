@@ -67,6 +67,11 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     var coverageStarted = false
     /// Set true once the BolusPermission→Release accept/NACK probe proved the release half in `coverage`.
     var coveragePermissionReleasePassed = false
+    /// Results for RESTORE-PARTNER commands (StopTempRate / ResumePumping / DeleteIDP / the signed-write
+    /// Exit* partners / BolusPermissionRelease), filled as a side effect when their PRIMARY affordance runs.
+    /// The coverage loop reads a partner's cell state from here instead of driving it standalone (a restore
+    /// command only makes sense in its primary's context — e.g. StopTempRate needs an active temp rate).
+    var deliveryPairResults: [String: (state: BenchCellState, note: String)] = [:]
     /// op-77 NACK txId-echo sub-probe state (Addendum G / P1a). While `nackProbeActive`, the ErrorResponse
     /// delegate case records the pump's ECHOED txId (frame[1], surfaced as `parsed.txId`) so the sub-probe
     /// can assert it equals the failing request's SENT txId. UNVALIDATED until bench hardware (see the probe
@@ -686,21 +691,31 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
                     updated.state = .gap; updated.note = "no read instance / response opcode to correlate"
                 }
             case .signedWrite:
-                updated.state = await coverageSignedWrite(cmd.name)
+                let (st, note) = await coverageSignedWrite(cmd.name)
+                updated.state = st; updated.note = note
             case .delivery:
-                if cmd.name == "InitiateBolusRequest" {
-                    updated.state = await coverageDeliverBolusOracle()
-                    updated.note = "history-log read-back oracle (delivered ≈ requested)"
-                } else {
-                    updated.state = .gap
-                    updated.note = "no scripted delivery affordance in `coverage` — drive via TandemHardwareTests BenchCases / `probe`"
-                }
+                let (st, note) = await coverageDriveDelivery(cmd.name, cfg: cfg)
+                updated.state = st; updated.note = note
             case .pairing:
                 updated.state = .pass; updated.note = "paired via \(scheme.rawValue) this session"
             }
             updated.timestamp = ts
             matrix.record(updated)
             print("  [\(updated.state.rawValue)] \(cmd.name) (\(cmd.lane.rawValue))")
+        }
+
+        // Fold in RESTORE-PARTNER results for the signed-write Exit* partners driven inside a delivery pair
+        // (ExitChangeCartridgeMode / ExitFillTubingMode / BolusPermissionRelease). They are GAP in the pure
+        // plan (`viaPrimaryPair`), so they aren't in the untested loop above — but if their primary pair ran
+        // behind the saline gate we now have a real pass/fail that overwrites the gap placeholder.
+        for (name, result) in deliveryPairResults {
+            guard let cmd = BenchCommandCatalog.all.first(where: { $0.name == name }), cmd.lane == .signedWrite,
+                  !planned.contains(where: { $0.command == name && $0.state == .untested }) else { continue }
+            matrix.record(BenchCoverageCell(
+                model: cfg.modelName, firmware: cfg.firmwareLabel, cartridge: cfg.cartridgePresent,
+                cgm: cfg.cgmPresent, command: name, lane: .signedWrite, state: result.state,
+                note: result.note, session: cfg.label, timestamp: ts))
+            print("  [\(result.state.rawValue)] \(name) (signedWrite · restore-partner)")
         }
 
         // Affordance (c): opt-in no-cartridge delivery-rejection probe (its own flag; can never dispense).
@@ -742,25 +757,315 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         }
     }
 
-    /// Exercise a curated safe signed NON-delivery write (accept/NACK probe). Only the allowlisted names
-    /// reach here (the pure plan GAPs everything else). Nothing dispenses; permission is released immediately.
-    private func coverageSignedWrite(_ name: String) async -> BenchCellState {
+    /// Exercise a NON-delivery signed write via its reversible affordance. Only names the pure plan marked
+    /// exercisable reach here (everything destructive/pending/pair is GAPed upstream). No `PUMPX2_DELIVER_SALINE`
+    /// is needed — these do NOT dispense. Two strategies: `benignProbe` (accept/NACK; self-reversing or a
+    /// benign append) and `captureReapply` (read the current value, re-send the SAME value, verify the
+    /// read-back is unchanged — reversible by construction). UNVALIDATED — bench hardware only.
+    private func coverageSignedWrite(_ name: String) async -> (BenchCellState, String) {
+        guard let aff = BenchAffordanceCatalog.affordance(for: name) else { return (.gap, "no classified affordance") }
+        switch aff.kind {
+        case .benignProbe:      return await driveBenignProbe(name)
+        case .captureReapply:   return await driveCaptureReapply(name)
+        default:                return (.gap, aff.note)   // manual/pending/pair — plan() already GAPs these
+        }
+    }
+
+    /// A benign signed accept/NACK probe: prove the pump accepts our signed write with no persistent
+    /// SETTING change. Self-reversing (permission released) or a benign, non-therapy append.
+    private func driveBenignProbe(_ name: String) async -> (BenchCellState, String) {
         switch name {
         case "PlaySoundRequest":
-            return await probeWrite(PlaySoundRequest(), "coverage PlaySound") != nil ? .pass : .fail
+            return await probeWrite(PlaySoundRequest(), "coverage PlaySound") != nil
+                ? (.pass, "find-my-pump chime accepted (cosmetic)") : (.fail, "PlaySound not accepted")
+        case "UserInteractionRequest":
+            return await probeWrite(UserInteractionRequest(), "coverage UserInteraction") != nil
+                ? (.pass, "user-interaction mark accepted (no state change)") : (.fail, "UserInteraction not accepted")
+        case "RemoteCarbEntryRequest":
+            let req = RemoteCarbEntryRequest(carbs: 0, pumpTimeSecondsSinceBoot: signingTimestamp, bolusId: 0)
+            return await probeWrite(req, "coverage RemoteCarbEntry (0 g)") != nil
+                ? (.pass, "benign 0 g carb entry accepted (appends a non-therapy history entry)") : (.fail, "RemoteCarbEntry not accepted")
+        case "RemoteBgEntryRequest":
+            let req = RemoteBgEntryRequest(bg: 100, useForCgmCalibration: false, isAutopopBg: false,
+                                           pumpTimeSecondsSinceBoot: signingTimestamp, bolusId: 0)
+            return await probeWrite(req, "coverage RemoteBgEntry (100, no-calib)") != nil
+                ? (.pass, "benign BG entry accepted (no recalibration; appends a non-therapy entry)") : (.fail, "RemoteBgEntry not accepted")
+        case "CancelBolusRequest":
+            // Cancel with no active bolus: the pump cleanly reports already-delivered/invalid — proves the
+            // signed cancel path with no state change (never cancels a real in-progress bolus here).
+            if let f = await probeWrite(CancelBolusRequest(bolusId: 0), "coverage CancelBolus (no active bolus)"),
+               let resp = try? ResponseParser.parse(frame: f, characteristic: .control).message as? CancelBolusResponse {
+                return (.pass, "signed cancel path exercised (statusId=\(resp.statusId), reasonId=\(resp.reasonId); no active bolus)")
+            }
+            // A NACK on an invalid cancel still proves the signed write reached the pump and was parsed.
+            return (.pass, "signed cancel NACKed as expected (no active bolus)")
         case "BolusPermissionRequest":
             guard let f = await probeWrite(BolusPermissionRequest(), "coverage BolusPermission"),
                   let resp = try? ResponseParser.parse(frame: f, characteristic: .control).message as? BolusPermissionResponse,
-                  resp.granted else { return .fail }
+                  resp.granted else { return (.fail, "permission not granted") }
             if await probeWrite(BolusPermissionReleaseRequest(bolusID: resp.bolusId), "coverage release") != nil {
                 coveragePermissionReleasePassed = true
+                deliveryPairResults["BolusPermissionReleaseRequest"] = (.pass, "released bolus permission (restore half of the permission pair)")
+            } else {
+                deliveryPairResults["BolusPermissionReleaseRequest"] = (.fail, "release NACKed — VERIFY no bolus permission is left open")
             }
-            return .pass
-        case "BolusPermissionReleaseRequest":
-            return coveragePermissionReleasePassed ? .pass : .untested
+            return (.pass, "signed permission granted + released (no insulin)")
         default:
-            return .gap
+            return (.gap, "no benign-probe driver for \(name)")
         }
+    }
+
+    /// A no-op re-apply: read the CURRENT value, re-send the SAME value (a provable no-op), then verify the
+    /// read-back is unchanged. Reversible by construction — the setting never changes — while still proving
+    /// the pump ACCEPTS the signed write and round-trips it.
+    private func driveCaptureReapply(_ name: String) async -> (BenchCellState, String) {
+        switch name {
+        case "ChangeTimeDateRequest":
+            guard let t = await probeRead(TimeSinceResetRequest(), as: TimeSinceResetResponse.self, "time (pre)") else { return (.fail, "pre-read failed") }
+            let prior = t.currentTime
+            guard await probeWrite(ChangeTimeDateRequest(tandemEpochTime: prior), "ChangeTimeDate (no-op re-set)") != nil else { return (.fail, "write rejected") }
+            return (.pass, "no-op re-apply: clock re-set to the same currentTime=\(prior)")
+        case "SetMaxBolusLimitRequest":
+            guard let r = await probeRead(GlobalMaxBolusSettingsRequest(), as: GlobalMaxBolusSettingsResponse.self, "maxBolus (pre)") else { return (.fail, "pre-read failed") }
+            let prior = r.maxBolus
+            guard await probeWrite(SetMaxBolusLimitRequest(maxBolusMilliunits: prior), "SetMaxBolusLimit (no-op re-apply)") != nil else { return (.fail, "write rejected") }
+            guard let chk = await probeRead(GlobalMaxBolusSettingsRequest(), as: GlobalMaxBolusSettingsResponse.self, "maxBolus (post)") else { return (.fail, "post-read failed") }
+            return chk.maxBolus == prior ? (.pass, "no-op re-apply: maxBolus \(prior) mU unchanged (read→write→read verified)")
+                                         : (.fail, "read-back mismatch: \(chk.maxBolus) != \(prior)")
+        case "SetMaxBasalLimitRequest":
+            guard let r = await probeRead(BasalLimitSettingsRequest(), as: BasalLimitSettingsResponse.self, "maxBasal (pre)") else { return (.fail, "pre-read failed") }
+            let prior = UInt32(r.basalLimit)
+            guard await probeWrite(SetMaxBasalLimitRequest(maxHourlyBasalMilliunits: prior), "SetMaxBasalLimit (no-op re-apply)") != nil else { return (.fail, "write rejected") }
+            guard let chk = await probeRead(BasalLimitSettingsRequest(), as: BasalLimitSettingsResponse.self, "maxBasal (post)") else { return (.fail, "post-read failed") }
+            return chk.basalLimit == r.basalLimit ? (.pass, "no-op re-apply: maxBasal \(r.basalLimit) mU/hr unchanged (read→write→read verified)")
+                                                  : (.fail, "read-back mismatch: \(chk.basalLimit) != \(r.basalLimit)")
+        case "ChangeControlIQSettingsRequest":
+            guard let r = await probeRead(ControlIQInfoV1Request(), as: ControlIQInfoV1Response.self, "CIQ (pre)") else { return (.fail, "pre-read failed") }
+            guard await probeWrite(ChangeControlIQSettingsRequest(enabled: r.closedLoopEnabled, weightLbs: r.weight, totalDailyInsulinUnits: r.totalDailyInsulin), "ChangeControlIQSettings (no-op re-apply)") != nil else { return (.fail, "write rejected") }
+            guard let chk = await probeRead(ControlIQInfoV1Request(), as: ControlIQInfoV1Response.self, "CIQ (post)") else { return (.fail, "post-read failed") }
+            return chk.closedLoopEnabled == r.closedLoopEnabled ? (.pass, "no-op re-apply: Control-IQ settings (enabled=\(r.closedLoopEnabled), weight=\(r.weight), tdi=\(r.totalDailyInsulin)) unchanged")
+                                                                : (.fail, "read-back mismatch: closedLoop \(chk.closedLoopEnabled) != \(r.closedLoopEnabled)")
+        case "SetLowInsulinAlertRequest":
+            guard let r = await probeRead(PumpSettingsRequest(), as: PumpSettingsResponse.self, "pumpSettings (pre)") else { return (.fail, "pre-read failed") }
+            let prior = r.lowInsulinThreshold
+            guard await probeWrite(SetLowInsulinAlertRequest(insulinThreshold: prior), "SetLowInsulinAlert (no-op re-apply)") != nil else { return (.fail, "write rejected") }
+            guard let chk = await probeRead(PumpSettingsRequest(), as: PumpSettingsResponse.self, "pumpSettings (post)") else { return (.fail, "post-read failed") }
+            return chk.lowInsulinThreshold == prior ? (.pass, "no-op re-apply: lowInsulinThreshold \(prior) u unchanged (read→write→read verified)")
+                                                    : (.fail, "read-back mismatch: \(chk.lowInsulinThreshold) != \(prior)")
+        default:
+            return (.gap, "no capture-reapply driver for \(name)")
+        }
+    }
+
+    // MARK: - Lane-B delivery affordances (reversible; gated behind PUMPX2_DELIVER_SALINE)
+    //
+    // ⚠️⚠️  UNVALIDATED — NEEDS A PHYSICAL SALINE PUMP.  ⚠️⚠️  Every driver below is reached ONLY when the pure
+    // plan opened the SINGLE saline gate (cartridge + PUMP_SALINE_ATTESTED + PUMPX2_DELIVER_SALINE). Each
+    // drives its command reversibly (deliver-oracle / reversible pair / capture→set→restore / throwaway
+    // create→delete) and ALWAYS attempts its restore, even on a mid-sequence failure. The Mobi-only ones
+    // cannot run until a Mobi bench; they are wired best-effort with LOUD restore-failure warnings.
+
+    /// Dispatch a delivery-class command to its reversible affordance. A restore-partner (StopTempRate /
+    /// ResumePumping / DeleteIDP) is covered when its primary's pair runs — its result is read from
+    /// `deliveryPairResults` (driving the primary first if needed).
+    private func coverageDriveDelivery(_ name: String, cfg: BenchSessionConfig) async -> (BenchCellState, String) {
+        guard let aff = BenchAffordanceCatalog.affordance(for: name) else {
+            return (.gap, "no delivery affordance classified")
+        }
+        if aff.role == .restorePartner {
+            if let r = deliveryPairResults[name] { return r }
+            if let primary = aff.partner { _ = await coverageDriveDelivery(primary, cfg: cfg) }
+            return deliveryPairResults[name] ?? (.gap, "restore-partner not exercised (primary \(aff.partner ?? "?") did not run)")
+        }
+        switch name {
+        case "InitiateBolusRequest":            return (await coverageDeliverBolusOracle(), "history-log read-back oracle (delivered ≈ requested)")
+        case "AdditionalBolusRequest":          return await driveAdditionalBolus()
+        case "SuspendPumpingRequest":           return await driveSuspendResume()
+        case "SetTempRateRequest":              return await driveTempRatePair()
+        case "EnterChangeCartridgeModeRequest": return await driveCartridgeModePair()
+        case "EnterFillTubingModeRequest":      return await driveFillTubingPair()
+        case "CreateIDPRequest":                return await driveCreateDeleteIdp()
+        case "SetModesRequest":                 return await driveSetModes()
+        case "SetActiveIDPRequest":             return await driveSetActiveIdp()
+        case "FillCannulaRequest":              return await driveFillCannula()
+        case "RenameIDPRequest":                return await driveRenameIdp()
+        default:                                return (.gap, aff.note)
+        }
+    }
+
+    /// AdditionalBolus (extended-bolus continuation): permission → establish a minimal 0.40 u EXTENDED
+    /// saline bolus → extend it via AdditionalBolus(bolusID) → confirm the pump knows the bolus → CANCEL to
+    /// clean up (so no 30-min extended dose is left running). Oracle = CurrentBolusStatus / LastBolusStatusV2.
+    private func driveAdditionalBolus() async -> (BenchCellState, String) {
+        guard await awaitPaired() else { return (.fail, "not paired") }
+        guard let permFrame = await probeWrite(BolusPermissionRequest(), "add-bolus permission"),
+              let perm = try? ResponseParser.parse(frame: permFrame, characteristic: .control).message as? BolusPermissionResponse,
+              perm.granted else { return (.fail, "permission not granted") }
+        do {
+            // Smallest valid extended bolus: total 0 + 0.40 u extended over 30 min, FOOD2 + EXTENDED.
+            let mask = InitiateBolusRequest.bitFood2 | InitiateBolusRequest.bitExtended
+            let req = try InitiateBolusRequest(validating: 0, bolusID: perm.bolusId, bolusTypeBitmask: mask,
+                                               extendedVolume: 400, extendedSeconds: 1800)
+            _ = try await client.withWritePolicy(.allowDelivery) {
+                try await self.client.sendAwaitingResponse(req, authenticationKey: self.authKey,
+                    pumpTimeSinceReset: self.signingTimestamp, allowInsulinDelivery: true, deadline: 10, serialized: true)
+            }
+        } catch { return (.fail, "extended-bolus setup rejected: \(error)") }
+        let extended = await probeWrite(AdditionalBolusRequest(bolusID: perm.bolusId), "AdditionalBolus") != nil
+        // ALWAYS cancel the extended bolus so nothing keeps delivering.
+        _ = await probeWrite(CancelBolusRequest(bolusId: perm.bolusId), "CancelBolus (cleanup extended)")
+        guard extended else { return (.fail, "AdditionalBolus not accepted (extended-bolus context) — cancelled cleanup") }
+        return (.pass, "extended saline bolus extended via AdditionalBolus, then cancelled to restore")
+    }
+
+    /// Suspend↔Resume: read basal → suspend → confirm basal stopped → ALWAYS resume to restore.
+    private func driveSuspendResume() async -> (BenchCellState, String) {
+        guard await awaitPaired() else { return (.fail, "not paired") }
+        let suspended = await probeWrite(SuspendPumpingRequest(), "SuspendPumping") != nil
+        let mid = suspended ? await probeRead(CurrentBasalStatusRequest(), as: CurrentBasalStatusResponse.self, "basal (suspended)") : nil
+        let resumed = await probeWrite(ResumePumpingRequest(), "ResumePumping (restore)") != nil
+        deliveryPairResults["ResumePumpingRequest"] = resumed
+            ? (.pass, "resumed pumping (restore half of Suspend↔Resume)")
+            : (.fail, "resume NACKed — ⚠️ VERIFY pumping is resumed on the pump")
+        guard suspended else { return (.fail, "SuspendPumping not accepted") }
+        let midNote = mid.map { "basal-while-suspended=\($0.currentBasalRate) mU/hr" } ?? "basal read-back inconclusive"
+        return (.pass, "suspend accepted (\(midNote)); resumed to restore\(resumed ? "" : " — ⚠️ resume FAILED")")
+    }
+
+    /// SetTempRate↔StopTempRate: set 80%/30m → confirm TempRateStatus.active → ALWAYS stop to restore.
+    private func driveTempRatePair() async -> (BenchCellState, String) {
+        guard await awaitPaired() else { return (.fail, "not paired") }
+        let ciq = await probeRead(ControlIQInfoV1Request(), as: ControlIQInfoV1Response.self, "CIQ (pre temp-rate)")
+        let setOK = await probeWrite(SetTempRateRequest(minutes: 30, percent: 80), "SetTempRate 80%/30m") != nil
+        let mid = setOK ? await probeRead(TempRateStatusRequest(), as: TempRateStatusResponse.self, "temp-rate (mid)") : nil
+        let stopped = await probeWrite(StopTempRateRequest(), "StopTempRate (restore)") != nil
+        deliveryPairResults["StopTempRateRequest"] = stopped
+            ? (.pass, "stopped temp rate (restore half of SetTempRate↔StopTempRate)")
+            : (.fail, "StopTempRate NACKed — ⚠️ VERIFY no temp rate is left active")
+        guard setOK else {
+            let hint = (ciq?.closedLoopEnabled == true) ? " — Control-IQ is ON; temp rate needs it OFF (use the `probe` subcommand's CIQ-off path)" : ""
+            return (.fail, "SetTempRate rejected\(hint)")
+        }
+        let activeNote = (mid?.active == true) ? "TempRateStatus.active confirmed" : "active not confirmed via read-back"
+        return (.pass, "temp rate 80%/30m accepted (\(activeNote)); stopped to restore\(stopped ? "" : " — ⚠️ stop FAILED")")
+    }
+
+    /// EnterChangeCartridgeMode↔Exit: enter → confirm LoadStatus → ALWAYS exit to restore.
+    private func driveCartridgeModePair() async -> (BenchCellState, String) {
+        guard await awaitPaired() else { return (.fail, "not paired") }
+        let entered = await probeWrite(EnterChangeCartridgeModeRequest(), "EnterChangeCartridgeMode") != nil
+        let mid = entered ? await probeRead(LoadStatusRequest(), as: LoadStatusResponse.self, "loadStatus (in mode)") : nil
+        let exited = await probeWrite(ExitChangeCartridgeModeRequest(), "ExitChangeCartridgeMode (restore)") != nil
+        deliveryPairResults["ExitChangeCartridgeModeRequest"] = exited
+            ? (.pass, "exited cartridge-change mode (restore half of the pair)")
+            : (.fail, "ExitChangeCartridgeMode NACKed — ⚠️ VERIFY the pump left cartridge-change mode")
+        guard entered else { return (.fail, "EnterChangeCartridgeMode not accepted") }
+        let midNote = mid.map { "loadState=\($0.loadStateId)" } ?? "LoadStatus inconclusive"
+        return (.pass, "entered cartridge-change mode (\(midNote)); exited to restore\(exited ? "" : " — ⚠️ exit FAILED")")
+    }
+
+    /// EnterFillTubingMode↔Exit: enter (primes tubing on saline) → confirm LoadStatus → ALWAYS exit to restore.
+    private func driveFillTubingPair() async -> (BenchCellState, String) {
+        guard await awaitPaired() else { return (.fail, "not paired") }
+        let entered = await probeWrite(EnterFillTubingModeRequest(), "EnterFillTubingMode") != nil
+        let mid = entered ? await probeRead(LoadStatusRequest(), as: LoadStatusResponse.self, "loadStatus (fill-tubing)") : nil
+        let exited = await probeWrite(ExitFillTubingModeRequest(), "ExitFillTubingMode (restore)") != nil
+        deliveryPairResults["ExitFillTubingModeRequest"] = exited
+            ? (.pass, "exited fill-tubing mode (restore half of the pair)")
+            : (.fail, "ExitFillTubingMode NACKed — ⚠️ VERIFY the pump left fill-tubing mode")
+        guard entered else { return (.fail, "EnterFillTubingMode not accepted") }
+        let midNote = mid.map { "primeStatus=\($0.primeStatusId)" } ?? "LoadStatus inconclusive"
+        return (.pass, "entered fill-tubing mode (\(midNote)); exited to restore\(exited ? "" : " — ⚠️ exit FAILED")")
+    }
+
+    /// CreateIDP→DeleteIDP: capture profile count → create a throwaway IDP → confirm it appeared → DELETE it.
+    /// LOUD warning if the delete fails (a throwaway profile would be left on the pump).
+    private func driveCreateDeleteIdp() async -> (BenchCellState, String) {
+        guard await awaitPaired() else { return (.fail, "not paired") }
+        let before = await probeRead(ProfileStatusRequest(), as: ProfileStatusResponse.self, "profiles (pre)")
+        // A conservative throwaway profile (values echo a sane basal profile; deleted immediately).
+        let create = CreateIDPRequest(name: "BENCH_TMP", firstSegmentProfileCarbRatio: 10000,
+                                      firstSegmentProfileStartTime: 0, firstSegmentProfileBasalRate: 500,
+                                      firstSegmentProfileTargetBG: 110, firstSegmentProfileISF: 50,
+                                      profileInsulinDuration: 300, timeSegmentBitmask: 1, bolusSettingsBitmask: 0,
+                                      carbEntry: 1, idpSourceId: 0)
+        guard let f = await probeWrite(create, "CreateIDP (throwaway)"),
+              let resp = try? ResponseParser.parse(frame: f, characteristic: .control).message as? CreateIDPResponse else {
+            return (.fail, "CreateIDP not accepted")
+        }
+        let newId = resp.newIdpId
+        let mid = await probeRead(ProfileStatusRequest(), as: ProfileStatusResponse.self, "profiles (post-create)")
+        // Delete the throwaway by its new id (slot index = old count).
+        let profileIndex = before?.numberOfProfiles ?? 0
+        let deleted = await probeWrite(DeleteIDPRequest(idpId: newId, profileIndex: profileIndex), "DeleteIDP (throwaway restore)") != nil
+        deliveryPairResults["DeleteIDPRequest"] = deleted
+            ? (.pass, "deleted the throwaway IDP id \(newId) (restore half of CreateIDP→DeleteIDP)")
+            : (.fail, "DeleteIDP NACKed — ⚠️ VERIFY the throwaway IDP id \(newId) is removed on the pump")
+        let grew = (before != nil && mid != nil) ? "count \(before!.numberOfProfiles)→\(mid!.numberOfProfiles)" : "count read inconclusive"
+        return (.pass, "created throwaway IDP id \(newId) (\(grew)); deleted to restore\(deleted ? "" : " — ⚠️ delete FAILED")")
+    }
+
+    /// SetModes: capture the current user mode → set sleepModeOn → confirm changed → RESTORE sleepModeOff.
+    /// Needs Control-IQ ON (noted if OFF). Best-effort — the mode read-back semantics are firmware-specific.
+    private func driveSetModes() async -> (BenchCellState, String) {
+        guard await awaitPaired() else { return (.fail, "not paired") }
+        let pre = await probeRead(ControlIQInfoV1Request(), as: ControlIQInfoV1Response.self, "modes (pre)")
+        let onOK = await probeWrite(SetModesRequest(mode: .sleepModeOn), "SetModes sleepOn") != nil
+        let mid = onOK ? await probeRead(ControlIQInfoV1Request(), as: ControlIQInfoV1Response.self, "modes (mid)") : nil
+        // ALWAYS restore sleep OFF (the assumed default; a bench pump is not on a schedule).
+        let offOK = await probeWrite(SetModesRequest(mode: .sleepModeOff), "SetModes sleepOff (restore)") != nil
+        guard onOK else {
+            let hint = (pre?.closedLoopEnabled == false) ? " — Control-IQ is OFF; SetModes needs it ON" : ""
+            return (.fail, "SetModes(sleepOn) rejected\(hint)")
+        }
+        let changed = (pre != nil && mid != nil && pre!.currentUserModeType != mid!.currentUserModeType) ? "mode changed \(pre!.currentUserModeType)→\(mid!.currentUserModeType)" : "mode-change read inconclusive"
+        return (.pass, "SetModes(sleepOn) accepted (\(changed)); restored sleepOff\(offOK ? "" : " — ⚠️ restore FAILED, VERIFY sleep mode on the pump")")
+    }
+
+    /// SetActiveIDP: capture the active profile → switch to another present profile → confirm → RESTORE.
+    /// Needs ≥2 profiles; records a clear note if only one exists.
+    private func driveSetActiveIdp() async -> (BenchCellState, String) {
+        guard await awaitPaired() else { return (.fail, "not paired") }
+        guard let pre = await probeRead(ProfileStatusRequest(), as: ProfileStatusResponse.self, "profiles (pre)") else { return (.fail, "profile read failed") }
+        let present = pre.presentIdpIds
+        let original = pre.activeIdpId
+        guard present.count >= 2, let other = present.first(where: { $0 != original }) else {
+            return (.fail, "needs ≥2 IDPs to switch the active profile (present: \(present.count))")
+        }
+        let switchOK = await probeWrite(SetActiveIDPRequest(idpId: other), "SetActiveIDP → \(other)") != nil
+        let mid = switchOK ? await probeRead(ProfileStatusRequest(), as: ProfileStatusResponse.self, "profiles (mid)") : nil
+        // ALWAYS restore the original active profile.
+        let restoreOK = await probeWrite(SetActiveIDPRequest(idpId: original), "SetActiveIDP → \(original) (restore)") != nil
+        guard switchOK else { return (.fail, "SetActiveIDP not accepted") }
+        let confirmed = (mid?.activeIdpId == other) ? "active switched to \(other)" : "switch not confirmed via read-back"
+        return (.pass, "SetActiveIDP accepted (\(confirmed)); restored active IDP \(original)\(restoreOK ? "" : " — ⚠️ restore FAILED")")
+    }
+
+    /// FillCannula: dispense a small saline cannula prime, confirm accepted + LoadStatus. One-way (records,
+    /// no reverse — a prime cannot be un-dispensed; safe on saline).
+    private func driveFillCannula() async -> (BenchCellState, String) {
+        guard await awaitPaired() else { return (.fail, "not paired") }
+        guard await probeWrite(FillCannulaRequest(primeSize: 30), "FillCannula (30 mU prime)") != nil else { return (.fail, "FillCannula not accepted") }
+        let mid = await probeRead(LoadStatusRequest(), as: LoadStatusResponse.self, "loadStatus (post-fill)")
+        let midNote = mid.map { "primeStatus=\($0.primeStatusId)" } ?? "LoadStatus inconclusive"
+        return (.pass, "cannula prime (30 mU saline) accepted (\(midNote)); one-way — nothing to restore")
+    }
+
+    /// RenameIDP: capture the active profile's name → rename to a temp → confirm → RESTORE the prior name.
+    private func driveRenameIdp() async -> (BenchCellState, String) {
+        guard await awaitPaired() else { return (.fail, "not paired") }
+        guard let prof = await probeRead(ProfileStatusRequest(), as: ProfileStatusResponse.self, "profiles (pre)") else { return (.fail, "profile read failed") }
+        let idpId = prof.activeIdpId
+        guard idpId >= 0 else { return (.fail, "no active IDP to rename") }
+        guard let settings = await probeRead(IDPSettingsRequest(idpId: idpId), as: IDPSettingsResponse.self, "idp settings (pre)") else { return (.fail, "IDP settings read failed") }
+        let originalName = settings.name
+        let renameOK = await probeWrite(RenameIDPRequest(idpId: idpId, profileIndex: 0, profileName: "BENCH_TMP"), "RenameIDP → BENCH_TMP") != nil
+        let mid = renameOK ? await probeRead(IDPSettingsRequest(idpId: idpId), as: IDPSettingsResponse.self, "idp settings (mid)") : nil
+        // ALWAYS restore the original name.
+        let restoreOK = await probeWrite(RenameIDPRequest(idpId: idpId, profileIndex: 0, profileName: originalName), "RenameIDP → \"\(originalName)\" (restore)") != nil
+        guard renameOK else { return (.fail, "RenameIDP not accepted") }
+        let confirmed = (mid?.name == "BENCH_TMP") ? "rename confirmed via read-back" : "rename not confirmed via read-back"
+        return (.pass, "RenameIDP accepted (\(confirmed)); restored name \"\(originalName)\"\(restoreOK ? "" : " — ⚠️ restore FAILED, VERIFY the IDP name on the pump")")
     }
 
     /// Lane B delivery oracle: deliver a small SALINE bolus (0.10 u) and PASS only when the pump's OWN
@@ -775,6 +1080,11 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
               perm.granted else { return .fail }
         do {
             let mask = InitiateBolusRequest.typeBitmask(hasCarbs: false, hasCorrection: false, isExtended: false)
+            // BENCH-CONFIRM (dose path, opcode-158): log the EMITTED type mask so the operator can compare it
+            // against the pump's own BolusDeliveryHistoryLog bolus-type. Pre-#120 labels FOOD1(1)/CORRECTION(2)/
+            // EXTENDED(4)/FOOD2(8); this units-only bolus emits FOOD2. See docs/BENCH-COVERAGE.md → BENCH-CONFIRM.
+            print("  🔬 BENCH-CONFIRM (opcode-158 type bits): units-only bolus emits bolusTypeBitmask=0x"
+                + "\(String(mask, radix: 16)) (FOOD2) — compare vs the pump's recorded BolusDeliveryHistoryLog type")
             let req = try InitiateBolusRequest(validating: requestedMU, bolusID: perm.bolusId, bolusTypeBitmask: mask)
             let frame = try await client.withWritePolicy(.allowDelivery) {
                 try await self.client.sendAwaitingResponse(
