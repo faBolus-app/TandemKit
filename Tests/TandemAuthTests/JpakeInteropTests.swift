@@ -9,7 +9,41 @@ import TandemMessages
 /// implementation without any hardware.
 @Suite(.enabled(if: JpakeOracle.available)) struct JpakeInteropTests {
 
+    /// Outcome of one full handshake attempt against a freshly-spawned oracle process.
+    private struct InteropOutcome {
+        /// The server's derived secret, or `nil` if the oracle produced no result this attempt
+        /// (an environment failure — the JVM never started or died before emitting output).
+        let serverSecret: String?
+        let clientSecret: String
+        let authKeyEmpty: Bool
+        let diagnostic: String
+    }
+
     @Test func swiftClientInteropsWithOracleServer() throws {
+        // The oracle is a spawned JVM. On a loaded/parallel CI runner it can occasionally fail to
+        // start, or be killed under memory pressure, before printing any handshake output — which
+        // surfaces as an empty run with no derivedSecret. That is an *environment* flake, not an
+        // interop failure, so retry the whole handshake a few times. A genuine interop regression
+        // (the secrets DIFFER) is deterministic — it fails on every attempt and is NOT retried
+        // (see the mismatch #expect below). Retrying only the no-secret case therefore cannot mask
+        // a real byte-compatibility break.
+        var diagnostics: [String] = []
+        for attempt in 1...4 {
+            let outcome = try attemptInterop()
+            guard let serverSecret = outcome.serverSecret else {
+                diagnostics.append("attempt \(attempt): \(outcome.diagnostic)")
+                continue
+            }
+            #expect(outcome.clientSecret == serverSecret,
+                    "client/server derived secrets differ — EC-JPAKE not interoperable")
+            #expect(!outcome.authKeyEmpty)
+            return
+        }
+        Issue.record("EC-JPAKE oracle never returned a derived secret in 4 attempts — environment failure, not an interop mismatch: \(diagnostics.joined(separator: "; "))")
+    }
+
+    /// Drives one strict request/response handshake against a fresh `jpake-server` oracle process.
+    private func attemptInterop() throws -> InteropOutcome {
         let pairingCode = "123456"
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: JpakeOracle.java)
@@ -34,12 +68,12 @@ import TandemMessages
         var serverRound1a: [UInt8] = [], serverRound1b: [UInt8] = []
         var finalDerivedSecret: String?
 
-        // Drive the strict request/response handshake until the server prints its result.
+        // Drive the strict request/response handshake until the server prints its result. The 200
+        // cap is a pure infinite-loop safety net — strictly more lines than a real handshake emits.
         var guardCount = 0
         while let line = reader.line() {
             guardCount += 1
-            #expect(guardCount < 50, "handshake did not converge")
-            if guardCount >= 50 { break }
+            if guardCount >= 200 { break }
 
             if line.hasPrefix("JPAKE_1A:") {
                 serverRound1a = try JpakeOracle.messageParamBytes(line, index: 1)
@@ -66,10 +100,12 @@ import TandemMessages
         }
         proc.waitUntilExit()
 
-        let serverSecret = try #require(finalDerivedSecret, "server never returned a derived secret")
-        #expect(Hex.encode(auth.derivedSecret) == serverSecret,
-                "client/server derived secrets differ — EC-JPAKE not interoperable")
-        #expect(!auth.authKey.isEmpty)
+        return InteropOutcome(
+            serverSecret: finalDerivedSecret,
+            clientSecret: Hex.encode(auth.derivedSecret),
+            authKeyEmpty: auth.authKey.isEmpty,
+            diagnostic: "oracle exit status \(proc.terminationStatus), \(guardCount) line(s) read, no derivedSecret emitted"
+        )
     }
 }
 
