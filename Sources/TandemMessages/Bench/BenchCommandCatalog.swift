@@ -258,11 +258,18 @@ public enum BenchCommandCatalog {
         BenchFirmwareUnsupported(
             model: .tslim, maxApiInclusive: .v2_5,
             commands: [
+                // Reads (clean 2-byte op-77, rawCargo=0000). First 10 from T-1 run 1; the next 3 surfaced in
+                // run 2 once the earlier cascade no longer masked the tail.
                 "LoadStatusRequest", "ExtendedBolusStatusV2Request", "TempRateStatusRequest",
                 "BasalIQStatusRequest", "BasalIQSettingsRequest", "BasalIQAlertInfoRequest",
                 "BleSoftwareInfoRequest", "SecretMenuRequest", "HistoryLogRequest", "IDPSettingsRequest",
+                "IDPSegmentRequest", "CreateHistoryLogRequest", "StreamDataReadinessRequest",
+                // Signed write genuinely op-77'd on a HEALTHY link (T-1 run 2) — its disconnect then cascaded
+                // into false-fails for fundamental writes (SetMaxBolusLimit/ChangeTimeDate) that the app must be
+                // able to send on API 2.5. Deferring it removes the cascade trigger so those writes get a fair test.
+                "UserInteractionRequest",
             ],
-            provenance: "op-77 reject observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1)"),
+            provenance: "op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–2)"),
     ]
 
     /// If `command` is bench-observed to be rejected on `model` at `api`, return a note explaining why it is

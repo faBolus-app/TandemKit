@@ -94,7 +94,9 @@ import Foundation
     @Test func firmwareUnsupportedNoteMatchesTheObservedSet() {
         let observed = ["LoadStatusRequest", "ExtendedBolusStatusV2Request", "TempRateStatusRequest",
                         "BasalIQStatusRequest", "BasalIQSettingsRequest", "BasalIQAlertInfoRequest",
-                        "BleSoftwareInfoRequest", "SecretMenuRequest", "HistoryLogRequest", "IDPSettingsRequest"]
+                        "BleSoftwareInfoRequest", "SecretMenuRequest", "HistoryLogRequest", "IDPSettingsRequest",
+                        "IDPSegmentRequest", "CreateHistoryLogRequest", "StreamDataReadinessRequest",
+                        "UserInteractionRequest"]
         for name in observed {
             #expect(BenchCommandCatalog.firmwareUnsupportedNote(command: name, model: .tslim, api: .v2_5) != nil,
                     "\(name) is bench-observed op-77 on tslim API 2.5")
