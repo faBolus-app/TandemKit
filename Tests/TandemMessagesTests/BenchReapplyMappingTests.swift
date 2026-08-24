@@ -161,9 +161,11 @@ import Foundation
     /// Classifier gating: the 2 non-CGM writes exercise in ANY connected config; the 3 CGM writes DEFER
     /// without a sensor and exercise with one; PrimeTubingSuspend gaps everywhere (context step).
     @Test func planGatesConvertedWritesCorrectly() {
-        // Non-CGM captureReapply: exercisable even on the no-cartridge/no-CGM old t:slim.
-        #expect(plan("SetAutoOffAlertRequest", BenchCoveragePlanTests.oldTslim) == .exercise(.signedWrite))
-        #expect(plan("SetPumpSoundsRequest", BenchCoveragePlanTests.oldTslim) == .exercise(.signedWrite))
+        // Non-CGM captureReapply: exercisable on the no-cartridge/no-CGM t:slim. Uses the newer API-3.4 t:slim
+        // because SetAutoOffAlert/SetPumpSounds are bench-observed op-77-unsupported on tslim ≤2.5 (T-1) and
+        // therefore correctly DEFER there — the affordance-drivability being tested holds where they're supported.
+        #expect(plan("SetAutoOffAlertRequest", BenchCoveragePlanTests.newTslim) == .exercise(.signedWrite))
+        #expect(plan("SetPumpSoundsRequest", BenchCoveragePlanTests.newTslim) == .exercise(.signedWrite))
         // CGM captureReapply: DEFERRED without a sensor, exercisable with one.
         for n in ["CgmHighLowAlertRequest", "CgmOutOfRangeAlertRequest", "CgmRiseFallAlertRequest"] {
             if case .deferred(let r) = plan(n, BenchCoveragePlanTests.oldTslim) {

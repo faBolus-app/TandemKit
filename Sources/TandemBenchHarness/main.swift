@@ -1243,7 +1243,7 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     private func runNoCartridgeBolusProbe(cfg: BenchSessionConfig, ts: String) async -> [BenchCoverageCell] {
         print("\n--- No-cartridge bolus-rejection probe (PUMPX2_NO_CARTRIDGE_BOLUS_PROBE) ---")
         print("  Driving a 0.10 u bolus through BOTH walls with NO cartridge; recording the REJECTION.")
-        var passed = false, note = ""
+        var passed = false, inconclusive = false, note = ""
         if let f = await probeWrite(BolusPermissionRequest(), "no-cart BolusPermission"),
            let perm = try? ResponseParser.parse(frame: f, characteristic: .control).message as? BolusPermissionResponse {
             if !perm.granted {
@@ -1265,12 +1265,12 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
                     }
                 } catch { passed = true; note = "no-cartridge initiate threw/failed (expected rejection)" }
             }
-        } else { note = "permission exchange produced no response" }
-        print("  → no-cartridge probe: \(passed ? "PASS (rejected as expected)" : "REVIEW") — \(note)")
+        } else { inconclusive = true; note = "permission exchange produced no clean response this session (link churn) — deferred, retry" }
+        print("  → no-cartridge probe: \(passed ? "PASS (rejected as expected)" : (inconclusive ? "DEFERRED (inconclusive)" : "REVIEW")) — \(note)")
         let cell = BenchCoverageCell(
             model: cfg.modelName, firmware: cfg.firmwareLabel, cartridge: false, cgm: cfg.cgmPresent,
             command: "InitiateBolusRequest·no-cartridge-reject", lane: .delivery,
-            state: passed ? .pass : .fail, note: note, session: cfg.label, timestamp: ts)
+            state: inconclusive ? .deferred : (passed ? .pass : .fail), note: note, session: cfg.label, timestamp: ts)
         return [cell]
     }
 

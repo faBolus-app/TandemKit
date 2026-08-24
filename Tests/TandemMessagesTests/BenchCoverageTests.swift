@@ -96,7 +96,9 @@ import Foundation
                         "BasalIQStatusRequest", "BasalIQSettingsRequest", "BasalIQAlertInfoRequest",
                         "BleSoftwareInfoRequest", "SecretMenuRequest", "HistoryLogRequest", "IDPSettingsRequest",
                         "IDPSegmentRequest", "CreateHistoryLogRequest", "StreamDataReadinessRequest",
-                        "UserInteractionRequest"]
+                        "UserInteractionRequest", "PlaySoundRequest", "ChangeControlIQSettingsRequest",
+                        "SetMaxBolusLimitRequest", "SetMaxBasalLimitRequest", "SetLowInsulinAlertRequest",
+                        "SetAutoOffAlertRequest", "SetPumpSoundsRequest", "ChangeTimeDateRequest"]
         for name in observed {
             #expect(BenchCommandCatalog.firmwareUnsupportedNote(command: name, model: .tslim, api: .v2_5) != nil,
                     "\(name) is bench-observed op-77 on tslim API 2.5")
@@ -204,12 +206,17 @@ import Foundation
         // Reversible-but-unwired → pending gap.
         if case .gap(let r) = plan("SetBgReminderRequest", Self.oldTslim) { #expect(r.contains("pending")) }
         else { Issue.record("expected pending gap for SetBgReminder") }
-        // Wired reversible affordances → exercise (no PUMPX2_DELIVER_SALINE needed).
-        #expect(plan("SetMaxBolusLimitRequest", Self.oldTslim) == .exercise(.signedWrite))   // captureReapply
-        #expect(plan("ChangeTimeDateRequest", Self.oldTslim) == .exercise(.signedWrite))     // captureReapply
-        #expect(plan("BolusPermissionRequest", Self.oldTslim) == .exercise(.signedWrite))    // benignProbe
-        #expect(plan("PlaySoundRequest", Self.oldTslim) == .exercise(.signedWrite))          // benignProbe
-        #expect(plan("CancelBolusRequest", Self.oldTslim) == .exercise(.signedWrite))        // benignProbe
+        // Wired reversible affordances → exercise (no PUMPX2_DELIVER_SALINE needed). The remote-bolus family
+        // (minApi .v2_5) exercises on the old 2.5 t:slim; settings + find-my-pump signed writes are
+        // bench-observed op-77-unsupported on tslim ≤2.5 (T-1), so they exercise on the newer API-3.4 t:slim.
+        #expect(plan("SetMaxBolusLimitRequest", Self.newTslim) == .exercise(.signedWrite))   // captureReapply
+        #expect(plan("ChangeTimeDateRequest", Self.newTslim) == .exercise(.signedWrite))     // captureReapply
+        #expect(plan("PlaySoundRequest", Self.newTslim) == .exercise(.signedWrite))          // benignProbe
+        #expect(plan("BolusPermissionRequest", Self.oldTslim) == .exercise(.signedWrite))    // benignProbe (minApi .v2_5)
+        #expect(plan("CancelBolusRequest", Self.oldTslim) == .exercise(.signedWrite))        // benignProbe (minApi .v2_5)
+        // …and the settings writes correctly DEFER on the 2.5 t:slim that op-77s them.
+        if case .deferred(let r) = plan("SetMaxBolusLimitRequest", Self.oldTslim) { #expect(r.contains("op-77")) }
+        else { Issue.record("SetMaxBolusLimit should defer on the API-2.5 t:slim (bench-observed op-77)") }
         // Restore-half of a delivery pair → GAP (recorded when the primary pair runs behind the saline gate).
         if case .gap(let r) = plan("ExitChangeCartridgeModeRequest", Self.oldTslim) { #expect(r.contains("restore-half")) }
         else { Issue.record("expected restore-half gap for ExitChangeCartridgeMode") }
@@ -445,7 +452,8 @@ import Foundation
         if case .notApplicable = BenchCoverage.plan(for: cmd("SuspendPumpingRequest"), in: BenchCoveragePlanTests.oldTslim) {} else {
             Issue.record("Mobi-only delivery should be N/A on a t:slim")
         }
-        // Drivable signed writes are exercisable even on the no-cartridge old t:slim (no saline gate needed).
-        #expect(BenchCoverage.plan(for: cmd("SetMaxBolusLimitRequest"), in: BenchCoveragePlanTests.oldTslim) == .exercise(.signedWrite))
+        // A drivable signed write is exercisable even on the no-cartridge old t:slim (no saline gate needed);
+        // use a remote-bolus-family write (minApi .v2_5) since the settings writes are op-77-unsupported on 2.5.
+        #expect(BenchCoverage.plan(for: cmd("CancelBolusRequest"), in: BenchCoveragePlanTests.oldTslim) == .exercise(.signedWrite))
     }
 }

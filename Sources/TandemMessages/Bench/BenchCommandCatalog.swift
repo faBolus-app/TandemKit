@@ -264,12 +264,16 @@ public enum BenchCommandCatalog {
                 "BasalIQStatusRequest", "BasalIQSettingsRequest", "BasalIQAlertInfoRequest",
                 "BleSoftwareInfoRequest", "SecretMenuRequest", "HistoryLogRequest", "IDPSettingsRequest",
                 "IDPSegmentRequest", "CreateHistoryLogRequest", "StreamDataReadinessRequest",
-                // Signed write genuinely op-77'd on a HEALTHY link (T-1 run 2) — its disconnect then cascaded
-                // into false-fails for fundamental writes (SetMaxBolusLimit/ChangeTimeDate) that the app must be
-                // able to send on API 2.5. Deferring it removes the cascade trigger so those writes get a fair test.
-                "UserInteractionRequest",
+                // Signed writes that op-77 + drop-link on API 2.5. Runs 2–4 proved each rejects on its OWN
+                // freshly re-paired link (after a successful pre-read) → GENUINE per-command rejection, not a
+                // cascade. The rule is clean: on API 2.5 ONLY the remote-bolus family (declared minApi .v2_5)
+                // is accepted; every other signed write is a newer-firmware feature. These lack a minApi floor
+                // in MessageProps (a real metadata gap — see the debug session) so the classifier sent them.
+                "UserInteractionRequest", "PlaySoundRequest", "ChangeControlIQSettingsRequest",
+                "SetMaxBolusLimitRequest", "SetMaxBasalLimitRequest", "SetLowInsulinAlertRequest",
+                "SetAutoOffAlertRequest", "SetPumpSoundsRequest", "ChangeTimeDateRequest",
             ],
-            provenance: "op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–2)"),
+            provenance: "op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4)"),
     ]
 
     /// If `command` is bench-observed to be rejected on `model` at `api`, return a note explaining why it is
