@@ -10,7 +10,8 @@ import Foundation
 public struct SetMaxBolusLimitRequest: Message {
     public static let props = MessageProps(
         opCode: 0x86, size: 2, signed: true, type: .request,
-        characteristic: .control, responseOpCode: 0x87)
+        characteristic: .control, responseOpCode: 0x87,
+        minApi: .benchConservativeUnverifiedFloor)   // CONSERVATIVE/UNVERIFIED bench floor (T-1, >2.5 only)
     public var cargo: [UInt8]
     public private(set) var maxBolusMilliunits = 0
     public init() { cargo = [] }
@@ -29,7 +30,8 @@ public struct SetMaxBolusLimitRequest: Message {
 public struct SetMaxBasalLimitRequest: Message {
     public static let props = MessageProps(
         opCode: 0x88, size: 4, signed: true, type: .request,
-        characteristic: .control, responseOpCode: 0x89)
+        characteristic: .control, responseOpCode: 0x89,
+        minApi: .benchConservativeUnverifiedFloor)   // CONSERVATIVE/UNVERIFIED bench floor (T-1, >2.5 only)
     public var cargo: [UInt8]
     public private(set) var maxHourlyBasalMilliunits: UInt32 = 0
     public init() { cargo = [] }

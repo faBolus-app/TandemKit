@@ -92,13 +92,12 @@ import Foundation
     /// The bench-observed op-77 table gates exactly the observed (model, firmware ≤ api) commands — a pure
     /// fact table so the runner never sends an opcode a firmware tears the link down on (T-1 hardening).
     @Test func firmwareUnsupportedNoteMatchesTheObservedSet() {
+        // The READS pre-filtered via the bench fact-table (the 9 signed writes are now gated by
+        // MessageProps.minApi = .benchConservativeUnverifiedFloor instead, so they're no longer in this table).
         let observed = ["LoadStatusRequest", "ExtendedBolusStatusV2Request", "TempRateStatusRequest",
                         "BasalIQStatusRequest", "BasalIQSettingsRequest", "BasalIQAlertInfoRequest",
                         "BleSoftwareInfoRequest", "SecretMenuRequest", "HistoryLogRequest", "IDPSettingsRequest",
-                        "IDPSegmentRequest", "CreateHistoryLogRequest", "StreamDataReadinessRequest",
-                        "UserInteractionRequest", "PlaySoundRequest", "ChangeControlIQSettingsRequest",
-                        "SetMaxBolusLimitRequest", "SetMaxBasalLimitRequest", "SetLowInsulinAlertRequest",
-                        "SetAutoOffAlertRequest", "SetPumpSoundsRequest", "ChangeTimeDateRequest"]
+                        "IDPSegmentRequest", "CreateHistoryLogRequest", "StreamDataReadinessRequest"]
         for name in observed {
             #expect(BenchCommandCatalog.firmwareUnsupportedNote(command: name, model: .tslim, api: .v2_5) != nil,
                     "\(name) is bench-observed op-77 on tslim API 2.5")
@@ -214,9 +213,10 @@ import Foundation
         #expect(plan("PlaySoundRequest", Self.newTslim) == .exercise(.signedWrite))          // benignProbe
         #expect(plan("BolusPermissionRequest", Self.oldTslim) == .exercise(.signedWrite))    // benignProbe (minApi .v2_5)
         #expect(plan("CancelBolusRequest", Self.oldTslim) == .exercise(.signedWrite))        // benignProbe (minApi .v2_5)
-        // …and the settings writes correctly DEFER on the 2.5 t:slim that op-77s them.
-        if case .deferred(let r) = plan("SetMaxBolusLimitRequest", Self.oldTslim) { #expect(r.contains("op-77")) }
-        else { Issue.record("SetMaxBolusLimit should defer on the API-2.5 t:slim (bench-observed op-77)") }
+        // …and the settings writes correctly DEFER on the 2.5 t:slim — now via their conservative minApi floor
+        // (.benchConservativeUnverifiedFloor = 3.4), which the classifier checks before the affordance logic.
+        if case .deferred(let r) = plan("SetMaxBolusLimitRequest", Self.oldTslim) { #expect(r.contains("3.4")) }
+        else { Issue.record("SetMaxBolusLimit should defer on the API-2.5 t:slim (conservative minApi floor)") }
         // Restore-half of a delivery pair → GAP (recorded when the primary pair runs behind the saline gate).
         if case .gap(let r) = plan("ExitChangeCartridgeModeRequest", Self.oldTslim) { #expect(r.contains("restore-half")) }
         else { Issue.record("expected restore-half gap for ExitChangeCartridgeMode") }

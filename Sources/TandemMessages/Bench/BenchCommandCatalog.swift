@@ -258,20 +258,19 @@ public enum BenchCommandCatalog {
         BenchFirmwareUnsupported(
             model: .tslim, maxApiInclusive: .v2_5,
             commands: [
-                // Reads (clean 2-byte op-77, rawCargo=0000). First 10 from T-1 run 1; the next 3 surfaced in
-                // run 2 once the earlier cascade no longer masked the tail.
+                // READS (clean 2-byte op-77, rawCargo=0000) genuinely unsupported on tslim ≤2.5. First 10 from
+                // T-1 run 1; next 3 surfaced in run 2. These are NOT given a MessageProps.minApi (the owner
+                // scoped the send-gate minApi fix to the 9 signed writes below); they are pre-filtered
+                // bench-layer only. (Latent: the shipping app could also op-77+drop-link if it sends these
+                // reads to a 2.5 pump — a related, un-addressed follow-up to the signed-write send-gate fix.)
                 "LoadStatusRequest", "ExtendedBolusStatusV2Request", "TempRateStatusRequest",
                 "BasalIQStatusRequest", "BasalIQSettingsRequest", "BasalIQAlertInfoRequest",
                 "BleSoftwareInfoRequest", "SecretMenuRequest", "HistoryLogRequest", "IDPSettingsRequest",
                 "IDPSegmentRequest", "CreateHistoryLogRequest", "StreamDataReadinessRequest",
-                // Signed writes that op-77 + drop-link on API 2.5. Runs 2–4 proved each rejects on its OWN
-                // freshly re-paired link (after a successful pre-read) → GENUINE per-command rejection, not a
-                // cascade. The rule is clean: on API 2.5 ONLY the remote-bolus family (declared minApi .v2_5)
-                // is accepted; every other signed write is a newer-firmware feature. These lack a minApi floor
-                // in MessageProps (a real metadata gap — see the debug session) so the classifier sent them.
-                "UserInteractionRequest", "PlaySoundRequest", "ChangeControlIQSettingsRequest",
-                "SetMaxBolusLimitRequest", "SetMaxBasalLimitRequest", "SetLowInsulinAlertRequest",
-                "SetAutoOffAlertRequest", "SetPumpSoundsRequest", "ChangeTimeDateRequest",
+                // NOTE: the 9 non-remote-bolus signed writes that op-77 on API 2.5 (PlaySound, UserInteraction,
+                // ChangeControlIQSettings, SetMaxBolus/BasalLimit, SetLowInsulin/AutoOffAlert, SetPumpSounds,
+                // ChangeTimeDate) are now gated by MessageProps.minApi = .benchConservativeUnverifiedFloor
+                // (the classifier's minApi check defers them), so they are intentionally NOT duplicated here.
             ],
             provenance: "op-77 rejects observed on the tslim API 2.5 saline bench, 2026-08-23 (T-1 runs 1–4)"),
     ]

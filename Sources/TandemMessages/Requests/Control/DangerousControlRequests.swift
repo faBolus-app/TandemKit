@@ -46,7 +46,7 @@ public struct FactoryResetBRequest: Message {
 
 /// Marks a user interaction (opcode 0x84 → 0x85). Empty cargo.
 public struct UserInteractionRequest: Message {
-    public static let props = MessageProps(opCode: 0x84, size: 0, signed: true, type: .request, characteristic: .control, responseOpCode: 0x85)
+    public static let props = MessageProps(opCode: 0x84, size: 0, signed: true, type: .request, characteristic: .control, responseOpCode: 0x85, minApi: .benchConservativeUnverifiedFloor)   // minApi = CONSERVATIVE/UNVERIFIED bench floor (T-1, >2.5 only)
     public var cargo: [UInt8]
     public init() { cargo = [] }
     public mutating func parse(_ raw: [UInt8]) { cargo = [] }
