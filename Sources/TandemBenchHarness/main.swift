@@ -757,6 +757,14 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
             for c in await runNoCartridgeBolusProbe(cfg: cfg, ts: ts) { matrix.record(c) }
         }
 
+        // Affordance (d): opt-in observational probe of CGM-family READS with NO sensor present. Reads never
+        // change pump state → always bench-safe; sending them reveals HOW the pump answers the no-CGM path
+        // (typed no-sensor status vs op-77) — app-design intel. Recorded under a synthetic command so it does
+        // not mark the real (sensor-verified) CGM coverage covered.
+        if ProcessInfo.processInfo.environment["PUMPX2_PROBE_DEFERRED_READS"] == "1" && !cfg.cgmPresent {
+            for c in await runNoCgmReadProbe(cfg: cfg, ts: ts) { matrix.record(c) }
+        }
+
         // Persist (JSON source-of-truth + human Markdown) and report what's left.
         do {
             try BenchCoverageStore.save(matrix, generatedAt: ts)
@@ -1264,6 +1272,40 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
             command: "InitiateBolusRequest·no-cartridge-reject", lane: .delivery,
             state: passed ? .pass : .fail, note: note, session: cfg.label, timestamp: ts)
         return [cell]
+    }
+
+    /// Affordance (d): OPT-IN observational probe of CGM-family READS with NO sensor present
+    /// (PUMPX2_PROBE_DEFERRED_READS). A read never mutates pump state, so it is always bench-safe; sending
+    /// each CGM read without a sensor reveals HOW the pump answers (a typed no-sensor status vs an op-77
+    /// reject) — real app-design intel for the no-CGM path. READS ONLY — never a CGM control/session write.
+    /// Recorded under a distinct `·no-cgm-probe` synthetic command so it never marks the real (sensor-verified)
+    /// CGM coverage covered; the console line is the primary intel.
+    private func runNoCgmReadProbe(cfg: BenchSessionConfig, ts: String) async -> [BenchCoverageCell] {
+        print("\n--- No-CGM read probe (PUMPX2_PROBE_DEFERRED_READS): how the pump answers CGM reads w/ no sensor ---")
+        var cells: [BenchCoverageCell] = []
+        let cgmReads = BenchCommandCatalog.all
+            .filter { $0.lane == .read && $0.requiresCGM }
+            .sorted { $0.name < $1.name }
+        for cmd in cgmReads {
+            // A future/unparseable API floor is not a "no-sensor" question — skip (sending a known-unparseable
+            // op yields no app-design signal, only churn).
+            if let floor = cmd.minApi, cfg.apiVersion < floor {
+                print("  ⏭️  \(cmd.name): needs API ≥ \(floor.major).\(floor.minor) — not a no-sensor question, skipped")
+                continue
+            }
+            guard let inst = BenchCommandCatalog.makeReadInstance(cmd.name) else { continue }
+            let (st, note) = await coverageRead(inst, cmd.name)
+            let answered = (st == .pass)
+            let obs = answered
+                ? "no-CGM probe: pump ANSWERED (typed response parsed) — command works without a sensor (returns a no-sensor state)"
+                : "no-CGM probe: \(note)"
+            print("  [\(answered ? "answered" : "rejected")] \(cmd.name) — \(obs)")
+            cells.append(BenchCoverageCell(
+                model: cfg.modelName, firmware: cfg.firmwareLabel, cartridge: cfg.cartridgePresent, cgm: false,
+                command: "\(cmd.name)·no-cgm-probe", lane: .read,
+                state: answered ? .pass : .deferred, note: obs, session: cfg.label, timestamp: ts))
+        }
+        return cells
     }
 
     private func printCoverageRemaining(_ matrix: BenchCoverageMatrix) {
