@@ -7,7 +7,8 @@ import Foundation
 public struct PlaySoundRequest: Message {
     public static let props = MessageProps(
         opCode: 0xF4, size: 0, signed: true, type: .request,
-        characteristic: .control, risk: .benign, responseOpCode: 0xF5)   // find-my-pump — no therapy effect (P-01)
+        characteristic: .control, risk: .benign, responseOpCode: 0xF5,
+        minApi: .benchConservativeUnverifiedFloor)   // find-my-pump (P-01); minApi = CONSERVATIVE/UNVERIFIED (bench T-1, >2.5 only)
     public var cargo: [UInt8]
     public init() { cargo = [] }
     public mutating func parse(_ raw: [UInt8]) { cargo = [] }
@@ -19,7 +20,8 @@ public struct PlaySoundRequest: Message {
 public struct SetPumpSoundsRequest: Message {
     public static let props = MessageProps(
         opCode: 0xE4, size: 9, signed: true, type: .request,
-        characteristic: .control, responseOpCode: 0xE5)
+        characteristic: .control, responseOpCode: 0xE5,
+        minApi: .benchConservativeUnverifiedFloor)   // CONSERVATIVE/UNVERIFIED bench floor (T-1, >2.5 only)
     public var cargo: [UInt8]
     public private(set) var quickBolusAnnunRaw = 0
     public private(set) var generalAnnunRaw = 0
@@ -62,7 +64,8 @@ public struct SetPumpSoundsRequest: Message {
 public struct ChangeTimeDateRequest: Message {
     public static let props = MessageProps(
         opCode: 0xD6, size: 4, signed: true, type: .request,
-        characteristic: .control, responseOpCode: 0xD7)
+        characteristic: .control, responseOpCode: 0xD7,
+        minApi: .benchConservativeUnverifiedFloor)   // CONSERVATIVE/UNVERIFIED bench floor (T-1, >2.5 only)
     public var cargo: [UInt8]
     public private(set) var tandemEpochTime: UInt32 = 0
     public init() { cargo = [] }

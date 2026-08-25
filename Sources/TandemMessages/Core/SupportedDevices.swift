@@ -50,4 +50,14 @@ public extension ApiVersion {
     /// `API_FUTURE` (99,99) — a `minApi: .future` floor is above every known pump, so such a
     /// message is gated for any KNOWN target (and, per fail-open, still sent to an unknown target).
     static let future = ApiVersion(major: 99, minor: 99)
+
+    /// ⚠️ CONSERVATIVE, UNVERIFIED bench placeholder — **NOT a proven firmware floor; DO NOT treat as fact.**
+    /// Bench T-1 (2026-08-23, old t:slim) observed 9 non-remote-bolus signed writes (PlaySound, UserInteraction,
+    /// ChangeControlIQSettings, SetMaxBolus/BasalLimit, SetLowInsulin/AutoOffAlert, SetPumpSounds, ChangeTimeDate)
+    /// op-77 + drop the BLE link on an API-2.5 pump — which proves ONLY that the floor is **> 2.5**. The exact
+    /// floor is UNDETERMINED: upstream pumpX2 (pinned + latest `main`) leaves all 9 unannotated. `.v3_4` is the
+    /// conservative upper bound we can currently reach; it fails SAFE for the send-gate (`isSupported`) — a pump
+    /// below 3.4 gets a NO-SEND, never a link-drop. Tighten to the REAL floor once an N-1 (API 3.4) / API 3.2
+    /// bench confirms acceptance. See `faBolus/.planning/debug/bench-t1-coverage-resilience.md`.
+    static let benchConservativeUnverifiedFloor = ApiVersion.v3_4
 }

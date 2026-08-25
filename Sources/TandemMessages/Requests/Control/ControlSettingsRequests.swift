@@ -57,7 +57,7 @@ public struct CgmRiseFallAlertRequest: Message {
 /// Changes Control-IQ settings — enable, weight, total daily insulin (opcode 0xCA → 0xCB). 6-byte
 /// cargo: enabled + LE uint16 weightLbs + [1, tdi, 1] (upstream magic framing).
 public struct ChangeControlIQSettingsRequest: Message {
-    public static let props = MessageProps(opCode: 0xCA, size: 6, signed: true, type: .request, characteristic: .control, responseOpCode: 0xCB)
+    public static let props = MessageProps(opCode: 0xCA, size: 6, signed: true, type: .request, characteristic: .control, responseOpCode: 0xCB, minApi: .benchConservativeUnverifiedFloor)   // minApi = CONSERVATIVE/UNVERIFIED bench floor (T-1, >2.5 only)
     public var cargo: [UInt8]
     public private(set) var enabled = false
     public private(set) var weightLbs = 0, totalDailyInsulinUnits = 0

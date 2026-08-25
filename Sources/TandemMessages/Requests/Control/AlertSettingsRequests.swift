@@ -7,7 +7,8 @@ import Foundation
 public struct SetLowInsulinAlertRequest: Message {
     public static let props = MessageProps(
         opCode: 0xDE, size: 1, signed: true, type: .request,
-        characteristic: .control, responseOpCode: 0xDF)
+        characteristic: .control, responseOpCode: 0xDF,
+        minApi: .benchConservativeUnverifiedFloor)   // CONSERVATIVE/UNVERIFIED bench floor (T-1, >2.5 only)
     public var cargo: [UInt8]
     public private(set) var insulinThreshold = 0
     public init() { cargo = [] }
@@ -27,7 +28,8 @@ public struct SetLowInsulinAlertRequest: Message {
 public struct SetAutoOffAlertRequest: Message {
     public static let props = MessageProps(
         opCode: 0xE0, size: 4, signed: true, type: .request,
-        characteristic: .control, responseOpCode: 0xE1)
+        characteristic: .control, responseOpCode: 0xE1,
+        minApi: .benchConservativeUnverifiedFloor)   // CONSERVATIVE/UNVERIFIED bench floor (T-1, >2.5 only)
     public var cargo: [UInt8]
     public private(set) var enableAutoOff = false
     public private(set) var autoOffDuration = 0

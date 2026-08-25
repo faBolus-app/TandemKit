@@ -62,4 +62,34 @@ import Testing
         #expect(ApiVersion.mobi_v3_8 < ApiVersion.future)
         #expect(!(ApiVersion.mobi_v3_5 < ApiVersion.mobi_v3_5))
     }
+
+    // MARK: - C4-01/CX-T-03: the 9 API-2.5 op-77 signed writes carry `.benchConservativeUnverifiedFloor`
+    //
+    // Ported from experimental@245b531 (port-fidelity restoration, Phase 15 Plan 01). Each of these
+    // MessageProps now declares `minApi: .benchConservativeUnverifiedFloor` (= .v3_4). Per-write assertion
+    // proves the gate reports unsupported for a below-floor KNOWN apiVersion and supported (fail-open) for
+    // a nil apiVersion — mirroring `apiFloorGatesKnownBelowMinimum` / `partialTargetGatesOnKnownViolationFullyUnknownFailsOpen`
+    // above. Runtime app behavior is unchanged: apiVersion is still nil at every call site (CX-T-04 deferred).
+    @Test func nineSignedWritesCarryTheConservativeFloor() {
+        let floored: [MessageProps] = [
+            SetLowInsulinAlertRequest.props,
+            SetAutoOffAlertRequest.props,
+            ChangeControlIQSettingsRequest.props,
+            UserInteractionRequest.props,
+            SetMaxBolusLimitRequest.props,
+            SetMaxBasalLimitRequest.props,
+            PlaySoundRequest.props,
+            SetPumpSoundsRequest.props,
+            ChangeTimeDateRequest.props,
+        ]
+        for props in floored {
+            #expect(props.minApi == .benchConservativeUnverifiedFloor)
+            // Known below-floor apiVersion (2.5, the bench-observed op-77 firmware) ⇒ gated (no-send).
+            #expect(props.isSupported(onModel: .tslim, apiVersion: .v2_5) == false)
+            // Known at-floor apiVersion ⇒ supported (floor is inclusive minimum).
+            #expect(props.isSupported(onModel: .tslim, apiVersion: .v3_4))
+            // Unknown apiVersion ⇒ fails open (apiVersion is nil at every call site today — CX-T-04 deferred).
+            #expect(props.isSupported(onModel: .tslim, apiVersion: nil))
+        }
+    }
 }
