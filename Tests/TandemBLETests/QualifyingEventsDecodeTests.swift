@@ -120,7 +120,17 @@ import TandemMessages
                 expectedResponseOn: .control, opCode: 0x03, deadline: 5, serialized: true
             ) { 9 }
         }
-        while !client.transactions.hasSerializedInFlight { await Task.yield() }
+        // Bounded sleep-backed poll (not a `Task.yield()` hot-spin): a tight yield loop never actually
+        // relinquishes a cooperative-pool thread, and under the FULL combined test suite (hundreds of
+        // concurrent async tests) that starved the runtime badly enough to abort the whole process
+        // (observed locally: `swift test` with no filter crashed with SIGABRT partway through; every
+        // individually-filtered suite, including this one, was consistently green). A real `Task.sleep`
+        // actually suspends, so it can't contribute to that class of exhaustion.
+        var attempts = 0
+        while !client.transactions.hasSerializedInFlight && attempts < 200 {
+            try? await Task.sleep(nanoseconds: 1_000_000)   // 1ms; 200 attempts = 200ms ceiling
+            attempts += 1
+        }
 
         var clearCount = 0
         client.handleQualifyingEventsFrame(le4(1)) { clearCount += 1 }   // .alert
