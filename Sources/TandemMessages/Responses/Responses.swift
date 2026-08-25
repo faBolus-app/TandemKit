@@ -97,7 +97,14 @@ public struct SuspendPumpingResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if !raw.isEmpty { status = Int(raw[0]) } }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        // VA-20/CX-T-12: fail CLOSED on a short buffer — never default to status 0 (== accepted). Unreachable
+        // via ResponseParser (length-guarded + VA-04 HMAC-verified first), but a direct caller must not decode
+        // an empty/truncated frame as an ACCEPTED suspend.
+        guard raw.count >= Self.props.size else { status = 1; return }
+        status = Int(raw[0])
+    }
     public mutating func parse(_ raw: [UInt8]) { self = SuspendPumpingResponse(cargo: raw) }
     /// status 0 = accepted.
     public var accepted: Bool { status == 0 }
@@ -109,7 +116,14 @@ public struct ResumePumpingResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if !raw.isEmpty { status = Int(raw[0]) } }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        // VA-20/CX-T-12: fail CLOSED on a short buffer — never default to status 0 (== accepted). Unreachable
+        // via ResponseParser (length-guarded + VA-04 HMAC-verified first), but a direct caller must not decode
+        // an empty/truncated frame as an ACCEPTED resume.
+        guard raw.count >= Self.props.size else { status = 1; return }
+        status = Int(raw[0])
+    }
     public mutating func parse(_ raw: [UInt8]) { self = ResumePumpingResponse(cargo: raw) }
     /// status 0 = accepted.
     public var accepted: Bool { status == 0 }
@@ -125,8 +139,13 @@ public struct SetTempRateResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        if !raw.isEmpty { status = Int(raw[0]) }
-        if raw.count >= 3 { tempRateId = Bytes.readShort(raw, 1) }
+        // VA-20/CX-T-12: fail CLOSED on a short buffer — the status decode itself must be guarded, not just
+        // tempRateId's partial (length-3) read, or an empty/truncated buffer defaults status to 0 (== accepted).
+        // Unreachable via ResponseParser (length-guarded + VA-04 HMAC-verified first), but a direct caller must
+        // not decode an empty/truncated frame as an ACCEPTED temp-rate change.
+        guard raw.count >= Self.props.size else { status = 1; return }
+        status = Int(raw[0])
+        tempRateId = Bytes.readShort(raw, 1)
     }
     public mutating func parse(_ raw: [UInt8]) { self = SetTempRateResponse(cargo: raw) }
     /// status 0 = accepted.

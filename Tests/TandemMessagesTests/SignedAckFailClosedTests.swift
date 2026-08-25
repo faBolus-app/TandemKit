@@ -25,4 +25,32 @@ struct SignedAckFailClosedTests {
         #expect(BolusPermissionResponse(cargo: [0, 0, 0, 0, 0, 0]).granted)
         #expect(!BolusPermissionResponse(cargo: [1, 0, 0, 0, 0, 0]).granted)
     }
+
+    // CX-T-12: SuspendPumpingResponse/ResumePumpingResponse/SetTempRateResponse must also fail CLOSED on a
+    // short/empty cargo — today an empty buffer leaves `status` at its default 0 (== accepted), which is
+    // exactly backwards for a signed dose-affecting ack decoded from attacker/test-controlled bytes.
+
+    @Test func suspendPumpingResponseShortBufferIsNotAccepted() {
+        // size is 1; only the empty buffer is "short" for this type.
+        #expect(!SuspendPumpingResponse(cargo: []).accepted)
+        // Full-length, status-0 buffer still decodes accepted (no regression).
+        #expect(SuspendPumpingResponse(cargo: [0]).accepted)
+        #expect(!SuspendPumpingResponse(cargo: [1]).accepted)
+    }
+
+    @Test func resumePumpingResponseShortBufferIsNotAccepted() {
+        #expect(!ResumePumpingResponse(cargo: []).accepted)
+        #expect(ResumePumpingResponse(cargo: [0]).accepted)
+        #expect(!ResumePumpingResponse(cargo: [1]).accepted)
+    }
+
+    @Test func setTempRateResponseShortBufferIsNotAccepted() {
+        // size is 4; every shorter buffer (including the one-byte-short case) must be not-accepted.
+        for short: [UInt8] in [[], [0], [0, 0], [0, 0, 0]] {
+            #expect(!SetTempRateResponse(cargo: short).accepted)
+        }
+        // Full-length, status-0 buffer still decodes accepted (no regression).
+        #expect(SetTempRateResponse(cargo: [0, 0, 0, 0]).accepted)
+        #expect(!SetTempRateResponse(cargo: [1, 0, 0, 0]).accepted)
+    }
 }
