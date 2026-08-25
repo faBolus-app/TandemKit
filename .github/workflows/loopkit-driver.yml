@@ -11,7 +11,9 @@ name: LoopKit driver (non-blocking)
 
 on:
   push:
-    branches: [main, experimental]
+    # The adapter is narrow-main-removed: it lives only on `experimental` + `dev/loopkit`, so this
+    # lane runs there, never on `main` (the workflow file no longer exists on `main`).
+    branches: [experimental, dev/loopkit]
     paths:
       - 'integrations/TandemLoopKit/**'
       - '.github/workflows/loopkit-driver.yml'
