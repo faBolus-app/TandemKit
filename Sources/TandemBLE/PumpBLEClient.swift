@@ -1135,7 +1135,7 @@ extension PumpBLEClient: CBPeripheralDelegate {
             confirmedNotifying.insert(mapped)
         } else {
             confirmedNotifying.remove(mapped)
-            // RED (CX-T-05): no revoke yet on a post-ready notification loss — added in the next commit.
+            if state == .ready { revokeReadiness() }
         }
         maybeBecomeReady()
     }
@@ -1207,7 +1207,7 @@ extension PumpBLEClient: CBPeripheralDelegate {
     /// instead of only notifying and leaving the write policy elevated / the transaction hanging.
     func handleWriteResult(error: Error?) {
         if let error {
-            // RED (CX-T-05): no failClosed yet on a write error — added in the next commit.
+            failClosed(resumePending: true)
             notify { $0.pumpClient(self, didError: error) }
         }
     }
