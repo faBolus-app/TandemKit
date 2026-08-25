@@ -247,3 +247,81 @@ private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8]
         #expect(cleared.alertId == 2)
     }
 }
+
+/// CX-T-09: `HistoryLogStreamResponse` must reject a frame whose byte count is not exactly
+/// `numberOfHistoryLogs * 26 + 2` — mirroring the oracle's `HistoryLogStreamResponse.java:49` throw —
+/// via an explicit `isValid` flag, distinguishing a malformed frame (isValid == false, records == [])
+/// from a genuinely valid empty stream (isValid == true, records == []). Today the decode greedily
+/// slices whatever whole 26-byte records fit and has no validity flag at all.
+@Suite struct HistoryLogStreamResponseTests {
+    /// Builds a well-formed n-record frame: [n, streamId, record0(26)...record(n-1)(26)].
+    private func frame(count n: Int, streamId: Int = 5, recordByte: UInt8 = 0xAA) -> [UInt8] {
+        var raw: [UInt8] = [UInt8(n), UInt8(streamId)]
+        for _ in 0..<n { raw.append(contentsOf: [UInt8](repeating: recordByte, count: 26)) }
+        return raw
+    }
+
+    @Test func oneRecordExactLengthIsValid() {
+        let raw = frame(count: 1)
+        let resp = HistoryLogStreamResponse(cargo: raw)
+        #expect(resp.isValid)
+        #expect(resp.records.count == 1)
+        #expect(resp.numberOfHistoryLogs == 1)
+        #expect(resp.streamId == 5)
+    }
+
+    @Test func validZeroRecordStreamIsDistinguishableFromMalformed() {
+        // count == 0*26+2 == 2 exactly: a genuinely valid empty stream.
+        let raw = frame(count: 0)
+        #expect(raw.count == 2)
+        let resp = HistoryLogStreamResponse(cargo: raw)
+        #expect(resp.isValid)
+        #expect(resp.records.isEmpty)
+    }
+
+    @Test func oneByteShortIsRejected() {
+        // n=1 wants 28 bytes; drop the last byte of the record.
+        var raw = frame(count: 1)
+        raw.removeLast()
+        let resp = HistoryLogStreamResponse(cargo: raw)
+        #expect(!resp.isValid)
+        #expect(resp.records.isEmpty)
+    }
+
+    @Test func oneByteExtraIsRejected() {
+        // n=1 wants 28 bytes; append one extra stray byte.
+        var raw = frame(count: 1)
+        raw.append(0xFF)
+        let resp = HistoryLogStreamResponse(cargo: raw)
+        #expect(!resp.isValid)
+        #expect(resp.records.isEmpty)
+    }
+
+    @Test func maxByteCountDoesNotCrashOrOverflowWhenBufferIsShort() {
+        // numberOfHistoryLogs is decoded from a single byte, so its max is 255 — but even at that max
+        // the guard must reject a mismatched buffer without crashing or wrapping the length comparison
+        // (255*26+2 == 6632, far larger than the tiny buffer actually supplied here).
+        let raw: [UInt8] = [255, 9, 0, 0, 0, 0]  // n=255 claimed, only 4 record-bytes actually present
+        let resp = HistoryLogStreamResponse(cargo: raw)
+        #expect(!resp.isValid)
+        #expect(resp.records.isEmpty)
+        #expect(resp.numberOfHistoryLogs == 255)
+    }
+}
+
+/// CX-T-09 (Pitfall 3): `HistoryLogResponse` must preserve the stream id from byte 1 — upstream
+/// `HistoryLogResponse.java:35` does, the port drops it.
+@Suite struct HistoryLogResponseStreamIdTests {
+    @Test func decodesStreamIdFromByteOne() {
+        let resp = HistoryLogResponse(cargo: [0, 9])
+        #expect(resp.status == 0)
+        #expect(resp.streamId == 9)
+    }
+
+    @Test func oneByteCargoLeavesStreamIdAtSafeDefault() {
+        // Guarded by raw.count >= 2 — status still decodes from the single byte present.
+        let resp = HistoryLogResponse(cargo: [3])
+        #expect(resp.status == 3)
+        #expect(resp.streamId == 0)
+    }
+}

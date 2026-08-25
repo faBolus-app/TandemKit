@@ -34,10 +34,15 @@ public struct HistoryLogResponse: ResponseMessage {
     public static let props = MessageProps(opCode: 61, size: 2, type: .response, characteristic: .currentStatus)
     public var cargo: [UInt8]
     public private(set) var status: Int = 0
+    /// The stream id this ack correlates with the subsequent `HistoryLogStreamResponse` frames.
+    /// Upstream `HistoryLogResponse.java:35` decodes byte 1; the port previously dropped it (Pitfall 3).
+    public private(set) var streamId: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
         if raw.count >= 1 { status = Int(raw[0]) }
+        // CX-T-09: preserve streamId — guarded so a 1-byte cargo still decodes status safely.
+        if raw.count >= 2 { streamId = Int(raw[1]) }
     }
     public mutating func parse(_ raw: [UInt8]) { self = HistoryLogResponse(cargo: raw) }
 }
@@ -120,17 +125,32 @@ public struct HistoryLogStreamResponse: ResponseMessage {
     public private(set) var streamId: Int = 0
     /// The raw 26-byte records in this frame.
     public private(set) var records: [[UInt8]] = []
+    /// CX-T-09: true ONLY when `raw.count == numberOfHistoryLogs * 26 + 2` exactly (the oracle's ground-
+    /// truth formula, `HistoryLogStreamResponse.java:49`). A malformed frame (short OR long) leaves this
+    /// false with `records == []` — the same shape as a genuinely valid empty stream — so callers must
+    /// check `isValid`, not just emptiness, to distinguish "nothing to report" from "reject this frame".
+    public private(set) var isValid: Bool = false
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
         guard raw.count >= 2 else { return }
         numberOfHistoryLogs = Int(raw[0])
         streamId = Int(raw[1])
+        // Bound the advertised count BEFORE multiplying so a crafted/refactored-width count can never
+        // overflow or wrap the length comparison below. In practice numberOfHistoryLogs is decoded from a
+        // single byte (0...255), so this can't fire today, but the multiply must never run unguarded.
+        guard numberOfHistoryLogs >= 0,
+              numberOfHistoryLogs <= (Int.max - 2) / HistoryLog.recordSize else { return }
+        let expectedLength = numberOfHistoryLogs * HistoryLog.recordSize + 2
+        // Fail CLOSED on any length mismatch (short OR long) — never greedily slice a partial/oversized
+        // buffer. Only an EXACT match is trusted enough to slice records and flip isValid.
+        guard raw.count == expectedLength else { return }
         var i = 2
         while i + HistoryLog.recordSize <= raw.count {
             records.append(Array(raw[i..<(i + HistoryLog.recordSize)]))
             i += HistoryLog.recordSize
         }
+        isValid = true
     }
     public mutating func parse(_ raw: [UInt8]) { self = HistoryLogStreamResponse(cargo: raw) }
 
