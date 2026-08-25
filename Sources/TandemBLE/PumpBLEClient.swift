@@ -858,6 +858,12 @@ extension PumpBLEClient: CBCentralManagerDelegate {
                 if let p = peripheral, p.state != .connected {
                     state = .connecting
                     central.connect(p, options: [CBConnectPeripheralOptionNotifyOnDisconnectionKey: true])
+                    // C1-02 (faBolus Phase 13): this branch re-issues `central.connect` directly, bypassing
+                    // `connect(_:)` — which is the ONLY other fresh-establishment entry point and is the one
+                    // that arms `armEstablishmentWatchdog()`. Without arming it here too, a BT-power-on
+                    // resume whose establishment stalls (pre-`.ready`) has no bound: it can strand
+                    // `.connecting` forever, unlike every other establishment path.
+                    armEstablishmentWatchdog()
                 } else if peripheral == nil, let id = pendingRetrieveId {
                     // A cold-launch connectKnownPeripheral() arrived before BT was on — honor it now.
                     pendingRetrieveId = nil
@@ -893,8 +899,20 @@ extension PumpBLEClient: CBCentralManagerDelegate {
             guard let p = central.retrieveConnectedPeripherals(withServices: [pumpUUID]).first else { return }
             self.peripheral = p
             p.delegate = self
+            // C1-02 (faBolus Phase 13): a restored-connected peripheral is a KNOWN target — set
+            // `reconnectTargetId` so a subsequent establishment-watchdog timeout (below) enters the
+            // throttled reconnect ladder (eventually reaching `.reconnectExhausted`, which alarms) instead
+            // of dead-ending at an un-alarmed `.disconnected` (the `reconnectTargetId == nil` "first-pair"
+            // branch in `establishmentTimedOut()`). Mirrors what `connect(_:)` already does for a fresh
+            // establishment.
+            reconnectTargetId = p.identifier
             state = .discovering
             p.discoverServices([pumpUUID])
+            // C1-02: `connect(_:)` arms this bound on every fresh establishment; `willRestoreState` adopts a
+            // restored-connected peripheral and enters `.discovering` the SAME way but previously never
+            // armed it — a stalled restoration discovery could strand `.discovering` forever with no
+            // recovery. Cancelled at `.ready` (`maybeBecomeReady`) exactly like any other establishment.
+            armEstablishmentWatchdog()
         }
     }
 
