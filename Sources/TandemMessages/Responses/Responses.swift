@@ -1290,7 +1290,10 @@ public struct BolusPermissionResponse: ResponseMessage {
         nackReasonId = Int(raw[5])
     }
     public mutating func parse(_ raw: [UInt8]) { self = BolusPermissionResponse(cargo: raw) }
-    public var granted: Bool { status == 0 }
+    // CX-T-02: status==0 alone is not sufficient — a nonzero nackReasonId is a denial the pump
+    // is signaling via a secondary field. Gate on both so a status-0-but-denied response is not
+    // mistaken for a grant.
+    public var granted: Bool { status == 0 && nackReasonId == 0 }
 }
 
 /// Initiate-bolus ack. `response/control/InitiateBolusResponse` (opcode 159, 6 bytes).
@@ -1312,7 +1315,10 @@ public struct InitiateBolusResponse: ResponseMessage {
         statusTypeId = Int(raw[5])
     }
     public mutating func parse(_ raw: [UInt8]) { self = InitiateBolusResponse(cargo: raw) }
-    public var accepted: Bool { status == 0 }
+    // CX-T-02: status==0 alone is not sufficient — a nonzero statusTypeId is a denial the pump
+    // is signaling via a secondary field. Gate on both so a status-0-but-denied response is not
+    // mistaken for an accept.
+    public var accepted: Bool { status == 0 && statusTypeId == 0 }
 }
 
 // MARK: - A2 control-command acks (generated, oracle/direct-verified)

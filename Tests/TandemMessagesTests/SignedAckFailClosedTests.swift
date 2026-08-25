@@ -53,4 +53,24 @@ struct SignedAckFailClosedTests {
         #expect(SetTempRateResponse(cargo: [0, 0, 0, 0]).accepted)
         #expect(!SetTempRateResponse(cargo: [1, 0, 0, 0]).accepted)
     }
+
+    // CX-T-02: a signed response with status==0 but a nonzero denial field (nackReasonId /
+    // statusTypeId) is a DENIAL, not a grant/accept. Collapsing the gate to `status == 0` alone
+    // accepts a response the pump is using to say "no". `granted`/`accepted` must gate on the
+    // denial field too — status==0 && denialField==0 — so an unknown/nonzero denial code fails
+    // CLOSED even though the leading status byte is zero.
+
+    @Test func bolusPermissionResponseStatusZeroWithNackReasonIsNotGranted() {
+        // status==0, bolusId==0, nackReasonId!=0 (byte index 5) ⇒ NOT granted despite status==0.
+        #expect(!BolusPermissionResponse(cargo: [0, 0, 0, 0, 0, 7]).granted)
+        // status==0, nackReasonId==0 ⇒ granted (no regression to the happy path).
+        #expect(BolusPermissionResponse(cargo: [0, 0, 0, 0, 0, 0]).granted)
+    }
+
+    @Test func initiateBolusResponseStatusZeroWithStatusTypeIdIsNotAccepted() {
+        // status==0, bolusId==0, statusTypeId!=0 (byte index 5) ⇒ NOT accepted despite status==0.
+        #expect(!InitiateBolusResponse(cargo: [0, 0, 0, 0, 0, 3]).accepted)
+        // status==0, statusTypeId==0 ⇒ accepted (no regression to the happy path).
+        #expect(InitiateBolusResponse(cargo: [0, 0, 0, 0, 0, 0]).accepted)
+    }
 }
