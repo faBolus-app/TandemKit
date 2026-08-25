@@ -231,19 +231,29 @@ import Testing
 
     /// CONTROL_STREAM state responses (A3): dispatch on .controlStream + offsets. Also exercises the
     /// characteristic-aware parser for opcodes that only exist on CONTROL_STREAM.
+    ///
+    /// CX-T-01: these opcodes now declare `signed: true, stream: true`, so `ResponseParser` requires a
+    /// 24-byte auth trailer and strips it before decoding cargo. This is a decode/dispatch test (not a
+    /// signature test — see `ControlStreamSignedVerifyTests`), so frames carry a placeholder (zero)
+    /// trailer and `verifySignature: false` skips VA-04 verification, matching the documented escape
+    /// hatch used by the other signed-frame dispatch tests in this file.
     @Test func controlStreamStateResponses() throws {
         func frame(_ op: UInt8, _ cargo: [UInt8]) -> [UInt8] {
-            let body: [UInt8] = [op, 0x01, UInt8(cargo.count)] + cargo
+            let payload = cargo + [UInt8](repeating: 0, count: 24)
+            let body: [UInt8] = [op, 0x01, UInt8(payload.count)] + payload
             return body + Bytes.calculateCRC16(body)
         }
         // Detecting cartridge (0xE3): percentComplete short@0
-        let det = try ResponseParser.parse(frame: frame(0xE3, [50, 0]), characteristic: .controlStream)
+        let det = try ResponseParser.parse(frame: frame(0xE3, [50, 0]), characteristic: .controlStream,
+                                           verifySignature: false)
         #expect((det.message as? DetectingCartridgeStateStreamResponse)?.percentComplete == 50)
         // Fill cannula (0xE7): stateId@0
-        let fc = try ResponseParser.parse(frame: frame(0xE7, [3]), characteristic: .controlStream)
+        let fc = try ResponseParser.parse(frame: frame(0xE7, [3]), characteristic: .controlStream,
+                                          verifySignature: false)
         #expect((fc.message as? FillCannulaStateStreamResponse)?.stateId == 3)
         // Exit-fill-tubing (0xE9): representative for the -23 group
-        let ex = try ResponseParser.parse(frame: frame(0xE9, [1]), characteristic: .controlStream)
+        let ex = try ResponseParser.parse(frame: frame(0xE9, [1]), characteristic: .controlStream,
+                                          verifySignature: false)
         #expect(ex.message is ExitFillTubingModeStateStreamResponse)
     }
 

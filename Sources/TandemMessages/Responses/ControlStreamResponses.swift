@@ -8,8 +8,14 @@ import Foundation
 /// `response/controlStream/*StateStreamResponse`.
 
 /// Enter-change-cartridge-mode state (op 0xE1). stateId@0.
+///
+/// CX-T-01: `stream: true, signed: true` so `ResponseParser` HMAC-verifies the 24-byte auth trailer
+/// and strips it before parsing cargo. Decode-side/metadata-only; no wire/encode byte change. Real-
+/// pump signing confirmation is BENCH-GATED (Phase 12); on narrow main this path is Mobi-only-
+/// reachable and Mobi is rejected at the delivery boundary, so implementing fail-safe now carries no
+/// delivery risk.
 public struct EnterChangeCartridgeModeStateStreamResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xE1, size: 1, type: .response, characteristic: .controlStream)
+    public static let props = MessageProps(opCode: 0xE1, size: 1, stream: true, signed: true, type: .response, characteristic: .controlStream)
     public var cargo: [UInt8]
     public private(set) var stateId = 0
     public init() { cargo = [] }
@@ -19,8 +25,9 @@ public struct EnterChangeCartridgeModeStateStreamResponse: ResponseMessage {
 
 /// Detecting-cartridge state (op 0xE3, representative for the -29 group; also load-cartridge).
 /// percentComplete = short@0.
+/// CX-T-01: signed+stream (see EnterChangeCartridgeModeStateStreamResponse doc for rationale).
 public struct DetectingCartridgeStateStreamResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xE3, size: 2, type: .response, characteristic: .controlStream)
+    public static let props = MessageProps(opCode: 0xE3, size: 2, stream: true, signed: true, type: .response, characteristic: .controlStream)
     public var cargo: [UInt8]
     public private(set) var percentComplete = 0
     public init() { cargo = [] }
@@ -29,8 +36,9 @@ public struct DetectingCartridgeStateStreamResponse: ResponseMessage {
 }
 
 /// Fill-tubing state (op 0xE5). buttonState@0.
+/// CX-T-01: signed+stream (see EnterChangeCartridgeModeStateStreamResponse doc for rationale).
 public struct FillTubingStateStreamResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xE5, size: 1, type: .response, characteristic: .controlStream)
+    public static let props = MessageProps(opCode: 0xE5, size: 1, stream: true, signed: true, type: .response, characteristic: .controlStream)
     public var cargo: [UInt8]
     public private(set) var buttonState = 0
     public init() { cargo = [] }
@@ -39,8 +47,9 @@ public struct FillTubingStateStreamResponse: ResponseMessage {
 }
 
 /// Fill-cannula state (op 0xE7). stateId@0.
+/// CX-T-01: signed+stream (see EnterChangeCartridgeModeStateStreamResponse doc for rationale).
 public struct FillCannulaStateStreamResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xE7, size: 1, type: .response, characteristic: .controlStream)
+    public static let props = MessageProps(opCode: 0xE7, size: 1, stream: true, signed: true, type: .response, characteristic: .controlStream)
     public var cargo: [UInt8]
     public private(set) var stateId = 0
     public init() { cargo = [] }
@@ -50,8 +59,9 @@ public struct FillCannulaStateStreamResponse: ResponseMessage {
 
 /// Exit-fill-tubing-mode state (op 0xE9, representative for the -23 group; also prime/pumping).
 /// stateId@0.
+/// CX-T-01: signed+stream (see EnterChangeCartridgeModeStateStreamResponse doc for rationale).
 public struct ExitFillTubingModeStateStreamResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xE9, size: 1, type: .response, characteristic: .controlStream)
+    public static let props = MessageProps(opCode: 0xE9, size: 1, stream: true, signed: true, type: .response, characteristic: .controlStream)
     public var cargo: [UInt8]
     public private(set) var stateId = 0
     public init() { cargo = [] }

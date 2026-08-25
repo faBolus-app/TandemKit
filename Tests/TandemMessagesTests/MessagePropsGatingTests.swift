@@ -121,4 +121,25 @@ import Testing
             #expect(props.isSupported(onModel: .tslim, apiVersion: nil))
         }
     }
+
+    // MARK: - CX-T-01: the 5 CONTROL_STREAM cartridge-fill state responses must be signed+stream
+    //
+    // Omitting `signed:`/`stream:` on these opcodes (0xE1/0xE3/0xE5/0xE7/0xE9) silently skips VA-04
+    // HMAC verification and the 24-byte auth-trailer strip in `ResponseParser.parse` — a forged/
+    // tampered cartridge-fill progress frame would decode as trusted. BENCH-GATED (Phase-12) for
+    // real-pump signing confirmation; safe to implement now because these responses are Mobi-only-
+    // reachable on narrow main and Mobi is rejected at the delivery boundary.
+    @Test func controlStreamStateResponsesAreSignedAndStream() {
+        let props: [MessageProps] = [
+            EnterChangeCartridgeModeStateStreamResponse.props,
+            DetectingCartridgeStateStreamResponse.props,
+            FillTubingStateStreamResponse.props,
+            FillCannulaStateStreamResponse.props,
+            ExitFillTubingModeStateStreamResponse.props,
+        ]
+        for p in props {
+            #expect(p.signed == true)
+            #expect(p.stream == true)
+        }
+    }
 }
