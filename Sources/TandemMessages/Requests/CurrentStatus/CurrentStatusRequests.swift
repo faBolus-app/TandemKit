@@ -162,12 +162,12 @@ public struct PumpFeaturesV1Request: EmptyCurrentStatusRequest {
     public init(emptyCargo: Void = ()) { self.cargo = [] }
 }
 public struct LoadStatusRequest: EmptyCurrentStatusRequest {
-    public static let props = statusProps(20)               // response 21
+    public static let props = statusProps(20, minApi: .benchConservativeUnverifiedFloor)   // response 21; CONSERVATIVE/UNVERIFIED bench floor (T-1 op-77, >2.5 only)
     public var cargo: [UInt8] = []
     public init(emptyCargo: Void = ()) { self.cargo = [] }
 }
 public struct ExtendedBolusStatusV2Request: EmptyCurrentStatusRequest {
-    public static let props = statusProps(0xB6)             // -74; response 0xB7 (183)
+    public static let props = statusProps(0xB6, minApi: .benchConservativeUnverifiedFloor)   // -74; response 0xB7 (183); CONSERVATIVE/UNVERIFIED bench floor (T-1 op-77, >2.5 only)
     public var cargo: [UInt8] = []
     public init(emptyCargo: Void = ()) { self.cargo = [] }
 }
@@ -207,7 +207,7 @@ public struct TempRateRequest: EmptyCurrentStatusRequest {
     public static let props = statusProps(42); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }
 }
 public struct TempRateStatusRequest: EmptyCurrentStatusRequest {
-    public static let props = statusProps(30); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }
+    public static let props = statusProps(30, minApi: .benchConservativeUnverifiedFloor); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }   // CONSERVATIVE/UNVERIFIED bench floor (T-1 op-77, >2.5 only)
 }
 public struct RemindersRequest: EmptyCurrentStatusRequest {
     public static let props = statusProps(88); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }
@@ -216,13 +216,13 @@ public struct ControlIQSleepScheduleRequest: EmptyCurrentStatusRequest {
     public static let props = statusProps(106); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }
 }
 public struct BasalIQStatusRequest: EmptyCurrentStatusRequest {
-    public static let props = statusProps(112); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }
+    public static let props = statusProps(112, minApi: .benchConservativeUnverifiedFloor); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }   // CONSERVATIVE/UNVERIFIED bench floor (T-1 op-77, >2.5 only)
 }
 public struct BasalIQSettingsRequest: EmptyCurrentStatusRequest {
-    public static let props = statusProps(98); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }
+    public static let props = statusProps(98, minApi: .benchConservativeUnverifiedFloor); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }   // CONSERVATIVE/UNVERIFIED bench floor (T-1 op-77, >2.5 only)
 }
 public struct BasalIQAlertInfoRequest: EmptyCurrentStatusRequest {
-    public static let props = statusProps(102); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }
+    public static let props = statusProps(102, minApi: .benchConservativeUnverifiedFloor); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }   // CONSERVATIVE/UNVERIFIED bench floor (T-1 op-77, >2.5 only)
 }
 public struct CGMGlucoseAlertSettingsRequest: EmptyCurrentStatusRequest {
     public static let props = statusProps(90); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }
@@ -234,7 +234,7 @@ public struct CGMOORAlertSettingsRequest: EmptyCurrentStatusRequest {
     public static let props = statusProps(94); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }
 }
 public struct BleSoftwareInfoRequest: EmptyCurrentStatusRequest {
-    public static let props = statusProps(0x88); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }
+    public static let props = statusProps(0x88, minApi: .benchConservativeUnverifiedFloor); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }   // CONSERVATIVE/UNVERIFIED bench floor (T-1 op-77, >2.5 only)
 }
 public struct GetG6TransmitterHardwareInfoRequest: EmptyCurrentStatusRequest {
     public static let props = statusProps(0xC4); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }
@@ -252,7 +252,7 @@ public struct PumpVersionBRequest: EmptyCurrentStatusRequest {
     public static let props = statusProps(0x84); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }
 }
 public struct SecretMenuRequest: EmptyCurrentStatusRequest {
-    public static let props = statusProps(0xBC); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }
+    public static let props = statusProps(0xBC, minApi: .benchConservativeUnverifiedFloor); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }   // CONSERVATIVE/UNVERIFIED bench floor (T-1 op-77, >2.5 only)
 }
 public struct UnknownMobiOpcode110Request: EmptyCurrentStatusRequest {
     public static let props = statusProps(110, supportedDevices: [.mobi], minApi: .mobi_v3_5); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }

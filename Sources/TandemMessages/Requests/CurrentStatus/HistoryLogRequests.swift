@@ -21,7 +21,8 @@ public struct HistoryLogStatusRequest: EmptyCurrentStatusRequest {
 /// `HistoryLogStreamResponse` frames. `numberOfLogs` is a single byte (max 255 per request).
 public struct HistoryLogRequest: Message {
     public static let props = MessageProps(opCode: 60, size: 5, type: .request,
-                                           characteristic: .currentStatus, responseOpCode: 61)
+                                           characteristic: .currentStatus, responseOpCode: 61,
+                                           minApi: .benchConservativeUnverifiedFloor)   // CONSERVATIVE/UNVERIFIED bench floor (T-1 op-77, >2.5 only)
     public var cargo: [UInt8]
     public private(set) var startLog: UInt32 = 0
     public private(set) var numberOfLogs: Int = 0

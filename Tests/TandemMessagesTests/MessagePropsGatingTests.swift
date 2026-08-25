@@ -92,4 +92,33 @@ import Testing
             #expect(props.isSupported(onModel: .tslim, apiVersion: nil))
         }
     }
+
+    // MARK: - C4-02: the bench-observed op-77-class reads carry the same conservative floor
+    //
+    // Shipping-metadata additions (distinct provenance from C4-01 — not a cherry-pick): sourced from
+    // experimental's `BenchCommandCatalog.benchObservedUnsupported` list (T-1, tslim API ≤2.5). Same
+    // assertion shape as the writes above.
+    @Test func benchObservedReadsCarryTheConservativeFloor() {
+        let flooredReads: [MessageProps] = [
+            LoadStatusRequest.props,
+            ExtendedBolusStatusV2Request.props,
+            TempRateStatusRequest.props,
+            BasalIQStatusRequest.props,
+            BasalIQSettingsRequest.props,
+            BasalIQAlertInfoRequest.props,
+            BleSoftwareInfoRequest.props,
+            SecretMenuRequest.props,
+            HistoryLogRequest.props,
+            IDPSettingsRequest.props,
+            IDPSegmentRequest.props,
+            CreateHistoryLogRequest.props,
+            StreamDataReadinessRequest.props,
+        ]
+        for props in flooredReads {
+            #expect(props.minApi == .benchConservativeUnverifiedFloor)
+            #expect(props.isSupported(onModel: .tslim, apiVersion: .v2_5) == false)
+            #expect(props.isSupported(onModel: .tslim, apiVersion: .v3_4))
+            #expect(props.isSupported(onModel: .tslim, apiVersion: nil))
+        }
+    }
 }

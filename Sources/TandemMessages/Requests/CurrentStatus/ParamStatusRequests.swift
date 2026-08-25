@@ -35,7 +35,7 @@ public struct CommonSoftwareInfoRequest: Message {
 
 /// Creates a history-log query for `numberOfLogs` (opcode 0x7E → 0x7F). uint32 cargo.
 public struct CreateHistoryLogRequest: Message {
-    public static let props = MessageProps(opCode: 0x7E, size: 4, type: .request, characteristic: .currentStatus, responseOpCode: 0x7F)
+    public static let props = MessageProps(opCode: 0x7E, size: 4, type: .request, characteristic: .currentStatus, responseOpCode: 0x7F, minApi: .benchConservativeUnverifiedFloor)   // CONSERVATIVE/UNVERIFIED bench floor (T-1 op-77, >2.5 only)
     public var cargo: [UInt8]
     public private(set) var numberOfLogs: UInt32 = 0
     public init() { cargo = [] }
@@ -45,7 +45,7 @@ public struct CreateHistoryLogRequest: Message {
 
 /// Stream-data readiness for a stream type (opcode 0xC6 → 0xC7). 1-byte cargo.
 public struct StreamDataReadinessRequest: Message {
-    public static let props = MessageProps(opCode: 0xC6, size: 1, type: .request, characteristic: .currentStatus, responseOpCode: 0xC7)
+    public static let props = MessageProps(opCode: 0xC6, size: 1, type: .request, characteristic: .currentStatus, responseOpCode: 0xC7, minApi: .benchConservativeUnverifiedFloor)   // CONSERVATIVE/UNVERIFIED bench floor (T-1 op-77, >2.5 only)
     public var cargo: [UInt8]
     public private(set) var streamDataType = 0
     public init() { cargo = [] }

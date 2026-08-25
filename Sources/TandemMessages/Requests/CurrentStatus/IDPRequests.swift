@@ -11,7 +11,8 @@ import Foundation
 /// Requests settings for the profile with the given `idpId` (opcode 64 → 65). 1-byte cargo.
 public struct IDPSettingsRequest: Message {
     public static let props = MessageProps(opCode: 64, size: 1, type: .request,
-                                           characteristic: .currentStatus, responseOpCode: 65)
+                                           characteristic: .currentStatus, responseOpCode: 65,
+                                           minApi: .benchConservativeUnverifiedFloor)   // CONSERVATIVE/UNVERIFIED bench floor (T-1 op-77, >2.5 only)
     public var cargo: [UInt8]
     public private(set) var idpId: Int = 0
     public init() { cargo = [] }
@@ -30,7 +31,8 @@ public struct IDPSettingsRequest: Message {
 /// (opcode 66 → 67). 2-byte cargo: [idpId, segmentIndex].
 public struct IDPSegmentRequest: Message {
     public static let props = MessageProps(opCode: 66, size: 2, type: .request,
-                                           characteristic: .currentStatus, responseOpCode: 67)
+                                           characteristic: .currentStatus, responseOpCode: 67,
+                                           minApi: .benchConservativeUnverifiedFloor)   // CONSERVATIVE/UNVERIFIED bench floor (T-1 op-77, >2.5 only)
     public var cargo: [UInt8]
     public private(set) var idpId: Int = 0
     public private(set) var segmentIndex: Int = 0
