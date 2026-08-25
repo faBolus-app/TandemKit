@@ -756,7 +756,14 @@ public final class PumpBLEClient: NSObject {
         // (nil model/api ⇒ isSupported == true ⇒ proceed exactly as today). Lives here, above the
         // coordinator — PumpTransactionCoordinator is untouched (D-05).
         if let deviceError = deviceSupportError(for: message) { throw deviceError }
-        // RED (CX-T-10): no disconnect-gap guard yet — added in the next commit.
+        // CX-T-10: refuse during the `disconnect()` → `didDisconnectPeripheral` gap. `disconnect()` sets
+        // `intentionalDisconnect` synchronously but the link teardown (`cancelPeripheralConnection`) and the
+        // resulting `state`/`peripheral`/`characteristics` reset are async — without this guard, a send
+        // issued in that window would sail through the `state == .ready` check below on a link CoreBluetooth
+        // is already tearing down. Checked BEFORE readiness, same precedence as `authorizationError`/
+        // `deviceSupportError` above, and mirrors the `!intentionalDisconnect` guards already used elsewhere
+        // in this class (`didDiscover`, `reconnectTick`, `startReconnectWatchdog`, …).
+        if intentionalDisconnect { throw ClientError.disconnecting }
         guard state == .ready, let peripheral,
               let cbChar = characteristics[message.characteristic] else {
             throw ClientError.notReady
