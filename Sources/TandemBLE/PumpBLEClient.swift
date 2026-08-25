@@ -759,6 +759,11 @@ public final class PumpBLEClient: NSObject {
     ///
     /// - Parameter responseOpCode: the opcode to correlate; defaults to `message.props.responseOpCode`.
     ///   Throws `ClientError.notReady` if the message declares no response opcode and none is given.
+    /// - Parameter serialized: caller opt-in for the R3-D at-most-one-in-flight delivery lane. CX-T-06:
+    ///   this is OR'd with `message.props.modifiesInsulinDelivery`, never just trusted — a delivery-class
+    ///   message is serialized BY CONSTRUCTION even if a caller forgets (or a future call site is added
+    ///   without) the opt-in, so "is this a delivery command" has exactly one source of truth
+    ///   (`MessageProps.modifiesInsulinDelivery`) instead of two that can drift apart.
     @discardableResult
     public func sendAwaitingResponse(
         _ message: Message,
@@ -773,9 +778,10 @@ public final class PumpBLEClient: NSObject {
             throw ClientError.notReady
         }
         let characteristic = message.characteristic
+        let effectiveSerialized = serialized   // RED (CX-T-06): not yet OR'd with modifiesInsulinDelivery.
         return try await transactions.perform(
             expectedResponseOn: characteristic, opCode: expectedOpCode, deadline: deadline,
-            serialized: serialized
+            serialized: effectiveSerialized
         ) {
             try self.send(message,
                           authenticationKey: authenticationKey,
