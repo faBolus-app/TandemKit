@@ -421,6 +421,16 @@ public final class PumpBLEClient: NSObject {
         set { readySince = newValue }
     }
 
+    /// Test seam (CX-T-05) — a real `.ready` transition needs a live `CBPeripheral`/`CBCharacteristic`
+    /// (hardware-only per the class doc's TCC note). Setting this directly lets a unit test exercise
+    /// `.ready`-gated behavior (the post-ready notification-loss revoke) without driving the full
+    /// CoreBluetooth discovery dance. Goes through the same stored property as production, so `didSet`'s
+    /// `didChange` notification still fires — no divergent test path.
+    var stateForTesting: State {
+        get { state }
+        set { state = newValue }
+    }
+
     // MARK: Scan timeout (§5.2.4 / B3b)
     /// A separate one-shot timer (NOT the reconnect watchdog) that fires when a scan for a KNOWN pump
     /// finds nothing within the window. It exists because once `startScan()` latches `.scanning`, nothing
@@ -1093,18 +1103,52 @@ extension PumpBLEClient: CBPeripheralDelegate {
     public nonisolated func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic,
                                        error: Error?) {
         MainActor.assumeIsolated {
-            // A failed subscription means a response channel isn't live → fail closed (PX-04/PX-08): reset
-            // the write policy and resume any pending transaction, and surface the error.
-            if let error {
-                failClosed(resumePending: true)
-                notify { $0.pumpClient(self, didError: error) }
-                return
-            }
-            guard let mapped = Characteristic.of(uuid: characteristic.uuid.uuidValue) else { return }
-            if characteristic.isNotifying { confirmedNotifying.insert(mapped) }
-            else { confirmedNotifying.remove(mapped) }
-            maybeBecomeReady()
+            handleNotificationStateUpdate(
+                mapped: Characteristic.of(uuid: characteristic.uuid.uuidValue),
+                isNotifying: characteristic.isNotifying,
+                error: error
+            )
         }
+    }
+
+    /// Core logic for `didUpdateNotificationStateFor`, extracted (internal, not private) so it is
+    /// unit-testable without a real `CBCharacteristic` — the real delegate method above decodes the CB
+    /// types into plain values and forwards; this does no CoreBluetooth work itself. Same testability
+    /// pattern already used for `handleQualifyingEventsFrame`.
+    ///
+    /// A failed subscription means a response channel isn't live → fail closed (PX-04/PX-08): reset the
+    /// write policy and resume any pending transaction, and surface the error — unchanged from before.
+    ///
+    /// CX-T-05 (post-ready notification loss): when `isNotifying` flips false with NO CB error while
+    /// `state == .ready`, the response channel this subscription guarded just went dark on an otherwise-
+    /// healthy-looking link. `maybeBecomeReady()` below is a no-op once `.ready` (its own guard), so
+    /// without an explicit revoke this loss would be silently absorbed — the link would keep reporting
+    /// `.ready` to every caller even though its subscription-ready barrier (PX-08) no longer holds.
+    func handleNotificationStateUpdate(mapped: Characteristic?, isNotifying: Bool, error: Error?) {
+        if let error {
+            failClosed(resumePending: true)
+            notify { $0.pumpClient(self, didError: error) }
+            return
+        }
+        guard let mapped else { return }
+        if isNotifying {
+            confirmedNotifying.insert(mapped)
+        } else {
+            confirmedNotifying.remove(mapped)
+            // RED (CX-T-05): no revoke yet on a post-ready notification loss — added in the next commit.
+        }
+        maybeBecomeReady()
+    }
+
+    /// CX-T-05: revoke `.ready` on a post-ready notification loss. Transitions to `.discovering` — the
+    /// same state used while the PX-08 subscription-ready barrier is still being satisfied during initial
+    /// establishment — so `maybeBecomeReady()` can re-declare `.ready` once the subscription is reconfirmed,
+    /// and any caller gating a send on `state == .ready` correctly sees the link as not-yet-ready in the
+    /// interim, instead of a stale `.ready` masking the lost channel. Does not touch `characteristics` or
+    /// tear down the link — only the notify barrier was lost, not the whole connection; a genuine
+    /// disconnect is handled separately by `failClosed`/`didDisconnectPeripheral`.
+    private func revokeReadiness() {
+        state = .discovering
     }
 
     public nonisolated func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic,
@@ -1149,7 +1193,23 @@ extension PumpBLEClient: CBPeripheralDelegate {
 
     public nonisolated func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic,
                                        error: Error?) {
-        MainActor.assumeIsolated { if let error { notify { $0.pumpClient(self, didError: error) } } }
+        MainActor.assumeIsolated { handleWriteResult(error: error) }
+    }
+
+    /// Core logic for `didWriteValueFor`, extracted (internal, not private) so it is unit-testable without
+    /// a real `CBPeripheral`/`CBCharacteristic` — same pattern as `handleNotificationStateUpdate`. Neither
+    /// the real delegate method's `characteristic` nor `peripheral` parameter was ever used in this body
+    /// (before or after this fix), so no CB value needs to cross the boundary.
+    ///
+    /// CX-T-05: a failed write orphans any transaction awaiting THAT write's correlated response — the
+    /// reply it was en route to unlock never arrives — so this must fail closed (PX-04/PX-08) exactly like
+    /// its two correct siblings (`didUpdateNotificationStateFor`/`didUpdateValueFor`'s error branches),
+    /// instead of only notifying and leaving the write policy elevated / the transaction hanging.
+    func handleWriteResult(error: Error?) {
+        if let error {
+            // RED (CX-T-05): no failClosed yet on a write error — added in the next commit.
+            notify { $0.pumpClient(self, didError: error) }
+        }
     }
 }
 
