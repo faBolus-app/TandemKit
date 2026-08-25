@@ -3,10 +3,12 @@ import TandemMessages
 @testable import TandemAuth
 
 @Suite struct PairingCoordinatorTests {
-    /// Build a fake inbound frame [opcode, txId, len, cargo…, crc(2)]. The coordinator ignores
-    /// the CRC (validated at the BLE layer), so dummy CRC bytes are fine.
+    /// Build an inbound frame [opcode, txId, len, cargo…, crc(2)]. CX-T-08: `handle(frame:)` now
+    /// validates the CRC + declared length itself (mirroring ResponseParser), so this helper must
+    /// emit a REAL `Bytes.calculateCRC16` trailer — a dummy `[0, 0]` CRC would now fail closed.
     private func frame(_ opcode: UInt8, _ cargo: [UInt8]) -> [UInt8] {
-        [opcode, 0, UInt8(cargo.count)] + cargo + [0, 0]
+        let body: [UInt8] = [opcode, 0, UInt8(cargo.count)] + cargo
+        return body + Bytes.calculateCRC16(body)
     }
     private func withAppId(_ payload: [UInt8]) -> [UInt8] { [0, 0] + payload }  // appInstanceId=0
 
