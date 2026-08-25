@@ -31,6 +31,12 @@ public protocol PumpBLEClientDelegate: AnyObject {
     /// only way the count/backoff — which otherwise lives only in this class's private state — leaves the
     /// kit, so a host can record it for diagnostics without the kit taking on any logging concern itself.
     func pumpClient(_ client: PumpBLEClient, willRetryReconnect attempt: Int, after delay: TimeInterval)
+    /// CC-03 (kit half): the pump's qualifying-events bitmap, decoded and dispatched typed. Fired
+    /// only when the decoded set is non-empty (an all-zero bitmap dispatches nothing). App-side
+    /// pause-sends / dedup consumption is Phase 13 — NOT this delegate method's concern; the kit
+    /// only decodes + dispatches + issues the reference-backed clear (see `PumpBLEClient
+    /// .handleQualifyingEventsFrame`).
+    func pumpClient(_ client: PumpBLEClient, didReceiveQualifyingEvent event: QualifyingEvent)
 }
 
 /// Default no-op for `willRetryReconnect` — every conformer that doesn't care about the reconnect
@@ -39,6 +45,10 @@ public protocol PumpBLEClientDelegate: AnyObject {
 @MainActor
 public extension PumpBLEClientDelegate {
     func pumpClient(_ client: PumpBLEClient, willRetryReconnect attempt: Int, after delay: TimeInterval) {}
+    /// Default no-op, mirroring `willRetryReconnect` above — every existing conformer (WatchPumpClient,
+    /// test/bench/harness delegates) keeps compiling unchanged; faBolus (Phase 13) overrides this to
+    /// consume the comms-suspension signal instead of silently dropping it.
+    func pumpClient(_ client: PumpBLEClient, didReceiveQualifyingEvent event: QualifyingEvent) {}
 }
 
 /// B3(b) TEST SEAM — the minimal `CBCentralManager` surface `PumpBLEClient` actually uses. `CBCentralManager`
@@ -798,6 +808,29 @@ public final class PumpBLEClient: NSObject {
         if let d = delegate { block(d) }
     }
 
+    /// CC-03 (kit half): decode + typed-dispatch + reference-backed clear of the qualifying-events
+    /// bitmap. Extracted out of `didUpdateValueFor` so it is unit-testable via an injected `clear`
+    /// closure — a macOS test host cannot construct a real `CBPeripheral`/`CBCharacteristic` (TCC-
+    /// aborted at scan; see the class note). STRICTLY ADDITIVE: this is the only new dispatch this
+    /// phase adds; the reassembler -> `transactions.ingest` -> `didReceiveFrame` path it is called
+    /// alongside stays byte-identical.
+    ///
+    /// - An empty decoded bitmap (all-zero, or an undersized buffer) dispatches NOTHING and clears
+    ///   NOTHING, mirroring upstream's `if (!rawEvents.isEmpty())` clear gate.
+    /// - A non-empty bitmap always dispatches the typed event via the additive delegate method.
+    /// - The reference-backed clear (`[0,0,0,0]` `.withResponse` to `.qualifyingEvents`, per
+    ///   `TandemBluetoothHandler.clearQualifyingEvents`) fires ONLY when no delivery-class
+    ///   (`serialized`) transaction is in flight (delivery-transaction-safety guard, freeze-
+    ///   reconciliation note). If one IS in flight, the clear is DEFERRED — fire-and-forget, no
+    ///   retry, matching upstream: the next non-empty bitmap clears again.
+    func handleQualifyingEventsFrame(_ frame: [UInt8], clear: () -> Void) {
+        let events = QualifyingEvent.decode(frame)
+        guard !events.isEmpty else { return }
+        notify { $0.pumpClient(self, didReceiveQualifyingEvent: events) }
+        guard !transactions.hasSerializedInFlight else { return }
+        clear()
+    }
+
     private func mapCentralState(_ s: CBManagerState) -> State {
         switch s {
         case .poweredOff: return .poweredOff
@@ -1075,6 +1108,20 @@ extension PumpBLEClient: CBPeripheralDelegate {
                 // (unsolicited stream/status, or a caller still on the delegate path) deliver as before.
                 if !transactions.ingest(frame: frame, on: mapped) {
                     notify { $0.pumpClient(self, didReceiveFrame: frame, on: mapped) }
+                    // CC-03 (kit half), STRICTLY ADDITIVE: the qualifying-events characteristic
+                    // carries a raw little-endian 4-byte bitmap (no opcode/txId/len/crc framing,
+                    // per upstream QualifyingEvent.fromRawBtBytes) — decode + typed-dispatch + a
+                    // reference-backed clear write, alongside (not instead of) the opaque
+                    // didReceiveFrame delivery above.
+                    if mapped == .qualifyingEvents {
+                        handleQualifyingEventsFrame(frame) { [self] in
+                            // `self.peripheral` (not the `peripheral:` parameter of this delegate
+                            // callback, which is non-optional and shadows it in this scope).
+                            guard let target = self.peripheral,
+                                  let cbChar = characteristics[.qualifyingEvents] else { return }
+                            target.writeValue(Data([0, 0, 0, 0]), for: cbChar, type: .withResponse)
+                        }
+                    }
                 }
             } else {
                 reassembly[mapped] = reassembler
