@@ -60,6 +60,10 @@ public struct CgmHistoryReading: Sendable, Equatable {
 public struct BolusHistoryRecord: Sendable, Equatable {
     public let pumpTimeSec: UInt32
     public let sequenceNum: UInt32
+    /// The pump-assigned bolus id (short@12) — restored (CC-11, Phase 14 14-04) so a host-side
+    /// exact-id history search (`TandemBackend.findBolusInHistory(bolusId:)`) can key off it. Mirrors
+    /// `BolusCompletedHistoryLog.bolusId`'s existing correct decode of the same field/offset.
+    public let bolusId: Int
     public let deliveredUnits: Double
     /// Insulin on board at the time of this bolus completion — lets us seed the IOB chart from
     /// history (the pump keeps no separate IOB-over-time log).
@@ -101,14 +105,21 @@ public enum HistoryLog {
     /// Parses one 26-byte record, returning a completed bolus if it's a `LID_BOLUS_COMPLETED`
     /// record. Layout (`BolusCompletedHistoryLog`): completionStatus = short@10, bolusId = short@12,
     /// iob = float@14, insulinDelivered = float@18, insulinRequested = float@22.
+    ///
+    /// CC-11 (Phase 14 14-04): a 0U-delivered completed record (e.g. cancelled before any insulin
+    /// went in) is now ACCEPTED, not rejected — `completionStatusId` still distinguishes a genuine
+    /// partial/cancel from a full delivery, so a 0U record is real, meaningful data for the exact-id
+    /// history search, never a sentinel to discard. Only the upper bound (`< 100`, an implausible-
+    /// units guard against a garbage/corrupted float) stays a fail-closed sanity check.
     static func parseBolusRecord(_ raw: [UInt8]) -> BolusHistoryRecord? {
         guard raw.count >= recordSize else { return nil }
         let typeId = Bytes.readShort(raw, 0) & 0x0FFF
         guard typeId == bolusCompletedTypeId else { return nil }
         let delivered = Double(Bytes.readFloat(raw, 18))
-        guard delivered > 0, delivered < 100 else { return nil }   // guard sentinel/garbage
+        guard delivered >= 0, delivered < 100 else { return nil }   // guard sentinel/garbage (accept 0U)
         return BolusHistoryRecord(pumpTimeSec: Bytes.readUint32(raw, 2),
                                   sequenceNum: Bytes.readUint32(raw, 6),
+                                  bolusId: Bytes.readShort(raw, 12),
                                   deliveredUnits: delivered,
                                   iobUnits: Double(Bytes.readFloat(raw, 14)),
                                   completionStatusId: Bytes.readShort(raw, 10))
