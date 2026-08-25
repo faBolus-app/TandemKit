@@ -325,3 +325,59 @@ private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8]
         #expect(resp.streamId == 0)
     }
 }
+
+/// CC-11 (Phase 14 14-04): the simplified `BolusHistoryRecord`/`HistoryLog.parseBolusRecord` decode
+/// (distinct from `BolusCompletedHistoryLog` above, which already carries `bolusId` and never rejected
+/// 0U) previously dropped the `bolusId` field and rejected a 0U-delivered completed record. Both are
+/// restored here — `bolusId` is the query key `TandemBackend.findBolusInHistory(bolusId:)` needs, and a
+/// 0U/partial completed record is exactly what a cancelled-before-any-insulin bolus reports.
+@Suite struct BolusHistoryRecordTests {
+    /// Builds a 26-byte `LID_BOLUS_COMPLETED` (typeId 20) record with the layout `HistoryLog.parseBolusRecord`
+    /// decodes: completionStatus = short@10, bolusId = short@12, iob = float@14, delivered = float@18.
+    private func bolusRecord(pumpTimeSec: UInt32, seq: UInt32, completionStatusId: Int, bolusId: Int,
+                             iobUnits: Double, deliveredUnits: Double) -> [UInt8] {
+        var tail = [UInt8](repeating: 0, count: 16)
+        let cs = Bytes.firstTwoBytesLittleEndian(completionStatusId); tail[0] = cs[0]; tail[1] = cs[1]   // offset 10
+        let bid = Bytes.firstTwoBytesLittleEndian(bolusId); tail[2] = bid[0]; tail[3] = bid[1]           // offset 12
+        let iob = Bytes.toFloat(Float(iobUnits)); for i in 0..<4 { tail[4 + i] = iob[i] }                // offset 14
+        let dv = Bytes.toFloat(Float(deliveredUnits)); for i in 0..<4 { tail[8 + i] = dv[i] }            // offset 18
+        return record(typeId: HistoryLog.bolusCompletedTypeId, pumpTimeSec: pumpTimeSec, seq: seq, tail: tail)
+    }
+
+    /// `bolusId` (short@12) must be exposed on the decoded `BolusHistoryRecord`, mirroring
+    /// `BolusCompletedHistoryLog`'s existing correct decode of the same field.
+    @Test func parseBolusRecordExposesBolusId() {
+        let raw = bolusRecord(pumpTimeSec: 500, seq: 42, completionStatusId: 3, bolusId: 1057,
+                              iobUnits: 2.5, deliveredUnits: 1.25)
+        let rec = try? #require(HistoryLog.parseBolusRecord(raw))
+        #expect(rec?.bolusId == 1057)
+        #expect(rec?.completionStatusId == 3)
+        #expect(rec?.pumpTimeSec == 500)
+        #expect(rec?.sequenceNum == 42)
+        #expect(abs((rec?.deliveredUnits ?? -1) - 1.25) < 0.0001)
+    }
+
+    /// A 0U-delivered completed record (e.g. cancelled before any insulin went in) must still parse —
+    /// the prior `delivered > 0` guard rejected it outright, hiding the record from CC-11's exact-id
+    /// search entirely.
+    @Test func parseBolusRecordAcceptsZeroUnitsCompleted() {
+        let raw = bolusRecord(pumpTimeSec: 600, seq: 43, completionStatusId: 5, bolusId: 2001,
+                              iobUnits: 0.4, deliveredUnits: 0)
+        let rec = try? #require(HistoryLog.parseBolusRecord(raw))
+        #expect(rec?.deliveredUnits == 0)
+        #expect(rec?.bolusId == 2001)
+    }
+
+    /// Fail-closed guard preserved: a short/invalid buffer still returns nil (unchanged).
+    @Test func parseBolusRecordRejectsShortBuffer() {
+        let raw = Array(bolusRecord(pumpTimeSec: 1, seq: 1, completionStatusId: 0, bolusId: 1,
+                                    iobUnits: 0, deliveredUnits: 1).dropLast())
+        #expect(HistoryLog.parseBolusRecord(raw) == nil)
+    }
+
+    /// A non-bolus typeId must still be rejected (unchanged fail-closed behavior).
+    @Test func parseBolusRecordRejectsWrongTypeId() {
+        let raw = record(typeId: 21, pumpTimeSec: 1, seq: 1)   // BolexCompletedHistoryLog, not BolusCompleted
+        #expect(HistoryLog.parseBolusRecord(raw) == nil)
+    }
+}
