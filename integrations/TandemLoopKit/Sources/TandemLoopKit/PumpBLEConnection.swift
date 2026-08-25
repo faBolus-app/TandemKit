@@ -57,7 +57,12 @@ public final class PumpBLEConnection: TandemPumpConnection {
             throw Self.map(e)
         }
         do {
-            let parsed = try ResponseParser.parse(frame: frame, characteristic: message.characteristic)
+            // U1-06: forward the session key on the RESPONSE-PARSE call, exactly like the SEND call
+            // above already does (`authenticationKey: signing?.authKey ?? []`) — omitting it here meant
+            // a signed response on this LoopKit path was never HMAC-verified (VA-04 protects the app
+            // path; this call site silently opted out of it).
+            let parsed = try ResponseParser.parse(frame: frame, characteristic: message.characteristic,
+                                                  authenticationKey: signing?.authKey ?? [])
             return parsed.message
         } catch {
             throw TandemTransportError.badResponse("\(error)")
@@ -81,7 +86,12 @@ public final class PumpBLEConnection: TandemPumpConnection {
     private static func map(_ e: PumpBLEClient.ClientError) -> TandemTransportError {
         switch e {
         case .notReady: return .notReady
-        case .writeBlocked: return .writeBlocked
+        // Pre-existing blocking build defect (unrelated to U1-06, fixed here as a Rule-3 blocker
+        // since it makes this file fail to compile): PumpBLEClient.ClientError grew
+        // `.unsupportedOnDevice(opcode:)` (D-08 device/API send gate) without this switch being
+        // updated. Its own doc comment says it is refused "BEFORE any byte is emitted, exactly like
+        // writeBlocked" — map it the same way.
+        case .writeBlocked, .unsupportedOnDevice: return .writeBlocked
         case .unknownCharacteristic, .writeFailed, .reconnectLoopDetected: return .connectionLost
         }
     }
