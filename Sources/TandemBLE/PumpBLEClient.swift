@@ -778,7 +778,7 @@ public final class PumpBLEClient: NSObject {
             throw ClientError.notReady
         }
         let characteristic = message.characteristic
-        let effectiveSerialized = serialized   // RED (CX-T-06): not yet OR'd with modifiesInsulinDelivery.
+        let effectiveSerialized = serialized || message.props.modifiesInsulinDelivery
         return try await transactions.perform(
             expectedResponseOn: characteristic, opCode: expectedOpCode, deadline: deadline,
             serialized: effectiveSerialized
