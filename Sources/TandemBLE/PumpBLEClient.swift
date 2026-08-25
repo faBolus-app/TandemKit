@@ -107,6 +107,15 @@ public final class PumpBLEClient: NSObject {
         /// The reconnect ladder hit `maxReconnectAttempts` without reaching `.ready` — surfaced alongside
         /// `State.reconnectExhausted` so a delegate that only observes `didError` still sees it.
         case reconnectLoopDetected
+        /// CX-T-10: refused because a user-initiated `disconnect()` is in flight — `intentionalDisconnect`
+        /// is set but `didDisconnectPeripheral` hasn't yet fired to tear down `state`/`peripheral`/
+        /// `characteristics`. Checked BEFORE the readiness guard (same precedence as `authorizationError`/
+        /// `deviceSupportError`) so a straggler send can't slip through on a link CoreBluetooth is already
+        /// tearing down. A DISTINCT case from `.notReady` — not just cosmetic: `.notReady` from a genuinely
+        /// absent connection is masking-safe to retry once reconnected, while `.disconnecting` tells the
+        /// caller this exact link is going away, mirroring why `.unsupportedOnDevice` is its own case
+        /// rather than reusing `.notReady` (both make an otherwise-truthy readiness state a hidden refusal).
+        case disconnecting
     }
 
     /// Graded write safety. Governs which outgoing messages `send()` permits — a defense-in-
@@ -431,6 +440,13 @@ public final class PumpBLEClient: NSObject {
         set { state = newValue }
     }
 
+    /// Test seam (CX-T-10) — simulates "a user-initiated `disconnect()` is in flight" without needing a
+    /// real `CBPeripheral`/`cancelPeripheralConnection` round trip.
+    var intentionalDisconnectForTesting: Bool {
+        get { intentionalDisconnect }
+        set { intentionalDisconnect = newValue }
+    }
+
     // MARK: Scan timeout (§5.2.4 / B3b)
     /// A separate one-shot timer (NOT the reconnect watchdog) that fires when a scan for a KNOWN pump
     /// finds nothing within the window. It exists because once `startScan()` latches `.scanning`, nothing
@@ -580,10 +596,17 @@ public final class PumpBLEClient: NSObject {
         cancelEstablishmentWatchdog()   // explicit: no cold-connect watchdog may outlive a user cancel
         reconnectTargetId = nil         // no auto-reconnect target survives an intentional disconnect
         pendingRetrieveId = nil         // drop any deferred cold-launch retrieve
+        // CX-T-10: publish the terminal state SYNCHRONOUSLY, before the async CoreBluetooth teardown
+        // (`cancelPeripheralConnection` → eventual `didDisconnectPeripheral`) completes. The old code only
+        // set `state` here for the no-peripheral (first-pair scan) branch and otherwise left `state`
+        // whatever it was (often `.ready`/`.connecting`) until the delegate callback caught up — a
+        // straggler `send()` issued in that gap saw an honest-looking `.ready` on a link already being torn
+        // down. `send()` additionally guards on `intentionalDisconnect` directly (see its doc), so the two
+        // fixes are defense-in-depth, not redundant: this makes `state` itself honest for any caller that
+        // checks it; the guard in `send()` closes the gap even for a caller that doesn't.
+        state = .disconnected
         if let p = peripheral {
             central.cancelPeripheralConnection(p)   // established/connecting → CB will report didDisconnect
-        } else {
-            state = .disconnected       // first-pair scan (no peripheral) → publish the terminal directly
         }
     }
 
@@ -733,6 +756,7 @@ public final class PumpBLEClient: NSObject {
         // (nil model/api ⇒ isSupported == true ⇒ proceed exactly as today). Lives here, above the
         // coordinator — PumpTransactionCoordinator is untouched (D-05).
         if let deviceError = deviceSupportError(for: message) { throw deviceError }
+        // RED (CX-T-10): no disconnect-gap guard yet — added in the next commit.
         guard state == .ready, let peripheral,
               let cbChar = characteristics[message.characteristic] else {
             throw ClientError.notReady
