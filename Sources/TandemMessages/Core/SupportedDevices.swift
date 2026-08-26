@@ -61,3 +61,52 @@ public extension ApiVersion {
     /// bench confirms acceptance. See `faBolus/.planning/debug/bench-t1-coverage-resilience.md`.
     static let benchConservativeUnverifiedFloor = ApiVersion.v3_4
 }
+
+/// CC-06 (REMED-15.5) bootstrap-read allowlist key. Keyed by **(Characteristic, opCode)** — NEVER a raw
+/// `UInt8` opcode alone — because opcodes collide across characteristics: `0xA4` is BOTH
+/// `LastBolusStatusV2Request` (`.currentStatus`, an already-unrestricted read) AND `SetTempRateRequest`
+/// (`.control`, Mobi-only delivery, `modifiesInsulinDelivery: true`) — pinned at
+/// `PumpDeliveryOpcodeScopeGuardTests.swift:16-22,73-89`. A compound `(characteristic, opCode)` key can
+/// never confuse the two by construction: the read lives at `(.currentStatus, 0xA4)`, the delivery command
+/// at `(.control, 0xA4)` — distinct `Hashable` values even though the raw byte matches.
+public struct SendGateAllowlistKey: Hashable, Sendable {
+    public let characteristic: Characteristic
+    public let opCode: UInt8
+
+    public init(characteristic: Characteristic, opCode: UInt8) {
+        self.characteristic = characteristic
+        self.opCode = opCode
+    }
+}
+
+/// CC-06 (REMED-15.5, S-B) bootstrap-read allowlist. `PumpBLEClient.identityGateError` consults this
+/// (via a compound key + a runtime `operationRisk == .read` guard, NEVER on the key alone) to decide
+/// whether a model-restricted READ may still reach a pump whose identity is unidentified/untrusted.
+///
+/// (a) Purpose: exempt a specific, named, model-restricted MESSAGE (not a whole characteristic or opcode
+///     range) from the identity-gate refusal, for the rare case where the app's own pre-identity read
+///     schedule needs to send something the kit's catalog happens to restrict to one model family.
+/// (b) Why (Characteristic, opCode), not raw opcode: see `SendGateAllowlistKey`'s doc — the `0xA4`
+///     read/delivery collision is a REAL, pinned case in this codebase, not a hypothetical.
+/// (c) Provably EMPTY as of the 15.5 RESEARCH.md research date (2026-08-25/26): every message the app
+///     issues automatically between link-up and op33 identity — the `PumpReadScheduler` bootstrap
+///     trio/fast/static/alert reads, the JPAKE/legacy pairing handshake, the response-triggered
+///     `HistoryLogStatusRequest`, and the post-pairing reconciliation reads — is `supportedDevices == nil`
+///     (unrestricted). See `15.5-RESEARCH.md` "## Bootstrap/Identity Sequence" and "### C2".
+/// (d) WARNING for future maintainers: if a FUTURE model-restricted READ is ever added to the automated
+///     pre-identity burst (`PumpReadScheduler` or an out-of-scheduler pairing/response/reconciliation
+///     path), its `(Characteristic, opCode)` pair MUST be added here, or that read will be refused with
+///     `.identityNotEstablished` until op33 identity is established — silently deadlocking reconnection
+///     for that read (RESEARCH "Common Pitfalls" §1). The app-side `PreIdentitySendContractTests
+///     .noPreIdentitySendIsEverModelRestricted` test (faBolus repo, codex C3) is the CI trip-wire for this:
+///     it dynamically captures the real scheduler's send set and fails if any captured/enumerated message
+///     is ever gated, so this omission fails CI rather than the field.
+/// (e) Cross-reference: `15.5-RESEARCH.md` "## Bootstrap/Identity Sequence" (derivation of the empty set)
+///     and "### C2 — allowlist keyed by (Characteristic, opcode), runtime operationRisk == .read guard".
+///
+/// A static, explicit `Set` — deliberately NOT computed via runtime reflection/introspection over the
+/// message catalog (Don't-Hand-Roll): every entry is a conscious, reviewed addition.
+public enum SendGateBootstrapAllowlist {
+    /// EMPTY as of the 15.5 research date — see the enum doc (c)/(d) above.
+    public static let entries: Set<SendGateAllowlistKey> = []
+}

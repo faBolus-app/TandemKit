@@ -112,7 +112,10 @@ public final class PumpBLEClient: NSObject {
         /// TRUSTED source (see `identityTrusted`'s doc — the codex C1 hazard this closes: a t:slim
         /// misidentified as Mobi by op33's ambiguous API-version heuristic must NOT satisfy this gate). A
         /// refusal, not a delivery outcome — thrown BEFORE any byte is emitted, exactly like `writeBlocked`
-        /// / `unsupportedOnDevice`.
+        /// / `unsupportedOnDevice`. GENERALIZED (15.5-03, owner-ratified S-B): covers every
+        /// `supportedDevices`-restricted message — the 14 control/delivery messages AND the 2
+        /// model-restricted reads — minus the (currently empty) `SendGateBootstrapAllowlist` (see
+        /// `identityGateError`'s doc for the exact predicate).
         case identityNotEstablished(opcode: UInt8)
         /// The reconnect ladder hit `maxReconnectAttempts` without reaching `.ready` — surfaced alongside
         /// `State.reconnectExhausted` so a delegate that only observes `didError` still sees it.
@@ -280,20 +283,52 @@ public final class PumpBLEClient: NSObject {
     /// replacement for it — `deviceSupportError` is UNCHANGED and still consults `connectedPumpModel`
     /// regardless of trust). Returns `nil` (fail OPEN) when the identity is TRUSTED and known
     /// (`connectedPumpModel != nil AND identityTrusted`) — the codex C1 fix: gating on non-nil alone would
-    /// let a wrong op33-heuristic model satisfy the gate, which this predicate must never do. Returns `nil`
-    /// when `message` is UNRESTRICTED (`message.props.supportedDevices == nil`) — an unrestricted message
-    /// stays fail-open regardless of identity, exactly like `deviceSupportError`'s own unrestricted case.
-    /// Otherwise returns `.identityNotEstablished(opcode:)` — TRACER SCOPE (15.5-01): narrowed to ONLY the
-    /// single tracer message (`SetSleepScheduleRequest`'s opcode, 0xCE) to prove the end-to-end
-    /// trusted-identity path before the 15.5-03 owner scope decision generalizes it to every
-    /// model-restricted message; this opcode-narrowing conjunct is REMOVED in 15.5-03.
+    /// let a wrong op33-heuristic model satisfy the gate, which this predicate must never do — this trust
+    /// condition is preserved UNCHANGED through the 15.5-03 generalization below.
+    ///
+    /// GENERALIZED (15.5-03, owner-ratified scope S-B — see `OWNER-DECISIONS.md` "15.5-03 scope of the
+    /// fail-closed net"): the 15.5-01 tracer's opcode-narrowing guard (which refused ONLY
+    /// `SetSleepScheduleRequest`'s 0xCE) is REMOVED. The final predicate:
+    ///  1. `connectedPumpModel != nil AND identityTrusted` → fail OPEN (unchanged, see above).
+    ///  2. `message.props.supportedDevices == nil` (UNRESTRICTED message) → fail OPEN, exactly like
+    ///     `deviceSupportError`'s own unrestricted case.
+    ///  3. `(message.characteristic, message.opCode)` is in `SendGateBootstrapAllowlist.entries`
+    ///     (or, in a `#if DEBUG` build, `bootstrapAllowlistOverrideForTesting` when non-nil — see that
+    ///     property's doc) **AND** `message.operationRisk == .read` → fail OPEN. The `operationRisk == .read`
+    ///     conjunct is a STRUCTURAL, runtime-enforced guard (codex C2): even a mistaken control/delivery-class
+    ///     entry in the allowlist can NEVER be honored, because this check is inside the gate itself, not a
+    ///     convention the allowlist's authors must uphold. Under S-B every model-restricted message not
+    ///     covered by 1–3 above is refused — the full 14 control/delivery messages AND the 2 model-restricted
+    ///     reads (`CgmStatusV2Request` 0xBE, `UnknownMobiOpcode110Request` 110) all fail closed on an
+    ///     untrusted/unidentified target.
+    ///  4. Otherwise → `.identityNotEstablished(opcode:)`.
     public func identityGateError(for message: Message) -> ClientError? {
         if connectedPumpModel != nil && identityTrusted { return nil }
         guard message.props.supportedDevices != nil else { return nil }
-        // TRACER SCOPE (15.5-01): narrowed to the single tracer message — removed in 15.5-03.
+        // RED-STATE PLACEHOLDER (15.5-03 TDD scaffold): still tracer-scoped to 0xCE — REMOVED in the GREEN
+        // commit that follows. Present only so the generalized/collision/S-B test assertions below fail
+        // first, proving they exercise the not-yet-generalized code.
         guard message.opCode == SetSleepScheduleRequest.props.opCode else { return nil }
+        let key = SendGateAllowlistKey(characteristic: message.characteristic, opCode: message.opCode)
+        #if DEBUG
+        let allowlist = bootstrapAllowlistOverrideForTesting ?? SendGateBootstrapAllowlist.entries
+        #else
+        let allowlist = SendGateBootstrapAllowlist.entries
+        #endif
+        if allowlist.contains(key) && message.operationRisk == .read { return nil }
         return .identityNotEstablished(opcode: message.opCode)
     }
+
+    #if DEBUG
+    /// Test-only override for the CC-06 bootstrap-read allowlist (codex C2 Open Question #2), so a test can
+    /// prove the ALLOWLISTED branch of `identityGateError` is reachable and correct without depending on
+    /// today's real (empty) `SendGateBootstrapAllowlist.entries` content. `nil` (the default) uses the real
+    /// production allowlist. Mirrors the existing `*ForTesting` test-seam idiom used elsewhere in this class
+    /// (e.g. `establishmentTimeoutForTesting`) and in the app (`PumpReadScheduler.alertReadDelaySecForTesting`).
+    /// `send()`'s call site (`identityGateError(for: message)`) stays byte-unchanged — this seam is consulted
+    /// entirely inside `identityGateError` itself.
+    var bootstrapAllowlistOverrideForTesting: Set<SendGateAllowlistKey>?
+    #endif
 
     /// Owns in-flight request/response correlation, deadlines, and fail-closed completion (PX-08).
     /// Callers that need an awaited response use `sendAwaitingResponse`; unsolicited frames (streams,
@@ -813,8 +848,9 @@ public final class PumpBLEClient: NSObject {
         // (nil model/api ⇒ isSupported == true ⇒ proceed exactly as today). Lives here, above the
         // coordinator — PumpTransactionCoordinator is untouched (D-05).
         if let deviceError = deviceSupportError(for: message) { throw deviceError }
-        // CC-06 (REMED-15.5): refuse — do NOT emit — a model-restricted message (tracer-scoped to 0xCE in
-        // 15.5-01) whose target is UNIDENTIFIED-OR-UNTRUSTED. Checked STRICTLY AFTER `deviceSupportError`
+        // CC-06 (REMED-15.5): refuse — do NOT emit — a model-restricted message (GENERALIZED, 15.5-03,
+        // S-B: the full model-restricted set minus the SendGateBootstrapAllowlist) whose target is
+        // UNIDENTIFIED-OR-UNTRUSTED. Checked STRICTLY AFTER `deviceSupportError`
         // (that gate's fail-open-on-unknown contract is unchanged) and BEFORE the CX-T-10 disconnecting
         // guard, so a refusal here stays pre-write and determinate — never masked by `.notReady` — and
         // fails open on an unrestricted message or a trusted-known target.
