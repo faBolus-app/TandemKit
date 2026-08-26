@@ -22,7 +22,7 @@ import TandemMessages
 
     /// Default policy is read-only: CONTROL / signed / insulin-affecting messages are refused; reads pass.
     @MainActor @Test func readOnlyBlocksWritesAllowsReads() {
-        let client = PumpBLEClient()
+        let client = PumpBLEClient.forUnitTest()
         #expect(client.writePolicy == .readOnly)   // safe by default
         assertBlocked(client, InitiateBolusRequest(totalVolume: 1000, bolusID: 1, bolusTypeBitmask: 1), by: .readOnly)
         assertBlocked(client, CancelBolusRequest(bolusId: 1), by: .readOnly)
@@ -33,7 +33,7 @@ import TandemMessages
     /// allowNonDelivery permits therapy-significant CONTROL (BolusPermission) but STILL hard-blocks
     /// insulin delivery — AND, after PX-03, hard-blocks destructive commands too (it is settings-only now).
     @MainActor @Test func allowNonDeliveryIsSettingsOnly() {
-        let client = PumpBLEClient()
+        let client = PumpBLEClient.forUnitTest()
         client.writePolicy = .allowNonDelivery
         assertAllowed(client, BolusPermissionRequest())                                   // .settings ok
         assertBlocked(client, InitiateBolusRequest(totalVolume: 1000, bolusID: 1, bolusTypeBitmask: 1), by: .allowNonDelivery)  // delivery
@@ -45,7 +45,7 @@ import TandemMessages
     /// PX-03: destructive commands require the explicit `.allowDestructive` tier — which still hard-blocks
     /// delivery. This is the "reserve destructive for an explicit, short-lived authorization" requirement.
     @MainActor @Test func allowDestructivePermitsDestructiveNotDelivery() {
-        let client = PumpBLEClient()
+        let client = PumpBLEClient.forUnitTest()
         client.writePolicy = .allowDestructive
         assertAllowed(client, FactoryResetRequest())
         assertAllowed(client, DisconnectPumpRequest())
@@ -56,7 +56,7 @@ import TandemMessages
 
     /// allowBenignControl (audit P-01) permits benign signed ops but blocks settings, destructive, delivery.
     @MainActor @Test func allowBenignControlSeparatesBenignFromSettings() {
-        let client = PumpBLEClient()
+        let client = PumpBLEClient.forUnitTest()
         client.writePolicy = .allowBenignControl
         assertAllowed(client, DismissNotificationRequest(kind: .alert, notificationId: 1))
         assertAllowed(client, PlaySoundRequest())
@@ -75,7 +75,7 @@ import TandemMessages
         #expect(plain.operationRisk == .benign)
         #expect(calib.operationRisk == .settings)
 
-        let client = PumpBLEClient()
+        let client = PumpBLEClient.forUnitTest()
         client.writePolicy = .allowBenignControl
         assertAllowed(client, plain)
         assertBlocked(client, calib, by: .allowBenignControl)   // calibration can't ride the benign tier
@@ -86,7 +86,7 @@ import TandemMessages
     // MARK: - PX-03/04: scoped one-operation policy elevation always restores .readOnly
 
     @MainActor @Test func withWritePolicyElevatesThenRestoresOnSuccess() async {
-        let client = PumpBLEClient()
+        let client = PumpBLEClient.forUnitTest()
         var sawInside: PumpBLEClient.WritePolicy?
         await client.withWritePolicy(.allowDelivery) { sawInside = client.writePolicy }
         #expect(sawInside == .allowDelivery)     // elevated inside the scope
@@ -95,7 +95,7 @@ import TandemMessages
 
     @MainActor @Test func withWritePolicyRestoresReadOnlyOnThrow() async {
         struct Boom: Error {}
-        let client = PumpBLEClient()
+        let client = PumpBLEClient.forUnitTest()
         client.writePolicy = .allowBenignControl   // even a non-.readOnly prior must end at .readOnly
         try? await client.withWritePolicy(.allowDestructive) {
             #expect(client.writePolicy == .allowDestructive)
@@ -108,7 +108,7 @@ import TandemMessages
     /// runs, so the policy ends at .readOnly (same guarantee as any other throw — timeout/disconnect
     /// surface as `TxError` from the awaited send and are covered by the coordinator suite).
     @MainActor @Test func withWritePolicyRestoresReadOnlyWhenBodyCancelled() async {
-        let client = PumpBLEClient()
+        let client = PumpBLEClient.forUnitTest()
         try? await client.withWritePolicy(.allowDelivery) {
             throw CancellationError()
         }
