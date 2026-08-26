@@ -27,7 +27,7 @@ import TandemMessages
     @MainActor @Test func knownTslimGatesMobiOnlySend() {
         let client = PumpBLEClient.forUnitTest()
         client.writePolicy = .allowNonDelivery
-        client.setDeviceContext(model: .tslim, apiVersion: .v2_5)
+        client.setDeviceContext(model: .tslim, apiVersion: .v2_5, trusted: true)
         #expect(throws: PumpBLEClient.ClientError.unsupportedOnDevice(opcode: 0xCE)) {
             try client.send(self.mobiOnlyMessage())
         }
@@ -39,7 +39,7 @@ import TandemMessages
     @MainActor @Test func knownMobiPermitsMobiOnlySend() {
         let client = PumpBLEClient.forUnitTest()
         client.writePolicy = .allowNonDelivery
-        client.setDeviceContext(model: .mobi, apiVersion: .mobi_v3_5)
+        client.setDeviceContext(model: .mobi, apiVersion: .mobi_v3_5, trusted: true)
         #expect(throws: PumpBLEClient.ClientError.notReady) {
             try client.send(self.mobiOnlyMessage())
         }
@@ -49,19 +49,45 @@ import TandemMessages
     @MainActor @Test func knownMobiBelowApiFloorIsGated() {
         let client = PumpBLEClient.forUnitTest()
         client.writePolicy = .allowNonDelivery
-        client.setDeviceContext(model: .mobi, apiVersion: .v3)
+        client.setDeviceContext(model: .mobi, apiVersion: .v3, trusted: true)
         #expect(throws: PumpBLEClient.ClientError.unsupportedOnDevice(opcode: 0xCE)) {
             try client.send(self.mobiOnlyMessage())
         }
     }
 
-    /// UNKNOWN target (no device context set): fail-OPEN — the send is NOT gated, so it reaches the
-    /// readiness guard and throws `.notReady`, exactly as before the gate existed. No currently-working
-    /// send regresses.
+    /// UNKNOWN target (no device context set): CC-06 (REMED-15.5) fail-CLOSED for the tracer message — the
+    /// send is refused pre-write with `.identityNotEstablished`, no bytes emitted. (Was `.notReady` before
+    /// the trusted-identity gate existed; this is the RED→GREEN flip that proves the mechanism end-to-end.)
     @MainActor @Test func unknownTargetFailsOpen() {
         let client = PumpBLEClient.forUnitTest()
         client.writePolicy = .allowNonDelivery
-        // deliberately no setDeviceContext — model/api stay nil (unidentified)
+        // deliberately no setDeviceContext — model/api/trust stay nil/false (unidentified)
+        #expect(throws: PumpBLEClient.ClientError.identityNotEstablished(opcode: 0xCE)) {
+            try client.send(self.mobiOnlyMessage())
+        }
+    }
+
+    /// The codex C1 hazard, reproduced and closed: a t:slim silently reconnects and op33's ambiguous
+    /// API-version heuristic misreads it as Mobi — `connectedPumpModel` is non-nil but WRONG, and
+    /// `trusted: false` records that the caller never actually identified it. Before CC-06, `deviceSupportError`
+    /// alone would return `nil` here (`.mobi` IS in `supportedDevices`), so the gate failed OPEN on a wrong
+    /// identity. CC-06 must gate this — proving the fix keys on trust, not on `connectedPumpModel != nil`.
+    @MainActor @Test func untrustedHeuristicMobiIsGatedForModelRestrictedSend() {
+        let client = PumpBLEClient.forUnitTest()
+        client.writePolicy = .allowNonDelivery
+        client.setDeviceContext(model: .mobi, apiVersion: .mobi_v3_5, trusted: false)
+        #expect(throws: PumpBLEClient.ClientError.identityNotEstablished(opcode: 0xCE)) {
+            try client.send(self.mobiOnlyMessage())
+        }
+    }
+
+    /// A TRUSTED, known-compatible model is unchanged by CC-06: the Mobi-only message reaches the
+    /// readiness guard (`.notReady`), never the identity gate — the trusted-and-known happy path is
+    /// unaffected by the new trust signal.
+    @MainActor @Test func trustedMobiPermitsMobiOnlySendUnchanged() {
+        let client = PumpBLEClient.forUnitTest()
+        client.writePolicy = .allowNonDelivery
+        client.setDeviceContext(model: .mobi, apiVersion: .mobi_v3_5, trusted: true)
         #expect(throws: PumpBLEClient.ClientError.notReady) {
             try client.send(self.mobiOnlyMessage())
         }
@@ -72,7 +98,7 @@ import TandemMessages
     /// first), proving the gate is additive to — not a replacement for — the existing send interlock.
     @MainActor @Test func writePolicyInterlockStillPrecedesGate() {
         let client = PumpBLEClient.forUnitTest()                       // default .readOnly
-        client.setDeviceContext(model: .mobi, apiVersion: .mobi_v3_5)
+        client.setDeviceContext(model: .mobi, apiVersion: .mobi_v3_5, trusted: true)
         #expect(throws: PumpBLEClient.ClientError.writeBlocked(policy: .readOnly, opcode: 0xCE)) {
             try client.send(self.mobiOnlyMessage())
         }

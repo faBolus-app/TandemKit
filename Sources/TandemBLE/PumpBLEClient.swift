@@ -104,6 +104,16 @@ public final class PumpBLEClient: NSObject {
         /// A refusal, not a delivery outcome — thrown BEFORE any byte is emitted, exactly like
         /// `writeBlocked`. Only ever raised for a KNOWN-incompatible target; an unknown target fails open.
         case unsupportedOnDevice(opcode: UInt8)
+        /// CC-06 (REMED-15.5): a model-restricted message was refused because the send-time target is
+        /// UNIDENTIFIED-OR-UNTRUSTED, carrying the refused message's `opcode`. DISTINCT from
+        /// `.unsupportedOnDevice`: that case is raised for a KNOWN-TRUSTED-incompatible target (the model
+        /// is confidently wrong); this case is raised when there is no trusted model to check against at
+        /// all — either `connectedPumpModel == nil`, or a non-nil model that was never established via a
+        /// TRUSTED source (see `identityTrusted`'s doc — the codex C1 hazard this closes: a t:slim
+        /// misidentified as Mobi by op33's ambiguous API-version heuristic must NOT satisfy this gate). A
+        /// refusal, not a delivery outcome — thrown BEFORE any byte is emitted, exactly like `writeBlocked`
+        /// / `unsupportedOnDevice`.
+        case identityNotEstablished(opcode: UInt8)
         /// The reconnect ladder hit `maxReconnectAttempts` without reaching `.ready` — surfaced alongside
         /// `State.reconnectExhausted` so a delegate that only observes `didError` still sees it.
         case reconnectLoopDetected
@@ -208,17 +218,38 @@ public final class PumpBLEClient: NSObject {
     /// (D-08); `nil` means the gate fails **open** (send, let firmware NACK), preserving today's behavior.
     /// Reset to `nil` on every disconnect/error by `failClosed` — a fresh connection re-identifies.
     public private(set) var connectedPumpModel: PumpModel?
+    /// CC-06 (REMED-15.5): whether `connectedPumpModel` was established via a TRUSTED source — live
+    /// BLE-name detection, or a persisted trusted identity reapplied for the same peripheral (15.5-02) —
+    /// as opposed to a merely-plausible non-nil model. Defaults to `false`. This is `identityGateError`'s
+    /// (CC-06) trust signal for the model-restricted send gate: it is deliberately a SEPARATE bit from
+    /// `connectedPumpModel != nil`, because `connectedPumpModel` alone can be set by op33's ambiguous
+    /// API-version heuristic — an inference, not an identification — and a silent reconnect can land it on
+    /// the WRONG family (the codex C1 hazard: a real t:slim misidentified as Mobi). `identityGateError`
+    /// MUST NEVER treat a non-nil `connectedPumpModel` as sufficient on its own; it must consult this flag.
+    /// `deviceSupportError` (D-08 / VA-06) is INTENTIONALLY UNCHANGED by this flag — it keeps consulting
+    /// `connectedPumpModel` regardless of trust, since that gate's fail-open contract predates CC-06 and is
+    /// out of scope here. Reset to `false` on every disconnect/error by `failClosed`, alongside
+    /// `connectedPumpModel`, so a reconnect starts untrusted until a TRUSTED source re-establishes it.
+    public private(set) var identityTrusted: Bool = false
     /// The negotiated pump API version, or `nil` when not yet negotiated. Input to the device/API send
     /// gate (D-08); `nil` fails **open**. Reset to `nil` on every disconnect/error by `failClosed`.
     public private(set) var negotiatedApiVersion: ApiVersion?
 
-    /// Supply the identified device context for the device/API send gate (D-08). The caller owns model
-    /// classification + API negotiation (as with `setPumpFamily`); the kit never guesses. Passing `nil`
-    /// for either keeps that dimension fail-open. Must be called AFTER each (re)identification, since
-    /// `failClosed` clears both on every link change.
-    public func setDeviceContext(model: PumpModel?, apiVersion: ApiVersion?) {
+    /// Supply the identified device context for the device/API send gate (D-08) and the CC-06
+    /// trusted-identity gate. The caller owns model classification + API negotiation (as with
+    /// `setPumpFamily`); the kit never guesses. Passing `nil` for `model`/`apiVersion` keeps that dimension
+    /// fail-open. `trusted` is REQUIRED (no default) so every call site makes an explicit, auditable trust
+    /// decision — mirroring the codebase's explicit-over-implicit idiom — rather than silently defaulting
+    /// to either extreme. Pass `true` only when `model` was identified via a TRUSTED source (BLE-name
+    /// detection, or 15.5-02's persisted-trusted reapplication); pass `false` for any heuristic-derived
+    /// model (e.g. op33's API-version inference alone), which is exactly the codex C1 hazard this gate
+    /// exists to close. `identityTrusted` is set to `trusted && (model != nil)` — trust is meaningless
+    /// without a model. Must be called AFTER each (re)identification, since `failClosed` clears both
+    /// `connectedPumpModel` and `identityTrusted` on every link change.
+    public func setDeviceContext(model: PumpModel?, apiVersion: ApiVersion?, trusted: Bool) {
         connectedPumpModel = model
         negotiatedApiVersion = apiVersion
+        identityTrusted = trusted && (model != nil)
     }
 
     /// Pure authorization decision (PX-02), separated from readiness/transport so it is deterministically
@@ -836,6 +867,10 @@ public final class PumpBLEClient: NSObject {
         // before the device/API send gate can refuse anything — fail-OPEN across every link change.
         connectedPumpModel = nil
         negotiatedApiVersion = nil
+        // CC-06 (REMED-15.5): clear the trust signal alongside the model so a reconnect starts UNTRUSTED
+        // until a TRUSTED source (BLE-name detection, or 15.5-02's persisted reapplication) re-establishes
+        // it — a stale `identityTrusted == true` must never survive a link change.
+        identityTrusted = false
         // debug pump-background-disconnect (H1): every link change resolves any inline background-safe
         // connect (a drop re-sets it below; a failed-connect / restore / power-off leaves it clear so the
         // ladder escalates normally). Consistent with resetting write policy/correlation/device context here.

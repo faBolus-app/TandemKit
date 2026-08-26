@@ -743,7 +743,9 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     /// this is belt-and-suspenders proof that the wiring is in place, not the sole guard.
     private func wireDeviceContext(isMobi: Bool, major: Int, minor: Int) {
         guard major > 0 else { print("  ⏭️  device-context not wired (no ApiVersion read)"); return }
-        client.setDeviceContext(model: isMobi ? .mobi : .tslim, apiVersion: ApiVersion(major: major, minor: minor))
+        // trusted: true — the bench operator's own identification of the pump under test is a TRUSTED
+        // source (CC-06 / REMED-15.5), distinct from op33's ambiguous API-version heuristic.
+        client.setDeviceContext(model: isMobi ? .mobi : .tslim, apiVersion: ApiVersion(major: major, minor: minor), trusted: true)
     }
 
     /// A generic read probe for the coverage sweep: send `req` read-only and await its correlated response.
