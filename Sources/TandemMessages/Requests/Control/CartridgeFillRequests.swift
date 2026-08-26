@@ -55,10 +55,24 @@ public struct FillCannulaRequest: Message {
         opCode: 0x98, size: 2, signed: true, type: .request,
         characteristic: .control, modifiesInsulinDelivery: true, responseOpCode: 0x99,
         supportedDevices: [.mobi], minApi: .mobi_v3_5) // upstream MOBI_ONLY + MOBI_API_V3_5 (D-08)
+
+    /// Bounds enforced upstream (`Validate.isTrue`, pumpX2 `FillCannulaRequest`): 0 is invalid (never a
+    /// valid "no-op" fill) and > 3000 mU is rejected as a sanity check. CX-T-07.
+    public static let minPrimeSize = 1
+    public static let maxPrimeSize = 3000
+
+    /// CX-T-07 (PX-07 convention): reject out-of-range `primeSize` by throwing BEFORE the byte-encode.
+    public enum ValidationError: Error, Equatable {
+        case primeSizeOutOfRange(Int)
+    }
+
     public var cargo: [UInt8]
     public private(set) var primeSize = 0
     public init() { cargo = [] }
-    public init(primeSize: Int) {
+    public init(primeSize: Int) throws {
+        guard (Self.minPrimeSize...Self.maxPrimeSize).contains(primeSize) else {
+            throw ValidationError.primeSizeOutOfRange(primeSize)
+        }
         self.primeSize = primeSize
         self.cargo = Bytes.firstTwoBytesLittleEndian(primeSize)
     }

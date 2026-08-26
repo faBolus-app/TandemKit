@@ -18,13 +18,27 @@ public struct SetTempRateRequest: Message {
     public static let minPercent = 0
     public static let maxPercent = 250
 
+    /// CX-T-07 (PX-07 convention): reject out-of-range args by throwing BEFORE any truncating byte-encode
+    /// helper — never silently convert an invalid value into a different valid command (e.g. percent
+    /// 65536 would truncate to 0% via `Bytes.firstTwoBytesLittleEndian`).
+    public enum ValidationError: Error, Equatable {
+        case minutesOutOfRange(Int)
+        case percentOutOfRange(Int)
+    }
+
     public var cargo: [UInt8]
     public private(set) var minutes: Int = 0
     public private(set) var percent: Int = 0
 
     public init() { self.cargo = [] }
 
-    public init(minutes: Int, percent: Int) {
+    public init(minutes: Int, percent: Int) throws {
+        guard (Self.minMinutes...Self.maxMinutes).contains(minutes) else {
+            throw ValidationError.minutesOutOfRange(minutes)
+        }
+        guard (Self.minPercent...Self.maxPercent).contains(percent) else {
+            throw ValidationError.percentOutOfRange(percent)
+        }
         self.minutes = minutes
         self.percent = percent
         self.cargo = Bytes.combine(

@@ -582,7 +582,8 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         // time-set: re-set the clock to the value we just read → proves ACCEPT/NACK without shifting it.
         _ = await probeWrite(ChangeTimeDateRequest(tandemEpochTime: signingTimestamp), "ChangeTimeDate (no-op re-set)")
         // temp-basal 80% / 30 min, then stop (cleanup). modifiesInsulinDelivery → arms wall 2; no cartridge → no dose.
-        if await probeWrite(SetTempRateRequest(minutes: 30, percent: 80), "SetTempRate 80%/30m") != nil {
+        if let tempReq = try? SetTempRateRequest(minutes: 30, percent: 80),
+           await probeWrite(tempReq, "SetTempRate 80%/30m") != nil {
             _ = await probeWrite(StopTempRateRequest(), "StopTempRate (cleanup)")
         }
         // modes: sleep on, then off (cleanup).
@@ -603,7 +604,10 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
                 }
             }
             print("  → retrying SetTempRate 80%/30m (CIQ off = \(ciqOff))…")
-            let tempOK = await probeWrite(SetTempRateRequest(minutes: 30, percent: 80), "SetTempRate 80%/30m (CIQ off)") != nil
+            var tempOK = false
+            if let tempReq2 = try? SetTempRateRequest(minutes: 30, percent: 80) {
+                tempOK = await probeWrite(tempReq2, "SetTempRate 80%/30m (CIQ off)") != nil
+            }
             if tempOK { _ = await probeWrite(StopTempRateRequest(), "StopTempRate (cleanup)") }
             if !ciqOff {
                 print("  🔎 INCONCLUSIVE: could not disable Control-IQ (disable write rejected) — temp-basal remains confounded.")
@@ -828,14 +832,22 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         case "SetMaxBolusLimitRequest":
             guard let r = await probeRead(GlobalMaxBolusSettingsRequest(), as: GlobalMaxBolusSettingsResponse.self, "maxBolus (pre)") else { return (.fail, "pre-read failed") }
             let prior = r.maxBolus
-            guard await probeWrite(SetMaxBolusLimitRequest(maxBolusMilliunits: prior), "SetMaxBolusLimit (no-op re-apply)") != nil else { return (.fail, "write rejected") }
+            // CX-T-07: `prior` is a REAL on-pump value, not a hardcoded literal — a legacy config below the
+            // new 1000 mU floor must not crash the harness; report it as a distinct outcome instead.
+            guard let reapplyReq = try? SetMaxBolusLimitRequest(maxBolusMilliunits: prior) else {
+                return (.fail, "on-pump maxBolus \(prior) mU is outside the kit's throwing bounds — cannot no-op re-apply")
+            }
+            guard await probeWrite(reapplyReq, "SetMaxBolusLimit (no-op re-apply)") != nil else { return (.fail, "write rejected") }
             guard let chk = await probeRead(GlobalMaxBolusSettingsRequest(), as: GlobalMaxBolusSettingsResponse.self, "maxBolus (post)") else { return (.fail, "post-read failed") }
             return chk.maxBolus == prior ? (.pass, "no-op re-apply: maxBolus \(prior) mU unchanged (read→write→read verified)")
                                          : (.fail, "read-back mismatch: \(chk.maxBolus) != \(prior)")
         case "SetMaxBasalLimitRequest":
             guard let r = await probeRead(BasalLimitSettingsRequest(), as: BasalLimitSettingsResponse.self, "maxBasal (pre)") else { return (.fail, "pre-read failed") }
             let prior = UInt32(r.basalLimit)
-            guard await probeWrite(SetMaxBasalLimitRequest(maxHourlyBasalMilliunits: prior), "SetMaxBasalLimit (no-op re-apply)") != nil else { return (.fail, "write rejected") }
+            guard let reapplyReq = try? SetMaxBasalLimitRequest(maxHourlyBasalMilliunits: prior) else {
+                return (.fail, "on-pump maxBasal \(prior) mU/hr is outside the kit's throwing bounds — cannot no-op re-apply")
+            }
+            guard await probeWrite(reapplyReq, "SetMaxBasalLimit (no-op re-apply)") != nil else { return (.fail, "write rejected") }
             guard let chk = await probeRead(BasalLimitSettingsRequest(), as: BasalLimitSettingsResponse.self, "maxBasal (post)") else { return (.fail, "post-read failed") }
             return chk.basalLimit == r.basalLimit ? (.pass, "no-op re-apply: maxBasal \(r.basalLimit) mU/hr unchanged (read→write→read verified)")
                                                   : (.fail, "read-back mismatch: \(chk.basalLimit) != \(r.basalLimit)")
@@ -936,7 +948,10 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     private func driveTempRatePair() async -> (BenchCellState, String) {
         guard await awaitPaired() else { return (.fail, "not paired") }
         let ciq = await probeRead(ControlIQInfoV1Request(), as: ControlIQInfoV1Response.self, "CIQ (pre temp-rate)")
-        let setOK = await probeWrite(SetTempRateRequest(minutes: 30, percent: 80), "SetTempRate 80%/30m") != nil
+        var setOK = false
+        if let tempReq = try? SetTempRateRequest(minutes: 30, percent: 80) {
+            setOK = await probeWrite(tempReq, "SetTempRate 80%/30m") != nil
+        }
         let mid = setOK ? await probeRead(TempRateStatusRequest(), as: TempRateStatusResponse.self, "temp-rate (mid)") : nil
         let stopped = await probeWrite(StopTempRateRequest(), "StopTempRate (restore)") != nil
         deliveryPairResults["StopTempRateRequest"] = stopped
@@ -1045,7 +1060,8 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     /// no reverse — a prime cannot be un-dispensed; safe on saline).
     private func driveFillCannula() async -> (BenchCellState, String) {
         guard await awaitPaired() else { return (.fail, "not paired") }
-        guard await probeWrite(FillCannulaRequest(primeSize: 30), "FillCannula (30 mU prime)") != nil else { return (.fail, "FillCannula not accepted") }
+        guard let fillReq = try? FillCannulaRequest(primeSize: 30) else { return (.fail, "FillCannulaRequest(30) rejected by bounds — should never happen for an in-range literal") }
+        guard await probeWrite(fillReq, "FillCannula (30 mU prime)") != nil else { return (.fail, "FillCannula not accepted") }
         let mid = await probeRead(LoadStatusRequest(), as: LoadStatusResponse.self, "loadStatus (post-fill)")
         let midNote = mid.map { "primeStatus=\($0.primeStatusId)" } ?? "LoadStatus inconclusive"
         return (.pass, "cannula prime (30 mU saline) accepted (\(midNote)); one-way — nothing to restore")

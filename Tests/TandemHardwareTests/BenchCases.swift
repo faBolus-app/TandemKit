@@ -92,7 +92,7 @@ enum BenchCases {
             try #require((SetTempRateRequest.minPercent...SetTempRateRequest.maxPercent).contains(percent),
                          "temp-rate percent out of range")
             try await s.refreshSigningTime()
-            let resp = try await s.request(SetTempRateRequest(minutes: minutes, percent: percent),
+            let resp = try await s.request(try SetTempRateRequest(minutes: minutes, percent: percent),
                                            expect: SetTempRateResponse.self, deliver: true)
             try #require(resp.accepted, "temp rate not accepted (status \(resp.status))")
             return resp.tempRateId

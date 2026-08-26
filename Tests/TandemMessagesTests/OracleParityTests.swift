@@ -227,7 +227,7 @@ struct OracleParityTests {
     @Test func setTempRateRequestMatchesOracle() throws {
         // 30 minutes at 150% — cargo: uint32 ms (30*60000) + LE uint16 percent.
         let oracle = try oracleSignedPackets("SetTempRateRequest", txId: 7, json: "[30, 150]")
-        let swift = try swiftSignedPackets(SetTempRateRequest(minutes: 30, percent: 150), txId: 7)
+        let swift = try swiftSignedPackets(try SetTempRateRequest(minutes: 30, percent: 150), txId: 7)
         #expect(swift == oracle, "swift=\(swift) oracle=\(oracle)")
     }
 
@@ -342,13 +342,13 @@ struct OracleParityTests {
 
     @Test func setMaxBolusLimitRequestMatchesOracle() throws {
         let oracle = try oracleSignedPackets("SetMaxBolusLimitRequest", txId: 22, json: "[25000]")
-        let swift = try swiftSignedPackets(SetMaxBolusLimitRequest(maxBolusMilliunits: 25000), txId: 22)
+        let swift = try swiftSignedPackets(try SetMaxBolusLimitRequest(maxBolusMilliunits: 25000), txId: 22)
         #expect(swift == oracle, "swift=\(swift) oracle=\(oracle)")
     }
 
     @Test func setMaxBasalLimitRequestMatchesOracle() throws {
         let oracle = try oracleSignedPackets("SetMaxBasalLimitRequest", txId: 23, json: "[15000]")
-        let swift = try swiftSignedPackets(SetMaxBasalLimitRequest(maxHourlyBasalMilliunits: 15000), txId: 23)
+        let swift = try swiftSignedPackets(try SetMaxBasalLimitRequest(maxHourlyBasalMilliunits: 15000), txId: 23)
         #expect(swift == oracle, "swift=\(swift) oracle=\(oracle)")
     }
 
@@ -369,7 +369,7 @@ struct OracleParityTests {
 
     @Test func fillCannulaRequestMatchesOracle() throws {
         let oracle = try oracleSignedPackets("FillCannulaRequest", txId: 25, json: "[300]")
-        let swift = try swiftSignedPackets(FillCannulaRequest(primeSize: 300), txId: 25)
+        let swift = try swiftSignedPackets(try FillCannulaRequest(primeSize: 300), txId: 25)
         #expect(swift == oracle, "swift=\(swift) oracle=\(oracle)")
     }
 
