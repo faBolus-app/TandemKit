@@ -274,6 +274,27 @@ public final class PumpBLEClient: NSObject {
             : .unsupportedOnDevice(opcode: message.opCode)
     }
 
+    /// CC-06 (REMED-15.5): pure trusted-identity send-gate decision, separated from readiness/transport so
+    /// it is deterministically testable and cannot be masked by `.notReady` — same `xxxError(for:)` shape
+    /// and doc discipline as the sibling `deviceSupportError` (D-08), which this is layered ABOVE (not a
+    /// replacement for it — `deviceSupportError` is UNCHANGED and still consults `connectedPumpModel`
+    /// regardless of trust). Returns `nil` (fail OPEN) when the identity is TRUSTED and known
+    /// (`connectedPumpModel != nil AND identityTrusted`) — the codex C1 fix: gating on non-nil alone would
+    /// let a wrong op33-heuristic model satisfy the gate, which this predicate must never do. Returns `nil`
+    /// when `message` is UNRESTRICTED (`message.props.supportedDevices == nil`) — an unrestricted message
+    /// stays fail-open regardless of identity, exactly like `deviceSupportError`'s own unrestricted case.
+    /// Otherwise returns `.identityNotEstablished(opcode:)` — TRACER SCOPE (15.5-01): narrowed to ONLY the
+    /// single tracer message (`SetSleepScheduleRequest`'s opcode, 0xCE) to prove the end-to-end
+    /// trusted-identity path before the 15.5-03 owner scope decision generalizes it to every
+    /// model-restricted message; this opcode-narrowing conjunct is REMOVED in 15.5-03.
+    public func identityGateError(for message: Message) -> ClientError? {
+        if connectedPumpModel != nil && identityTrusted { return nil }
+        guard message.props.supportedDevices != nil else { return nil }
+        // TRACER SCOPE (15.5-01): narrowed to the single tracer message — removed in 15.5-03.
+        guard message.opCode == SetSleepScheduleRequest.props.opCode else { return nil }
+        return .identityNotEstablished(opcode: message.opCode)
+    }
+
     /// Owns in-flight request/response correlation, deadlines, and fail-closed completion (PX-08).
     /// Callers that need an awaited response use `sendAwaitingResponse`; unsolicited frames (streams,
     /// proactive status) are not consumed here and still reach the delegate.
@@ -787,6 +808,12 @@ public final class PumpBLEClient: NSObject {
         // (nil model/api ⇒ isSupported == true ⇒ proceed exactly as today). Lives here, above the
         // coordinator — PumpTransactionCoordinator is untouched (D-05).
         if let deviceError = deviceSupportError(for: message) { throw deviceError }
+        // CC-06 (REMED-15.5): refuse — do NOT emit — a model-restricted message (tracer-scoped to 0xCE in
+        // 15.5-01) whose target is UNIDENTIFIED-OR-UNTRUSTED. Checked STRICTLY AFTER `deviceSupportError`
+        // (that gate's fail-open-on-unknown contract is unchanged) and BEFORE the CX-T-10 disconnecting
+        // guard, so a refusal here stays pre-write and determinate — never masked by `.notReady` — and
+        // fails open on an unrestricted message or a trusted-known target.
+        if let identityError = identityGateError(for: message) { throw identityError }
         // CX-T-10: refuse during the `disconnect()` → `didDisconnectPeripheral` gap. `disconnect()` sets
         // `intentionalDisconnect` synchronously but the link teardown (`cancelPeripheralConnection`) and the
         // resulting `state`/`peripheral`/`characteristics` reset are async — without this guard, a send
