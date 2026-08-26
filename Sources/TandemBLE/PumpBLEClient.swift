@@ -426,7 +426,12 @@ public final class PumpBLEClient: NSObject {
     /// connect (`cancelReconnectWatchdog`), the first tick that consumes it, and ladder exhaustion.
     private var inlineConnectPending = false
     /// Identifier of the peripheral we're trying to keep/recover, so we can re-resolve or re-target it.
-    private var reconnectTargetId: UUID?
+    /// CC-06/C10 (REMED-15.5): read-only exposed (`public private(set)`) so faBolus's app-side trust
+    /// reapplication (`reapplyTrustedIdentityIfKnown`) can confirm the peripheral the kit is ACTUALLY
+    /// (re)connecting before stamping a persisted trusted identity — a stale trusted record for a
+    /// DIFFERENT peripheral (pump-swap-mid-reconnect, or a restoration adopting a different peripheral)
+    /// must never be applied. Additive, read-only — no writer changed, no behavior change.
+    public private(set) var reconnectTargetId: UUID?
     /// A cold-launch `connectKnownPeripheral(identifier:)` that arrived before Bluetooth was powered on;
     /// the retrieve is deferred to `centralManagerDidUpdateState` once the central reports `.poweredOn`.
     private var pendingRetrieveId: UUID?
