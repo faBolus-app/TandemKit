@@ -103,4 +103,36 @@ import TandemMessages
             try client.send(self.mobiOnlyMessage())
         }
     }
+
+    /// No-regression proof (RESEARCH Pitfall #2 — guard-order regression): an UNRESTRICTED message
+    /// (`supportedDevices == nil`) sent to an untrusted/unidentified target is STILL permitted — it falls
+    /// through `identityGateError` (which fails open on `supportedDevices == nil`) to the readiness guard
+    /// and throws `.notReady`, exactly as before CC-06. The new identity gate must never catch an
+    /// unrestricted message just because the target is untrusted.
+    @MainActor @Test func unrestrictedMessageStillFailsOpenOnUnidentifiedTarget() {
+        let client = PumpBLEClient.forUnitTest()
+        client.writePolicy = .allowBenignControl   // permits this message's .benign risk
+        // deliberately no setDeviceContext — model/api/trust stay nil/false (unidentified, untrusted)
+        #expect(throws: PumpBLEClient.ClientError.notReady) {
+            try client.send(DismissNotificationRequest(kind: .alert, notificationId: 1))
+        }
+    }
+
+    /// No-regression proof (codex C1 precedence completeness / RESEARCH Pitfall #5): the write-policy
+    /// interlock (`authorizationError`) still precedes the CC-06 identity gate even when identity is
+    /// UNTRUSTED — a denying policy throws `.writeBlocked` FIRST, never `.identityNotEstablished`, for
+    /// both an unidentified target (nil model) and an identified-but-UNTRUSTED one (`trusted: false`).
+    /// Proves the new gate did not invert the pre-existing authorization precedence.
+    @MainActor @Test func writePolicyInterlockStillPrecedesGateEvenWhenUntrusted() {
+        let unidentified = PumpBLEClient.forUnitTest()                 // default .readOnly, no device context
+        #expect(throws: PumpBLEClient.ClientError.writeBlocked(policy: .readOnly, opcode: 0xCE)) {
+            try unidentified.send(self.mobiOnlyMessage())
+        }
+
+        let untrustedMobi = PumpBLEClient.forUnitTest()                // default .readOnly
+        untrustedMobi.setDeviceContext(model: .mobi, apiVersion: .mobi_v3_5, trusted: false)
+        #expect(throws: PumpBLEClient.ClientError.writeBlocked(policy: .readOnly, opcode: 0xCE)) {
+            try untrustedMobi.send(self.mobiOnlyMessage())
+        }
+    }
 }
