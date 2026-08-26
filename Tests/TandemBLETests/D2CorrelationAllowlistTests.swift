@@ -31,14 +31,14 @@ import TandemMessages
     /// THROUGH the client's public `transactions` seam (not a bare coordinator), so this proves the default
     /// an app observes, not just the coordinator's own initializer default.
     @MainActor @Test func defaultCorrelationModeIsFifoViaClient() {
-        let client = PumpBLEClient()
+        let client = PumpBLEClient.forUnitTest()
         #expect(client.transactions.correlationMode == .opcodeFIFO)
     }
 
     /// D-04 #3 (arming): the ONLY family that elevates. `setPumpFamily(.tslim)` puts the shared coordinator
     /// into `.txIdMatch` (t:slim is the hardware-confirmed txId-echo allowlist entry).
     @MainActor @Test func armingTslimElevatesToTxIdMatch() {
-        let client = PumpBLEClient()
+        let client = PumpBLEClient.forUnitTest()
         client.setPumpFamily(.tslim)
         #expect(client.transactions.correlationMode == .txIdMatch)
     }
@@ -47,7 +47,7 @@ import TandemMessages
     /// the mode on the FIFO reference path — the kit refuses to elevate a non-allowlisted family even though
     /// the caller asked for that family.
     @MainActor @Test func allowlistRejectsMobiStaysFifo() {
-        let client = PumpBLEClient()
+        let client = PumpBLEClient.forUnitTest()
         client.setPumpFamily(.mobi)
         #expect(client.transactions.correlationMode == .opcodeFIFO)
     }
@@ -55,7 +55,7 @@ import TandemMessages
     /// D-04 #1b (allowlist rejection): an UNIDENTIFIED pump fails closed to FIFO — `setPumpFamily(.unknown)`
     /// never elevates. A caller cannot bypass the allowlist by passing an unknown family.
     @MainActor @Test func allowlistRejectsUnknownStaysFifo() {
-        let client = PumpBLEClient()
+        let client = PumpBLEClient.forUnitTest()
         client.setPumpFamily(.unknown)
         #expect(client.transactions.correlationMode == .opcodeFIFO)
     }

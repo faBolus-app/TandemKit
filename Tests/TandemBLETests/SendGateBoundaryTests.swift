@@ -25,7 +25,7 @@ import TandemMessages
     /// KNOWN t:slim (@ v2.5): a MOBI_ONLY message is GATED — refused with `.unsupportedOnDevice`, no bytes
     /// emitted (the gate precedes the readiness guard, so the refusal is not masked by `.notReady`).
     @MainActor @Test func knownTslimGatesMobiOnlySend() {
-        let client = PumpBLEClient()
+        let client = PumpBLEClient.forUnitTest()
         client.writePolicy = .allowNonDelivery
         client.setDeviceContext(model: .tslim, apiVersion: .v2_5)
         #expect(throws: PumpBLEClient.ClientError.unsupportedOnDevice(opcode: 0xCE)) {
@@ -37,7 +37,7 @@ import TandemMessages
     /// readiness guard, throwing `.notReady` (no connection in a unit test). Not `.unsupportedOnDevice`:
     /// a supported send is emitted-path, never gated.
     @MainActor @Test func knownMobiPermitsMobiOnlySend() {
-        let client = PumpBLEClient()
+        let client = PumpBLEClient.forUnitTest()
         client.writePolicy = .allowNonDelivery
         client.setDeviceContext(model: .mobi, apiVersion: .mobi_v3_5)
         #expect(throws: PumpBLEClient.ClientError.notReady) {
@@ -47,7 +47,7 @@ import TandemMessages
 
     /// KNOWN Mobi BELOW the API floor (@ 3.0 < 3.5): gated on the minApi floor even though the family matches.
     @MainActor @Test func knownMobiBelowApiFloorIsGated() {
-        let client = PumpBLEClient()
+        let client = PumpBLEClient.forUnitTest()
         client.writePolicy = .allowNonDelivery
         client.setDeviceContext(model: .mobi, apiVersion: .v3)
         #expect(throws: PumpBLEClient.ClientError.unsupportedOnDevice(opcode: 0xCE)) {
@@ -59,7 +59,7 @@ import TandemMessages
     /// readiness guard and throws `.notReady`, exactly as before the gate existed. No currently-working
     /// send regresses.
     @MainActor @Test func unknownTargetFailsOpen() {
-        let client = PumpBLEClient()
+        let client = PumpBLEClient.forUnitTest()
         client.writePolicy = .allowNonDelivery
         // deliberately no setDeviceContext — model/api stay nil (unidentified)
         #expect(throws: PumpBLEClient.ClientError.notReady) {
@@ -71,7 +71,7 @@ import TandemMessages
     /// under the default `.readOnly` policy is still refused by `writeBlocked` (authorization is checked
     /// first), proving the gate is additive to — not a replacement for — the existing send interlock.
     @MainActor @Test func writePolicyInterlockStillPrecedesGate() {
-        let client = PumpBLEClient()                       // default .readOnly
+        let client = PumpBLEClient.forUnitTest()                       // default .readOnly
         client.setDeviceContext(model: .mobi, apiVersion: .mobi_v3_5)
         #expect(throws: PumpBLEClient.ClientError.writeBlocked(policy: .readOnly, opcode: 0xCE)) {
             try client.send(self.mobiOnlyMessage())

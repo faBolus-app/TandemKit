@@ -79,7 +79,7 @@ import TandemMessages
 
     /// An all-zero bitmap triggers NO dispatch and NO clear.
     @Test func emptyBitmapDispatchesNothingAndClearsNothing() {
-        let client = PumpBLEClient()
+        let client = PumpBLEClient.forUnitTest()
         let delegate = RecordingDelegate()
         client.delegate = delegate
         var clearCount = 0
@@ -93,7 +93,7 @@ import TandemMessages
     /// A non-empty bitmap with NO delivery transaction in flight dispatches the typed event AND
     /// issues exactly one clear write.
     @Test func nonEmptyBitmapDispatchesAndClearsWhenIdle() {
-        let client = PumpBLEClient()
+        let client = PumpBLEClient.forUnitTest()
         let delegate = RecordingDelegate()
         client.delegate = delegate
         var clearCount = 0
@@ -109,7 +109,7 @@ import TandemMessages
     /// transaction IS in flight, the clear write is DEFERRED — not issued — but the typed event is
     /// still decoded/dispatched.
     @Test func nonEmptyBitmapDefersClearWhenDeliveryInFlight() async throws {
-        let client = PumpBLEClient()
+        let client = PumpBLEClient.forUnitTest()
         let delegate = RecordingDelegate()
         client.delegate = delegate
 
@@ -147,7 +147,7 @@ import TandemMessages
     /// only the pre-existing methods still compiles and runs without crashing when a qualifying event
     /// is dispatched — the default no-op extension absorbs the call.
     @Test func stubDelegateWithoutOverrideCompilesAndRunsViaDefaultNoOp() {
-        let client = PumpBLEClient()
+        let client = PumpBLEClient.forUnitTest()
         client.delegate = NoOpStubDelegate()
         var clearCount = 0
 
