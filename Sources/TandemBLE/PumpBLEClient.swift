@@ -305,10 +305,6 @@ public final class PumpBLEClient: NSObject {
     public func identityGateError(for message: Message) -> ClientError? {
         if connectedPumpModel != nil && identityTrusted { return nil }
         guard message.props.supportedDevices != nil else { return nil }
-        // RED-STATE PLACEHOLDER (15.5-03 TDD scaffold): still tracer-scoped to 0xCE — REMOVED in the GREEN
-        // commit that follows. Present only so the generalized/collision/S-B test assertions below fail
-        // first, proving they exercise the not-yet-generalized code.
-        guard message.opCode == SetSleepScheduleRequest.props.opCode else { return nil }
         let key = SendGateAllowlistKey(characteristic: message.characteristic, opCode: message.opCode)
         #if DEBUG
         let allowlist = bootstrapAllowlistOverrideForTesting ?? SendGateBootstrapAllowlist.entries
