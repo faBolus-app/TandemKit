@@ -115,4 +115,23 @@ struct SignedAckFailClosedTests {
         #expect(!CancelBolusResponse(cargo: [1, 0, 0, 0, 0]).wasCancelled)     // statusId != 0
         #expect(!CancelBolusResponse(cargo: [0, 0, 0, 2, 0]).wasCancelled)     // reasonId != 0 (byte 3)
     }
+
+    // The two remaining distinct init SHAPES (the other ~19 hardened acks are byte-identical size-1
+    // one-liners already covered by the size-1 cases above): a size-2 status+ack, and a statusCode-named ack.
+
+    @Test func setSensorTypeResponseShortBufferIsNotAccepted() {   // size 2 (status@0, statusAcknowledgement@1)
+        for short: [UInt8] in [[], [0]] {
+            #expect(!SetSensorTypeResponse(cargo: short).accepted)
+        }
+        #expect(SetSensorTypeResponse(cargo: [0, 0]).accepted)
+        #expect(!SetSensorTypeResponse(cargo: [1, 0]).accepted)
+    }
+
+    @Test func primeTubingSuspendResponseShortBufferIsNotAccepted() {   // size 3 (statusCode@0, reserve@2)
+        for short: [UInt8] in [[], [0], [0, 0]] {
+            #expect(!PrimeTubingSuspendResponse(cargo: short).accepted)
+        }
+        #expect(PrimeTubingSuspendResponse(cargo: [0, 0, 0]).accepted)
+        #expect(!PrimeTubingSuspendResponse(cargo: [1, 0, 0]).accepted)
+    }
 }
