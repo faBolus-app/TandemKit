@@ -21,9 +21,17 @@ public struct SetTempRateRequest: Message {
     /// CX-T-07 (PX-07 convention): reject out-of-range args by throwing BEFORE any truncating byte-encode
     /// helper — never silently convert an invalid value into a different valid command (e.g. percent
     /// 65536 would truncate to 0% via `Bytes.firstTwoBytesLittleEndian`).
-    public enum ValidationError: Error, Equatable {
+    public enum ValidationError: Error, Equatable, LocalizedError {
         case minutesOutOfRange(Int)
         case percentOutOfRange(Int)
+        // 15-IN-02: human-readable messages so a caller surfacing `error.localizedDescription` (e.g. the
+        // app's generic control-error catch) shows a clear cause, not a bridged NSError string.
+        public var errorDescription: String? {
+            switch self {
+            case .minutesOutOfRange(let m): return "Temp rate duration \(m) min is out of range — must be 15 to 4320 minutes (72 h)."
+            case .percentOutOfRange(let p): return "Temp rate \(p)% is out of range — must be 0 to 250%."
+            }
+        }
     }
 
     public var cargo: [UInt8]

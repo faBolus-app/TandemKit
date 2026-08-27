@@ -62,8 +62,14 @@ public struct FillCannulaRequest: Message {
     public static let maxPrimeSize = 3000
 
     /// CX-T-07 (PX-07 convention): reject out-of-range `primeSize` by throwing BEFORE the byte-encode.
-    public enum ValidationError: Error, Equatable {
+    public enum ValidationError: Error, Equatable, LocalizedError {
         case primeSizeOutOfRange(Int)
+        // 15-IN-02: human-readable message for a caller surfacing `error.localizedDescription`.
+        public var errorDescription: String? {
+            switch self {
+            case .primeSizeOutOfRange(let s): return "Fill-cannula prime size \(s) mU is out of range — must be 1 to 3000 milliunits."
+            }
+        }
     }
 
     public var cargo: [UInt8]

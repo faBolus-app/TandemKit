@@ -21,8 +21,14 @@ public struct SetMaxBolusLimitRequest: Message {
     public static let maxMaxBolusMilliunits = 25_000    // 25.0 U — matches Interlocks.absoluteMaxUnits
 
     /// CX-T-07 (PX-07 convention): reject out-of-range args by throwing BEFORE the byte-encode.
-    public enum ValidationError: Error, Equatable {
+    public enum ValidationError: Error, Equatable, LocalizedError {
         case maxBolusMilliunitsOutOfRange(Int)
+        // 15-IN-02: human-readable message for a caller surfacing `error.localizedDescription`.
+        public var errorDescription: String? {
+            switch self {
+            case .maxBolusMilliunitsOutOfRange(let mu): return "Max bolus limit \(Double(mu) / 1000) U is out of range — must be 1.0 to 25.0 U."
+            }
+        }
     }
 
     public var cargo: [UInt8]
@@ -56,8 +62,14 @@ public struct SetMaxBasalLimitRequest: Message {
     public static let maxMaxHourlyBasalMilliunits: UInt32 = 15_000   // 15.0 U/hr
 
     /// CX-T-07 (PX-07 convention): reject out-of-range args by throwing BEFORE the byte-encode.
-    public enum ValidationError: Error, Equatable {
+    public enum ValidationError: Error, Equatable, LocalizedError {
         case maxHourlyBasalMilliunitsOutOfRange(UInt32)
+        // 15-IN-02: human-readable message for a caller surfacing `error.localizedDescription`.
+        public var errorDescription: String? {
+            switch self {
+            case .maxHourlyBasalMilliunitsOutOfRange(let mu): return "Max basal limit \(Double(mu) / 1000) U/hr is out of range — must be 1.0 to 15.0 U/hr."
+            }
+        }
     }
 
     public var cargo: [UInt8]
