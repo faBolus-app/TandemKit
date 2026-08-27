@@ -342,6 +342,14 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
             if Date() > deadline { return false }
             try? await Task.sleep(nanoseconds: 200_000_000)
         }
+        // 15.5-WR-03: a mid-sweep reconnect runs failClosed(), which resets identityTrusted/connectedPumpModel;
+        // re-wire the operator's TRUSTED device context here (the sweep's per-command choke point) so the
+        // subsequent Mobi-only commands exercise deviceSupportError (D-08) instead of spuriously reporting
+        // .identityNotEstablished — otherwise a single drop-and-recover understates real coverage for the
+        // rest of the sweep. Gated on identity actually being lost, so it's a no-op when nothing dropped.
+        if let ctx = wiredDeviceContext, !client.identityTrusted {
+            wireDeviceContext(isMobi: ctx.isMobi, major: ctx.major, minor: ctx.minor)
+        }
         return true
     }
 
@@ -739,6 +747,11 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
 
     /// Affordance (b): activate the D-08 device/API send gate for THIS pump. From here the kit refuses
     /// (throws `.unsupportedOnDevice`) any model/API-restricted message — the same gate faBolus relies on.
+    /// 15.5-WR-03: the operator's TRUSTED device identification, retained so the sweep can RE-wire it after a
+    /// mid-sweep reconnect (`failClosed()` resets identityTrusted/connectedPumpModel on every link drop). Set
+    /// on the first successful wire.
+    private var wiredDeviceContext: (isMobi: Bool, major: Int, minor: Int)?
+
     /// `failClosed()` clears it on any link drop; the pure `plan()` already excludes model-N/A commands, so
     /// this is belt-and-suspenders proof that the wiring is in place, not the sole guard.
     private func wireDeviceContext(isMobi: Bool, major: Int, minor: Int) {
@@ -746,6 +759,7 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         // trusted: true — the bench operator's own identification of the pump under test is a TRUSTED
         // source (CC-06 / REMED-15.5), distinct from op33's ambiguous API-version heuristic.
         client.setDeviceContext(model: isMobi ? .mobi : .tslim, apiVersion: ApiVersion(major: major, minor: minor), trusted: true)
+        wiredDeviceContext = (isMobi, major, minor)   // 15.5-WR-03: remember it, so awaitPaired can re-wire after a reconnect
     }
 
     /// A generic read probe for the coverage sweep: send `req` read-only and await its correlated response.
