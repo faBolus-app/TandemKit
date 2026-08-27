@@ -1283,6 +1283,20 @@ extension PumpBLEClient: CBPeripheralDelegate {
     /// interim, instead of a stale `.ready` masking the lost channel. Does not touch `characteristics` or
     /// tear down the link — only the notify barrier was lost, not the whole connection; a genuine
     /// disconnect is handled separately by `failClosed`/`didDisconnectPeripheral`.
+    ///
+    /// 14-WR-02 (Phase 14 review, Option 2 — pin the deliberate behavior, NO runtime change): this revoke
+    /// intentionally does NOT reset `writePolicy` to `.readOnly` and does NOT `transactions.failAll(...)` —
+    /// unlike the CB-error branches, which DO call `failClosed`. A notify-barrier flip is not itself a
+    /// disconnect, and failing every in-flight transaction on a (possibly transient) notify-state toggle
+    /// would be an unbenched pump-link RELIABILITY change (aborting a mid-`perform()` bolus that may still
+    /// be resolving). The write gate does NOT rely on `state == .ready` alone: a delivery is gated by
+    /// `writePolicy` + `TandemBackend`'s own at-most-one-in-flight serialization
+    /// (`deliveryInProgress`/`pumpTxBusy`) + `perform()`'s `defer { writePolicy = .readOnly }`. No
+    /// double-dose path exists through the elevated-policy window (verified in the Phase-14 review). A
+    /// fail-closed-on-notify-loss variant (reset `writePolicy` + `failAll(.connectionLost)` here) is a
+    /// BENCH-GATED future consideration, not shipped unverified. `SendGateBoundary`/notification-loss tests
+    /// pin this contract: after a notify-only revoke, `state` is `.discovering` and `writePolicy` is
+    /// UNCHANGED — no caller may treat `state != .ready` alone as a write gate.
     private func revokeReadiness() {
         state = .discovering
     }

@@ -119,4 +119,29 @@ import TandemMessages
         }
         #expect(client.writePolicy == .readOnly)
     }
+
+    /// 14-WR-02 (Phase 14 review, Option 2 — pin the DELIBERATE no-fail-closed behavior): a post-ready
+    /// notification LOSS (no CB error) revokes readiness to `.discovering` but INTENTIONALLY does NOT reset
+    /// `writePolicy` and does NOT fail in-flight transactions — unlike the CB-error branch above. A
+    /// notify-barrier flip is not a disconnect, and failing every in-flight transaction on a possibly
+    /// transient toggle would be an unbenched pump-link RELIABILITY change. The write gate is `writePolicy`
+    /// + `TandemBackend`'s at-most-one-in-flight serialization + `perform()`'s `defer`, NOT `state == .ready`
+    /// alone. This test pins that contract so a future edit that "helpfully" fails closed here (a bench-gated
+    /// change) is caught and forced through hardware validation first.
+    @MainActor @Test func postReadyNotificationLossDoesNotResetWritePolicyOrFailPending() async {
+        let client = PumpBLEClient(central: FakeCentral())
+        client.stateForTesting = .ready
+        client.writePolicy = .allowDelivery              // elevated, so a spurious reset would be observable
+        let pending = await launchAndRegister(client.transactions, on: .currentStatus, opCode: 0x01)
+
+        client.handleNotificationStateUpdate(mapped: .currentStatus, isNotifying: false, error: nil)
+
+        #expect(client.state == .discovering,
+                "a notify-only loss revokes readiness to .discovering (re-declarable), not a full teardown")
+        #expect(client.writePolicy == .allowDelivery,
+                "14-WR-02: a notify-only loss must NOT reset writePolicy — the gate is writePolicy + serialization, not state")
+        #expect(client.transactions.inFlightCount == 1,
+                "14-WR-02: a notify-only loss must NOT fail in-flight transactions (that would be an unbenched reliability change)")
+        pending.cancel()   // cleanup: nothing resolves this pending tx by design, so cancel the awaiting task
+    }
 }
