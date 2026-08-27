@@ -58,7 +58,7 @@ import TandemMessages
     /// UNKNOWN target (no device context set): CC-06 (REMED-15.5) fail-CLOSED for the tracer message — the
     /// send is refused pre-write with `.identityNotEstablished`, no bytes emitted. (Was `.notReady` before
     /// the trusted-identity gate existed; this is the RED→GREEN flip that proves the mechanism end-to-end.)
-    @MainActor @Test func unknownTargetFailsOpen() {
+    @MainActor @Test func unknownTargetFailsClosedForModelRestrictedSend() {
         let client = PumpBLEClient.forUnitTest()
         client.writePolicy = .allowNonDelivery
         // deliberately no setDeviceContext — model/api/trust stay nil/false (unidentified)
