@@ -122,6 +122,36 @@ import Testing
         }
     }
 
+    // MARK: - tslim-reconnect-loop: the two auto-adjustment-mode (AAM) reads carry the Control-IQ-era floor
+    //
+    // Debug session `tslim-reconnect-loop` (2026-08-27): `PumpReadScheduler.alertRead()` auto-polls the two
+    // AAM reads — `HighestAamRequest` (op120) and `ActiveAamBitsRequest` (op146/0x92) — every burst. On a
+    // Control-IQ-off / no-CGM API-2.5 t:slim X2 those Control-IQ-era reads are rejected (op-77) and the pump
+    // deliberately tears the BLE link down ~90 ms later, producing a connect/disconnect flap. AAM is a
+    // Control-IQ-era capability; upstream tags `ActiveAamBitsRequest` `minApi=MOBI_API_V3_5`. `HighestAamRequest`
+    // carried NO floor upstream, but is the same AAM family and must not be auto-sent below the same API — so
+    // it is given the SAME `.mobi_v3_5` floor here (defense-in-depth for the app-side static suppression in
+    // `PumpKnownUnsupportedReads`). Note this floor only bites once a call site supplies a KNOWN apiVersion —
+    // fail-open on nil is preserved (CX-T-04 deferred), so the app-side static suppression is the live fix.
+    @Test func aamReadsCarryTheControlIQEraFloor() {
+        let aamReads: [MessageProps] = [
+            HighestAamRequest.props,      // op120 — upstream unannotated; floored here (tslim-reconnect-loop)
+            ActiveAamBitsRequest.props,   // op146/0x92 — upstream minApi = MOBI_API_V3_5
+        ]
+        for props in aamReads {
+            #expect(props.minApi == .mobi_v3_5)
+            // Known below-floor apiVersion (2.5, the flapping pump's firmware) ⇒ gated (no-send).
+            #expect(props.isSupported(onModel: .tslim, apiVersion: .v2_5) == false)
+            // Known at-floor apiVersion ⇒ supported (floor is inclusive minimum).
+            #expect(props.isSupported(onModel: .tslim, apiVersion: .mobi_v3_5))
+            // Unknown apiVersion ⇒ fails open (apiVersion is nil at every call site today — CX-T-04 deferred).
+            #expect(props.isSupported(onModel: .tslim, apiVersion: nil))
+            // AAM is API-gated, NOT device-gated: no supportedDevices restriction (a Control-IQ t:slim at a
+            // high-enough API may support it) — so a KNOWN model alone never gates it.
+            #expect(props.supportedDevices == nil)
+        }
+    }
+
     // MARK: - CX-T-01: the 5 CONTROL_STREAM cartridge-fill state responses must be signed+stream
     //
     // Omitting `signed:`/`stream:` on these opcodes (0xE1/0xE3/0xE5/0xE7/0xE9) silently skips VA-04

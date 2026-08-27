@@ -243,7 +243,15 @@ public struct GetSavedG7PairingCodeRequest: EmptyCurrentStatusRequest {
     public static let props = statusProps(116); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }
 }
 public struct HighestAamRequest: EmptyCurrentStatusRequest {
-    public static let props = statusProps(120); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }
+    // op120 → response 121. Auto-adjustment-mode (AAM) read; upstream carries NO floor, but AAM is a
+    // Control-IQ-era capability (its sibling `ActiveAamBitsRequest` is upstream `minApi=MOBI_API_V3_5`).
+    // Debug `tslim-reconnect-loop`: `PumpReadScheduler.alertRead()` auto-polled this on a Control-IQ-off
+    // API-2.5 t:slim X2 → op-77 → the pump tore the BLE link down (~90 ms) → connect/disconnect flap. Given
+    // the SAME `.mobi_v3_5` floor as its AAM sibling — defense-in-depth for the app-side static suppression
+    // in `PumpKnownUnsupportedReads`. Metadata-only (does not affect wire bytes, so OracleParity is
+    // unchanged); fail-open on a nil apiVersion is preserved (CX-T-04 deferred), so the floor bites only once
+    // a call site supplies a KNOWN below-floor apiVersion — the app-side static suppression is the live fix.
+    public static let props = statusProps(120, minApi: .mobi_v3_5); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }
 }
 public struct LocalizationRequest: EmptyCurrentStatusRequest {
     public static let props = statusProps(0xA6); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }
