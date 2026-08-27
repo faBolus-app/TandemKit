@@ -73,4 +73,46 @@ struct SignedAckFailClosedTests {
         // status==0, statusTypeId==0 ⇒ accepted (no regression to the happy path).
         #expect(InitiateBolusResponse(cargo: [0, 0, 0, 0, 0, 0]).accepted)
     }
+
+    // WR-01 (Phase 15 review): extend the CX-T-12 short-cargo fail-closed pins to the remaining
+    // delivery-affecting signed CONTROL acks (the fix's stated goal was "harden the public API", and it had
+    // been applied to only 3 of the signed-ack types). Each must decode a short/empty buffer as NOT accepted
+    // (and must not trap), and a full-length status-0 buffer must still decode accepted (no happy-path regression).
+
+    @Test func stopTempRateResponseShortBufferIsNotAccepted() {
+        for short: [UInt8] in [[], [0], [0, 0]] {   // size 3
+            #expect(!StopTempRateResponse(cargo: short).accepted)
+        }
+        #expect(StopTempRateResponse(cargo: [0, 0, 0]).accepted)
+        #expect(!StopTempRateResponse(cargo: [1, 0, 0]).accepted)
+    }
+
+    @Test func enterChangeCartridgeModeResponseShortBufferIsNotAccepted() {   // size 1
+        #expect(!EnterChangeCartridgeModeResponse(cargo: []).accepted)
+        #expect(EnterChangeCartridgeModeResponse(cargo: [0]).accepted)
+        #expect(!EnterChangeCartridgeModeResponse(cargo: [1]).accepted)
+    }
+
+    @Test func enterFillTubingModeResponseShortBufferIsNotAccepted() {   // size 1
+        #expect(!EnterFillTubingModeResponse(cargo: []).accepted)
+        #expect(EnterFillTubingModeResponse(cargo: [0]).accepted)
+        #expect(!EnterFillTubingModeResponse(cargo: [1]).accepted)
+    }
+
+    @Test func fillCannulaResponseShortBufferIsNotAccepted() {   // size 1
+        #expect(!FillCannulaResponse(cargo: []).accepted)
+        #expect(FillCannulaResponse(cargo: [0]).accepted)
+        #expect(!FillCannulaResponse(cargo: [1]).accepted)
+    }
+
+    @Test func cancelBolusResponseShortBufferIsNotCancelled() {
+        // size 5; wasCancelled == (statusId == 0 && reasonId == 0). A short/empty buffer must NEVER decode
+        // wasCancelled == true — that would be "your bolus was cancelled" from zero pump bytes.
+        for short: [UInt8] in [[], [0], [0, 0], [0, 0, 0], [0, 0, 0, 0]] {
+            #expect(!CancelBolusResponse(cargo: short).wasCancelled)
+        }
+        #expect(CancelBolusResponse(cargo: [0, 0, 0, 0, 0]).wasCancelled)      // full, success (no regression)
+        #expect(!CancelBolusResponse(cargo: [1, 0, 0, 0, 0]).wasCancelled)     // statusId != 0
+        #expect(!CancelBolusResponse(cargo: [0, 0, 0, 2, 0]).wasCancelled)     // reasonId != 0 (byte 3)
+    }
 }

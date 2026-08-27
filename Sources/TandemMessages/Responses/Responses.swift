@@ -162,8 +162,13 @@ public struct StopTempRateResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        if !raw.isEmpty { status = Int(raw[0]) }
-        if raw.count >= 3 { tempRateId = Bytes.readShort(raw, 1) }
+        // WR-01/CX-T-12: fail CLOSED on a short buffer — a truncated/empty ack must never decode status 0
+        // (== accepted) for a delivery-affecting stop-temp-rate. Unreachable via ResponseParser
+        // (length-guarded + HMAC-verified), but a direct caller must not read an ACCEPTED stop from an
+        // empty/truncated frame. Mirrors the already-hardened SetTempRateResponse.
+        guard raw.count >= Self.props.size else { status = 1; return }
+        status = Int(raw[0])
+        tempRateId = Bytes.readShort(raw, 1)
     }
     public mutating func parse(_ raw: [UInt8]) { self = StopTempRateResponse(cargo: raw) }
     /// status 0 = accepted.
@@ -176,7 +181,7 @@ public struct EnterChangeCartridgeModeResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if !raw.isEmpty { status = Int(raw[0]) } }
+    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
     public mutating func parse(_ raw: [UInt8]) { self = EnterChangeCartridgeModeResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
@@ -185,7 +190,7 @@ public struct ExitChangeCartridgeModeResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if !raw.isEmpty { status = Int(raw[0]) } }
+    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
     public mutating func parse(_ raw: [UInt8]) { self = ExitChangeCartridgeModeResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
@@ -194,7 +199,7 @@ public struct EnterFillTubingModeResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if !raw.isEmpty { status = Int(raw[0]) } }
+    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
     public mutating func parse(_ raw: [UInt8]) { self = EnterFillTubingModeResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
@@ -203,7 +208,7 @@ public struct ExitFillTubingModeResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if !raw.isEmpty { status = Int(raw[0]) } }
+    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
     public mutating func parse(_ raw: [UInt8]) { self = ExitFillTubingModeResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
@@ -212,7 +217,7 @@ public struct FillCannulaResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if !raw.isEmpty { status = Int(raw[0]) } }
+    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
     public mutating func parse(_ raw: [UInt8]) { self = FillCannulaResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
@@ -227,8 +232,11 @@ public struct PrimeTubingSuspendResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        if !raw.isEmpty { statusCode = Int(raw[0]) }
-        if raw.count >= 3 { reserve = Int(raw[2]) }
+        // WR-01/CX-T-12: fail CLOSED on a short buffer — never decode statusCode 0 (== accepted) from a
+        // truncated/empty prime-tubing-suspend ack.
+        guard raw.count >= Self.props.size else { statusCode = 1; return }
+        statusCode = Int(raw[0])
+        reserve = Int(raw[2])
     }
     public mutating func parse(_ raw: [UInt8]) { self = PrimeTubingSuspendResponse(cargo: raw) }
     public var accepted: Bool { statusCode == 0 }
@@ -240,7 +248,7 @@ public struct SetMaxBolusLimitResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if !raw.isEmpty { status = Int(raw[0]) } }
+    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
     public mutating func parse(_ raw: [UInt8]) { self = SetMaxBolusLimitResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
@@ -251,7 +259,7 @@ public struct SetMaxBasalLimitResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if !raw.isEmpty { status = Int(raw[0]) } }
+    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
     public mutating func parse(_ raw: [UInt8]) { self = SetMaxBasalLimitResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
@@ -262,7 +270,7 @@ public struct SetLowInsulinAlertResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if !raw.isEmpty { status = Int(raw[0]) } }
+    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
     public mutating func parse(_ raw: [UInt8]) { self = SetLowInsulinAlertResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
@@ -273,7 +281,7 @@ public struct SetAutoOffAlertResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if !raw.isEmpty { status = Int(raw[0]) } }
+    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
     public mutating func parse(_ raw: [UInt8]) { self = SetAutoOffAlertResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
@@ -284,7 +292,7 @@ public struct SetModesResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if !raw.isEmpty { status = Int(raw[0]) } }
+    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
     public mutating func parse(_ raw: [UInt8]) { self = SetModesResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
@@ -295,7 +303,7 @@ public struct SetActiveIDPResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if !raw.isEmpty { status = Int(raw[0]) } }
+    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
     public mutating func parse(_ raw: [UInt8]) { self = SetActiveIDPResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
@@ -306,7 +314,7 @@ public struct PlaySoundResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if !raw.isEmpty { status = Int(raw[0]) } }
+    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
     public mutating func parse(_ raw: [UInt8]) { self = PlaySoundResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
@@ -317,7 +325,7 @@ public struct SetPumpSoundsResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if !raw.isEmpty { status = Int(raw[0]) } }
+    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
     public mutating func parse(_ raw: [UInt8]) { self = SetPumpSoundsResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
@@ -328,7 +336,7 @@ public struct ChangeTimeDateResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if !raw.isEmpty { status = Int(raw[0]) } }
+    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
     public mutating func parse(_ raw: [UInt8]) { self = ChangeTimeDateResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
@@ -339,7 +347,7 @@ public struct RemoteCarbEntryResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if !raw.isEmpty { status = Int(raw[0]) } }
+    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
     public mutating func parse(_ raw: [UInt8]) { self = RemoteCarbEntryResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
@@ -350,7 +358,7 @@ public struct RemoteBgEntryResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if !raw.isEmpty { status = Int(raw[0]) } }
+    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
     public mutating func parse(_ raw: [UInt8]) { self = RemoteBgEntryResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
@@ -361,7 +369,7 @@ public struct StartDexcomG6SensorSessionResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if !raw.isEmpty { status = Int(raw[0]) } }
+    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
     public mutating func parse(_ raw: [UInt8]) { self = StartDexcomG6SensorSessionResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
@@ -372,7 +380,7 @@ public struct StopDexcomCGMSensorSessionResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if !raw.isEmpty { status = Int(raw[0]) } }
+    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
     public mutating func parse(_ raw: [UInt8]) { self = StopDexcomCGMSensorSessionResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
@@ -387,8 +395,11 @@ public struct SetSensorTypeResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        if !raw.isEmpty { status = Int(raw[0]) }
-        if raw.count >= 2 { statusAcknowledgement = Int(raw[1]) }
+        // WR-01/CX-T-12: fail CLOSED on a short buffer — never decode status 0 (== accepted) from a
+        // truncated/empty set-sensor-type ack.
+        guard raw.count >= Self.props.size else { status = 1; return }
+        status = Int(raw[0])
+        statusAcknowledgement = Int(raw[1])
     }
     public mutating func parse(_ raw: [UInt8]) { self = SetSensorTypeResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
@@ -400,7 +411,7 @@ public struct SetDexcomG7PairingCodeResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if !raw.isEmpty { status = Int(raw[0]) } }
+    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
     public mutating func parse(_ raw: [UInt8]) { self = SetDexcomG7PairingCodeResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
@@ -416,9 +427,14 @@ public struct CancelBolusResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        if !raw.isEmpty { statusId = Int(raw[0]) }
-        if raw.count >= 3 { bolusId = Bytes.readShort(raw, 1) }
-        if raw.count >= 4 { reasonId = Int(raw[3]) }
+        // WR-01/CX-T-12: fail CLOSED on a short buffer. `wasCancelled == (statusId == 0 && reasonId == 0)`,
+        // so a fully-empty cargo would otherwise decode "your bolus was cancelled" from ZERO pump bytes.
+        // Set BOTH statusId and reasonId to a non-success sentinel so `wasCancelled` can never be true from
+        // a truncated/empty frame (unreachable via ResponseParser, but a direct caller must fail closed).
+        guard raw.count >= Self.props.size else { statusId = 1; reasonId = 1; return }
+        statusId = Int(raw[0])
+        bolusId = Bytes.readShort(raw, 1)
+        reasonId = Int(raw[3])
     }
     public mutating func parse(_ raw: [UInt8]) { self = CancelBolusResponse(cargo: raw) }
     /// statusId 0 = SUCCESS, reasonId 0 = NO_ERROR (2 = invalid/already delivered).
@@ -432,7 +448,7 @@ public struct BolusPermissionReleaseResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if !raw.isEmpty { status = Int(raw[0]) } }
+    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
     public mutating func parse(_ raw: [UInt8]) { self = BolusPermissionReleaseResponse(cargo: raw) }
     /// status 0 = SUCCESS.
     public var released: Bool { status == 0 }
