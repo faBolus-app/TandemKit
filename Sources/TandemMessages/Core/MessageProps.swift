@@ -1,7 +1,8 @@
 import Foundation
 
-/// Operation-risk class for a message. `WritePolicy` is a coarse byte gate; this class lets a
-/// caller authorize on the *consequence* of a message, not just on "does it dispense insulin".
+/// Operation-risk class for a message. Lets a caller authorize on the *consequence* of a message,
+/// not just on "does it dispense insulin": `PumpBLEClient.WritePolicy.maxRisk` maps each link policy
+/// to the highest class it authorizes, and a message is permitted only at or below that ceiling.
 /// Ordered least→most dangerous.
 public enum OperationRisk: Int, Sendable, Comparable, CaseIterable {
     /// Reads, pairing, unsigned non-control traffic. No pump state change.

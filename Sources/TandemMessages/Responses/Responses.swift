@@ -1254,12 +1254,12 @@ public struct BolusCalcDataSnapshotResponse: ResponseMessage {
     /// The configured hourly bolus ceiling, or 0 if unconfigured. Oracle @20 (uint32).
     public private(set) var maxBolusHourlyTotal: UInt32 = 0
     /// true if the maximum bolus has been exceeded for the interval. Oracle @24. LAYOUT +
-    /// KNOWN-FALSE case oracle-backed only — the `true` case has never been observed
-    /// NOT marked verified.
+    /// KNOWN-FALSE case oracle-backed only — the `true` case has never been observed in a
+    /// first-party capture, so it stays NOT marked verified until one is captured on hardware.
     public private(set) var maxBolusEventsExceeded: Bool = false
     /// true if the maximum iob has been reached for the interval. Oracle @25. LAYOUT +
-    /// KNOWN-FALSE case oracle-backed only — the `true` case has never been observed
-    /// NOT marked verified.
+    /// KNOWN-FALSE case oracle-backed only — the `true` case has never been observed in a
+    /// first-party capture, so it stays NOT marked verified until one is captured on hardware.
     public private(set) var maxIobEventsExceeded: Bool = false
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
