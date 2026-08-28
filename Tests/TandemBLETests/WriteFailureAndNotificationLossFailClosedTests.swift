@@ -144,4 +144,52 @@ import TandemMessages
                 "14-WR-02: a notify-only loss must NOT fail in-flight transactions (that would be an unbenched reliability change)")
         pending.cancel()   // cleanup: nothing resolves this pending tx by design, so cancel the awaiting task
     }
+
+    // MARK: - debug pump-drop-no-reconnect: revoked .discovering must NOT hang silently until force-quit
+
+    /// REGRESSION (debug `pump-drop-no-reconnect`, symptom 2.1). A post-`.ready` notify loss revokes to
+    /// `.discovering` (pinned above), but the CX-T-05 comment's premise — that `.ready` is "re-declarable
+    /// once the subscription is reconfirmed" — only holds if SOMETHING re-drives the subscription-ready
+    /// barrier. On real hardware the pump/OS can drop a notify subscription after a long session WITHOUT a
+    /// CB disconnect (the ATT link stays up), so `didDisconnectPeripheral` never fires and the reconnect
+    /// ladder is never armed; the establishment watchdog was cancelled when `.ready` was first reached; and
+    /// nothing re-issues `setNotifyValue(true)`. With the lost characteristic still in `requestedNotify` but
+    /// gone from `confirmedNotifying`, `maybeBecomeReady()` can never re-pass — so the link latches in
+    /// `.discovering` FOREVER, silently, until the app is force-quit (the reported bug).
+    ///
+    /// The recovery contract: a revoked `.discovering` MUST arm a bounded backstop (the establishment
+    /// watchdog — the same mechanism every other pre-`.ready` establishment path uses) so it either
+    /// re-declares `.ready` after re-subscription or escalates to the reconnect ladder (→ `.ready`, or a
+    /// VISIBLE `.reconnectExhausted`). It must never sit in `.discovering` with no timer behind it.
+    ///
+    /// Oracle: `specified` (the required recovery invariant — "no non-`.ready`/non-terminal state without a
+    /// deadline"). Boundary neighbor of the pinned `postReadyNotificationLoss…` cases: same trigger, asserts
+    /// the MISSING half (recovery armed) rather than the immediate-values half (state/policy/in-flight).
+    @MainActor @Test func postReadyNotificationLossArmsRecoverySoItCannotHangUntilForceQuit() {
+        let client = PumpBLEClient(central: FakeCentral())
+        client.stateForTesting = .ready
+
+        #expect(!client.establishmentWatchdogArmedForTesting,
+                "precondition: no establishment watchdog is armed while `.ready`")
+
+        client.handleNotificationStateUpdate(mapped: .currentStatus, isNotifying: false, error: nil)
+
+        #expect(client.state == .discovering,
+                "a notify loss revokes to the re-declarable `.discovering` (unchanged contract)")
+        #expect(client.establishmentWatchdogArmedForTesting,
+                "a revoked `.discovering` MUST arm the establishment-watchdog backstop so it can never hang silently until force-quit (debug pump-drop-no-reconnect 2.1)")
+    }
+
+    /// Boundary: a notification CONFIRMATION while `.ready` must NOT arm the recovery backstop — the
+    /// establishment watchdog belongs only to the LOSS path, not every notification-state callback (mirrors
+    /// `postReadyNotificationConfirmationDoesNotRevokeReadiness`).
+    @MainActor @Test func postReadyNotificationConfirmationDoesNotArmRecovery() {
+        let client = PumpBLEClient(central: FakeCentral())
+        client.stateForTesting = .ready
+
+        client.handleNotificationStateUpdate(mapped: .currentStatus, isNotifying: true, error: nil)
+
+        #expect(!client.establishmentWatchdogArmedForTesting,
+                "a notify confirmation on a healthy `.ready` link must not arm the establishment watchdog")
+    }
 }

@@ -1271,7 +1271,7 @@ extension PumpBLEClient: CBPeripheralDelegate {
             confirmedNotifying.insert(mapped)
         } else {
             confirmedNotifying.remove(mapped)
-            if state == .ready { revokeReadiness() }
+            if state == .ready { revokeReadiness(lost: mapped) }
         }
         maybeBecomeReady()
     }
@@ -1297,8 +1297,30 @@ extension PumpBLEClient: CBPeripheralDelegate {
     /// BENCH-GATED future consideration, not shipped unverified. `SendGateBoundary`/notification-loss tests
     /// pin this contract: after a notify-only revoke, `state` is `.discovering` and `writePolicy` is
     /// UNCHANGED — no caller may treat `state != .ready` alone as a write gate.
-    private func revokeReadiness() {
+    ///
+    /// debug `pump-drop-no-reconnect` (symptom 2.1): the CX-T-05 premise above — `.ready` is "re-declarable
+    /// once the subscription is reconfirmed" — only holds if SOMETHING re-drives the PX-08 subscription-ready
+    /// barrier. On real hardware the pump/OS can drop a notify subscription after a long session WITHOUT a CB
+    /// disconnect (the ATT link stays up), so `didDisconnectPeripheral` never fires (the reconnect ladder is
+    /// never armed) and the establishment watchdog was cancelled at `.ready` (`maybeBecomeReady`). With the
+    /// lost characteristic still in `requestedNotify` but gone from `confirmedNotifying`, `maybeBecomeReady()`
+    /// can never re-pass on its own → the link latches in `.discovering` FOREVER, silently, until force-quit.
+    /// So this revoke now ALSO arms recovery, without changing any of the pinned immediate values above:
+    ///  (a) re-issue `setNotifyValue(true)` for the lost characteristic on the still-live peripheral to
+    ///      re-request the confirmation `maybeBecomeReady()` is waiting on (fast happy-path recovery over the
+    ///      existing link — no teardown), and
+    ///  (b) re-arm the establishment watchdog — the SAME bounded pre-`.ready` backstop every other
+    ///      establishment path uses (`connect`, `reconnectTick`, BT power-on). If the re-subscription is
+    ///      confirmed, `maybeBecomeReady()` re-declares `.ready` and cancels the watchdog; if it is NOT
+    ///      confirmed within the window, `establishmentTimedOut()` escalates a KNOWN target into the
+    ///      throttled reconnect ladder (→ `.ready`, or the VISIBLE `.reconnectExhausted`/`.error`). Either
+    ///      way the link can never sit in `.discovering` with no deadline behind it.
+    private func revokeReadiness(lost: Characteristic? = nil) {
         state = .discovering
+        if let lost, let peripheral, let cb = characteristics[lost] {
+            peripheral.setNotifyValue(true, for: cb)   // re-drive the PX-08 barrier over the still-live link
+        }
+        armEstablishmentWatchdog()   // bounded backstop → reconnect ladder if the re-subscribe never confirms
     }
 
     public nonisolated func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic,
