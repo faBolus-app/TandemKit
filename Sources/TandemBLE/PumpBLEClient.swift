@@ -33,7 +33,7 @@ public protocol PumpBLEClientDelegate: AnyObject {
     func pumpClient(_ client: PumpBLEClient, willRetryReconnect attempt: Int, after delay: TimeInterval)
     /// CC-03 (kit half): the pump's qualifying-events bitmap, decoded and dispatched typed. Fired
     /// only when the decoded set is non-empty (an all-zero bitmap dispatches nothing). App-side
-    /// pause-sends / dedup consumption is Phase 13 — NOT this delegate method's concern; the kit
+    /// pause-sends / dedup consumption is NOT this delegate method's concern; the kit
     /// only decodes + dispatches + issues the reference-backed clear (see `PumpBLEClient
     /// .handleQualifyingEventsFrame`).
     func pumpClient(_ client: PumpBLEClient, didReceiveQualifyingEvent event: QualifyingEvent)
@@ -46,7 +46,7 @@ public protocol PumpBLEClientDelegate: AnyObject {
 public extension PumpBLEClientDelegate {
     func pumpClient(_ client: PumpBLEClient, willRetryReconnect attempt: Int, after delay: TimeInterval) {}
     /// Default no-op, mirroring `willRetryReconnect` above — every existing conformer (WatchPumpClient,
-    /// test/bench/harness delegates) keeps compiling unchanged; faBolus (Phase 13) overrides this to
+    /// test/bench/harness delegates) keeps compiling unchanged; faBolus overrides this to
     /// consume the comms-suspension signal instead of silently dropping it.
     func pumpClient(_ client: PumpBLEClient, didReceiveQualifyingEvent event: QualifyingEvent) {}
 }
@@ -120,7 +120,7 @@ public final class PumpBLEClient: NSObject {
         /// The reconnect ladder hit `maxReconnectAttempts` without reaching `.ready` — surfaced alongside
         /// `State.reconnectExhausted` so a delegate that only observes `didError` still sees it.
         case reconnectLoopDetected
-        /// CX-T-10: refused because a user-initiated `disconnect()` is in flight — `intentionalDisconnect`
+        /// Refused because a user-initiated `disconnect()` is in flight — `intentionalDisconnect`
         /// is set but `didDisconnectPeripheral` hasn't yet fired to tear down `state`/`peripheral`/
         /// `characteristics`. Checked BEFORE the readiness guard (same precedence as `authorizationError`/
         /// `deviceSupportError`) so a straggler send can't slip through on a link CoreBluetooth is already
@@ -133,7 +133,7 @@ public final class PumpBLEClient: NSObject {
 
     /// Graded write safety. Governs which outgoing messages `send()` permits — a defense-in-
     /// depth interlock so delivery can only happen after a deliberate, explicit opt-in. Each policy
-    /// authorizes up to a maximum `OperationRisk` (audit P-01), so a caller that only needs a benign
+    /// authorizes up to a maximum `OperationRisk`, so a caller that only needs a benign
     /// op (dismiss an alert, find-my-pump) no longer has to open the same gate as therapy-config.
     public enum WritePolicy: Sendable, Equatable {
         /// Reads + pairing only. Blocks anything on CONTROL, any signed message, or anything
@@ -141,16 +141,16 @@ public final class PumpBLEClient: NSObject {
         case readOnly
         /// Allow only **benign** signed control (dismiss notification, find-my-pump, non-calibration
         /// carb/BG metadata): signed proof works, but therapy-significant config, destructive commands,
-        /// and delivery are all still blocked (audit P-01).
+        /// and delivery are all still blocked.
         case allowBenignControl
         /// Allow signed CONTROL up to therapy-significant **configuration** (limits, Control-IQ, time,
         /// CGM session/alerts/calibration, reminders, IDP/profile edits), but HARD-BLOCK **destructive**
         /// commands (factory reset / shelf / disconnect-pump) *and* insulin delivery. Used to validate
-        /// signing on hardware without dispensing. (PX-03: no longer authorizes destructive ops.)
+        /// signing on hardware without dispensing.
         case allowNonDelivery
         /// Allow **destructive** non-dispensing commands (factory reset, shelf mode, disconnect-pump) in
         /// addition to settings — HARD-BLOCK insulin delivery. Intended to be granted **explicitly and
-        /// briefly** around a single destructive action, never left standing (PX-03).
+        /// briefly** around a single destructive action, never left standing.
         case allowDestructive
         /// Allow everything, including insulin delivery. Experimental.
         case allowDelivery
@@ -160,7 +160,7 @@ public final class PumpBLEClient: NSObject {
             switch self {
             case .readOnly:           return .read
             case .allowBenignControl: return .benign
-            case .allowNonDelivery:   return .settings      // PX-03: settings-only (was .destructive)
+            case .allowNonDelivery:   return .settings
             case .allowDestructive:   return .destructive
             case .allowDelivery:      return .delivery
             }
@@ -169,16 +169,16 @@ public final class PumpBLEClient: NSObject {
     }
 
     /// Current write policy. Defaults to `.readOnly`; callers must opt in explicitly. Reset to
-    /// `.readOnly` fail-closed by the library on every disconnect/drop/restore/error (PX-04) — a caller
+    /// `.readOnly` fail-closed by the library on every disconnect/drop/restore/error — a caller
     /// must not rely on an elevated policy surviving a transaction or connection change.
     ///
     /// Prefer the scoped `withWritePolicy` over assigning this directly: it guarantees the elevation is
     /// short-lived and always restored to `.readOnly`, so a thrown/cancelled operation can't leave an
-    /// elevated policy standing (PX-03/04).
+    /// elevated policy standing.
     public var writePolicy: WritePolicy = .readOnly
 
     /// Run `body` with the write policy elevated to `policy` for exactly this one operation, then ALWAYS
-    /// restore `.readOnly` — on success, throw, or task cancellation (PX-03/04). This is the sanctioned way
+    /// restore `.readOnly` — on success, throw, or task cancellation. This is the sanctioned way
     /// to authorize a signed op: it prevents an arbitrary long-lived elevation (especially `.allowDestructive`
     /// / `.allowDelivery`) from leaking past the single operation it was granted for. Callers still run
     /// under their own serialization; the transport additionally fails-closed to `.readOnly` on any
@@ -255,7 +255,7 @@ public final class PumpBLEClient: NSObject {
         identityTrusted = trusted && (model != nil)
     }
 
-    /// Pure authorization decision (PX-02), separated from readiness/transport so it is deterministically
+    /// Pure authorization decision, separated from readiness/transport so it is deterministically
     /// testable and cannot be masked by `.notReady`. Returns the exact `.writeBlocked` error a policy
     /// would raise for `message`, or `nil` if the policy permits it. `send()` consults this first.
     public func authorizationError(for message: Message) -> ClientError? {
@@ -326,7 +326,7 @@ public final class PumpBLEClient: NSObject {
     var bootstrapAllowlistOverrideForTesting: Set<SendGateAllowlistKey>?
     #endif
 
-    /// Owns in-flight request/response correlation, deadlines, and fail-closed completion (PX-08).
+    /// Owns in-flight request/response correlation, deadlines, and fail-closed completion.
     /// Callers that need an awaited response use `sendAwaitingResponse`; unsolicited frames (streams,
     /// proactive status) are not consumed here and still reach the delegate.
     public let transactions = PumpTransactionCoordinator()
@@ -347,7 +347,7 @@ public final class PumpBLEClient: NSObject {
     private var peripheral: CBPeripheral?
     /// Discovered pump characteristics keyed by our `Characteristic` enum.
     private var characteristics: [Characteristic: CBCharacteristic] = [:]
-    /// PX-08 subscription-ready barrier: messaging notification characteristics we've requested
+    /// Subscription-ready barrier: messaging notification characteristics we've requested
     /// `setNotifyValue(true)` on, and the subset the pump has CONFIRMED via `didUpdateNotificationState`.
     /// `.ready` is withheld until every requested one is confirmed, so a delivery can't be written before
     /// its response channel is actually subscribed (which would silently drop the reply → false timeout).
@@ -518,7 +518,7 @@ public final class PumpBLEClient: NSObject {
         set { readySince = newValue }
     }
 
-    /// Test seam (CX-T-05) — a real `.ready` transition needs a live `CBPeripheral`/`CBCharacteristic`
+    /// Test seam — a real `.ready` transition needs a live `CBPeripheral`/`CBCharacteristic`
     /// (hardware-only per the class doc's TCC note). Setting this directly lets a unit test exercise
     /// `.ready`-gated behavior (the post-ready notification-loss revoke) without driving the full
     /// CoreBluetooth discovery dance. Goes through the same stored property as production, so `didSet`'s
@@ -528,7 +528,7 @@ public final class PumpBLEClient: NSObject {
         set { state = newValue }
     }
 
-    /// Test seam (CX-T-10) — simulates "a user-initiated `disconnect()` is in flight" without needing a
+    /// Test seam — simulates "a user-initiated `disconnect()` is in flight" without needing a
     /// real `CBPeripheral`/`cancelPeripheralConnection` round trip.
     var intentionalDisconnectForTesting: Bool {
         get { intentionalDisconnect }
@@ -684,7 +684,7 @@ public final class PumpBLEClient: NSObject {
         cancelEstablishmentWatchdog()   // explicit: no cold-connect watchdog may outlive a user cancel
         reconnectTargetId = nil         // no auto-reconnect target survives an intentional disconnect
         pendingRetrieveId = nil         // drop any deferred cold-launch retrieve
-        // CX-T-10: publish the terminal state SYNCHRONOUSLY, before the async CoreBluetooth teardown
+        // Publish the terminal state SYNCHRONOUSLY, before the async CoreBluetooth teardown
         // (`cancelPeripheralConnection` → eventual `didDisconnectPeripheral`) completes. The old code only
         // set `state` here for the no-peripheral (first-pair scan) branch and otherwise left `state`
         // whatever it was (often `.ready`/`.connecting`) until the delegate callback caught up — a
@@ -833,10 +833,10 @@ public final class PumpBLEClient: NSObject {
         allowInsulinDelivery: Bool = false
     ) throws -> UInt8 {
         // Write interlock (defense in depth): refuse messages the current policy disallows. Authorize on
-        // the operation-risk class (audit P-01), via the pure `authorizationError` decision (PX-02) so
+        // the operation-risk class, via the pure `authorizationError` decision so
         // the block is checked BEFORE readiness — a wrongly-permitted command can't be hidden by
-        // `.notReady`. `.readOnly` blocks any control/signed/delivery; `.allowNonDelivery` now blocks
-        // destructive too (PX-03); `.allowBenignControl` permits only benign ops.
+        // `.notReady`. `.readOnly` blocks any control/signed/delivery; `.allowNonDelivery` blocks
+        // destructive too; `.allowBenignControl` permits only benign ops.
         if let authError = authorizationError(for: message) { throw authError }
         // Device/API send gate (D-08): refuse — do NOT emit — a message the KNOWN connected pump does not
         // support (wrong family or a negotiated API below the message's minApi). Checked BEFORE readiness
@@ -847,11 +847,11 @@ public final class PumpBLEClient: NSObject {
         // CC-06 (REMED-15.5): refuse — do NOT emit — a model-restricted message (GENERALIZED, 15.5-03,
         // S-B: the full model-restricted set minus the SendGateBootstrapAllowlist) whose target is
         // UNIDENTIFIED-OR-UNTRUSTED. Checked STRICTLY AFTER `deviceSupportError`
-        // (that gate's fail-open-on-unknown contract is unchanged) and BEFORE the CX-T-10 disconnecting
+        // (that gate's fail-open-on-unknown contract is unchanged) and BEFORE the disconnecting
         // guard, so a refusal here stays pre-write and determinate — never masked by `.notReady` — and
         // fails open on an unrestricted message or a trusted-known target.
         if let identityError = identityGateError(for: message) { throw identityError }
-        // CX-T-10: refuse during the `disconnect()` → `didDisconnectPeripheral` gap. `disconnect()` sets
+        // Refuse during the `disconnect()` → `didDisconnectPeripheral` gap. `disconnect()` sets
         // `intentionalDisconnect` synchronously but the link teardown (`cancelPeripheralConnection`) and the
         // resulting `state`/`peripheral`/`characteristics` reset are async — without this guard, a send
         // issued in that window would sail through the `state == .ready` check below on a link CoreBluetooth
@@ -877,7 +877,7 @@ public final class PumpBLEClient: NSObject {
         return txId
     }
 
-    /// Sends `message` and awaits its correlated response frame with a bounded deadline (PX-08).
+    /// Sends `message` and awaits its correlated response frame with a bounded deadline.
     /// The synchronous parts of `send` (authorization + readiness + write) run before suspending, so an
     /// authorization/not-ready failure is thrown immediately and never registers a pending transaction.
     /// On disconnect/teardown the awaiting call is resumed with `TxError.connectionLost` (fail-closed);
@@ -885,8 +885,8 @@ public final class PumpBLEClient: NSObject {
     ///
     /// - Parameter responseOpCode: the opcode to correlate; defaults to `message.props.responseOpCode`.
     ///   Throws `ClientError.notReady` if the message declares no response opcode and none is given.
-    /// - Parameter serialized: caller opt-in for the R3-D at-most-one-in-flight delivery lane. CX-T-06:
-    ///   this is OR'd with `message.props.modifiesInsulinDelivery`, never just trusted — a delivery-class
+    /// - Parameter serialized: caller opt-in for the R3-D at-most-one-in-flight delivery lane.
+    ///   This is OR'd with `message.props.modifiesInsulinDelivery`, never just trusted — a delivery-class
     ///   message is serialized BY CONSTRUCTION even if a caller forgets (or a future call site is added
     ///   without) the opt-in, so "is this a delivery command" has exactly one source of truth
     ///   (`MessageProps.modifiesInsulinDelivery`) instead of two that can drift apart.
@@ -916,7 +916,7 @@ public final class PumpBLEClient: NSObject {
         }
     }
 
-    /// Fail-closed teardown (PX-04): reset the write policy to `.readOnly` and resume every outstanding
+    /// Fail-closed teardown: reset the write policy to `.readOnly` and resume every outstanding
     /// transaction. Called by the library itself on every disconnect / failed connect / restoration /
     /// error — a caller must never rely on an elevated policy or a pending response surviving a link
     /// change. Prior to this the app had to reset the policy externally (audit A-03), and a missed reset
@@ -1004,7 +1004,7 @@ extension PumpBLEClient: CBCentralManagerDelegate {
                 if let p = peripheral, p.state != .connected {
                     state = .connecting
                     central.connect(p, options: [CBConnectPeripheralOptionNotifyOnDisconnectionKey: true])
-                    // C1-02 (faBolus Phase 13): this branch re-issues `central.connect` directly, bypassing
+                    // This branch re-issues `central.connect` directly, bypassing
                     // `connect(_:)` — which is the ONLY other fresh-establishment entry point and is the one
                     // that arms `armEstablishmentWatchdog()`. Without arming it here too, a BT-power-on
                     // resume whose establishment stalls (pre-`.ready`) has no bound: it can strand
@@ -1040,12 +1040,12 @@ extension PumpBLEClient: CBCentralManagerDelegate {
     public nonisolated func centralManager(_ central: CBCentralManager,
                                            willRestoreState dict: [String: Any]) {
         MainActor.assumeIsolated {
-            failClosed(resumePending: false)   // PX-04: a relaunched central starts read-only
+            failClosed(resumePending: false)   // a relaunched central starts read-only
             let pumpUUID = CBUUID(nsuuid: ServiceUUID.pumpService)
             guard let p = central.retrieveConnectedPeripherals(withServices: [pumpUUID]).first else { return }
             self.peripheral = p
             p.delegate = self
-            // C1-02 (faBolus Phase 13): a restored-connected peripheral is a KNOWN target — set
+            // A restored-connected peripheral is a KNOWN target — set
             // `reconnectTargetId` so a subsequent establishment-watchdog timeout (below) enters the
             // throttled reconnect ladder (eventually reaching `.reconnectExhausted`, which alarms) instead
             // of dead-ending at an un-alarmed `.disconnected` (the `reconnectTargetId == nil` "first-pair"
@@ -1054,7 +1054,7 @@ extension PumpBLEClient: CBCentralManagerDelegate {
             reconnectTargetId = p.identifier
             state = .discovering
             p.discoverServices([pumpUUID])
-            // C1-02: `connect(_:)` arms this bound on every fresh establishment; `willRestoreState` adopts a
+            // `connect(_:)` arms this bound on every fresh establishment; `willRestoreState` adopts a
             // restored-connected peripheral and enters `.discovering` the SAME way but previously never
             // armed it — a stalled restoration discovery could strand `.discovering` forever with no
             // recovery. Cancelled at `.ready` (`maybeBecomeReady`) exactly like any other establishment.
@@ -1097,7 +1097,7 @@ extension PumpBLEClient: CBCentralManagerDelegate {
         MainActor.assumeIsolated {
             characteristics.removeAll()
             reassembly.removeAll()
-            failClosed(resumePending: true)   // PX-04/PX-08: policy → .readOnly, resume all waiters
+            failClosed(resumePending: true)   // policy → .readOnly, resume all waiters
             // debug pump-background-disconnect (H1): capture whether the link had HELD `.ready` long enough
             // to trust as a stable connection, BEFORE `consumeReadyStabilityAndMaybeReset()` clears the
             // `readySince` stamp. This gates the inline background-safe reconnect below (a genuine stable-link
@@ -1156,7 +1156,7 @@ extension PumpBLEClient: CBCentralManagerDelegate {
     public nonisolated func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral,
                                            error: Error?) {
         MainActor.assumeIsolated {
-            failClosed(resumePending: true)   // PX-04/PX-08: never leave policy elevated or a waiter hung
+            failClosed(resumePending: true)   // never leave policy elevated or a waiter hung
             // Defensive/symmetry with `didDisconnectPeripheral` — normally already consumed (and cleared)
             // by the disconnect that preceded this failed reconnect attempt; harmless no-op if so.
             consumeReadyStabilityAndMaybeReset()
@@ -1209,7 +1209,7 @@ extension PumpBLEClient: CBPeripheralDelegate {
                     peripheral.setNotifyValue(true, for: cb)
                 }
             }
-            // PX-08: do NOT declare `.ready` here. Readiness now waits for the pump to CONFIRM the
+            // Do NOT declare `.ready` here. Readiness now waits for the pump to CONFIRM the
             // notification subscriptions (`didUpdateNotificationState`) so a response channel is live
             // before any delivery is written — see `maybeBecomeReady()`.
             maybeBecomeReady()
@@ -1217,7 +1217,7 @@ extension PumpBLEClient: CBPeripheralDelegate {
     }
 
     /// Become `.ready` only once the messaging characteristics are present AND every requested
-    /// notification subscription has been confirmed by the pump (PX-08 subscription-ready barrier).
+    /// notification subscription has been confirmed by the pump (subscription-ready barrier).
     private func maybeBecomeReady() {
         guard state != .ready else { return }
         guard characteristics[.currentStatus] != nil, characteristics[.authorization] != nil else { return }
@@ -1252,14 +1252,14 @@ extension PumpBLEClient: CBPeripheralDelegate {
     /// types into plain values and forwards; this does no CoreBluetooth work itself. Same testability
     /// pattern already used for `handleQualifyingEventsFrame`.
     ///
-    /// A failed subscription means a response channel isn't live → fail closed (PX-04/PX-08): reset the
-    /// write policy and resume any pending transaction, and surface the error — unchanged from before.
+    /// A failed subscription means a response channel isn't live → fail closed: reset the
+    /// write policy and resume any pending transaction, and surface the error.
     ///
-    /// CX-T-05 (post-ready notification loss): when `isNotifying` flips false with NO CB error while
+    /// Post-ready notification loss: when `isNotifying` flips false with NO CB error while
     /// `state == .ready`, the response channel this subscription guarded just went dark on an otherwise-
     /// healthy-looking link. `maybeBecomeReady()` below is a no-op once `.ready` (its own guard), so
     /// without an explicit revoke this loss would be silently absorbed — the link would keep reporting
-    /// `.ready` to every caller even though its subscription-ready barrier (PX-08) no longer holds.
+    /// `.ready` to every caller even though its subscription-ready barrier no longer holds.
     func handleNotificationStateUpdate(mapped: Characteristic?, isNotifying: Bool, error: Error?) {
         if let error {
             failClosed(resumePending: true)
@@ -1276,30 +1276,29 @@ extension PumpBLEClient: CBPeripheralDelegate {
         maybeBecomeReady()
     }
 
-    /// CX-T-05: revoke `.ready` on a post-ready notification loss. Transitions to `.discovering` — the
-    /// same state used while the PX-08 subscription-ready barrier is still being satisfied during initial
+    /// Revoke `.ready` on a post-ready notification loss. Transitions to `.discovering` — the
+    /// same state used while the subscription-ready barrier is still being satisfied during initial
     /// establishment — so `maybeBecomeReady()` can re-declare `.ready` once the subscription is reconfirmed,
     /// and any caller gating a send on `state == .ready` correctly sees the link as not-yet-ready in the
     /// interim, instead of a stale `.ready` masking the lost channel. Does not touch `characteristics` or
     /// tear down the link — only the notify barrier was lost, not the whole connection; a genuine
     /// disconnect is handled separately by `failClosed`/`didDisconnectPeripheral`.
     ///
-    /// 14-WR-02 (Phase 14 review, Option 2 — pin the deliberate behavior, NO runtime change): this revoke
-    /// intentionally does NOT reset `writePolicy` to `.readOnly` and does NOT `transactions.failAll(...)` —
+    /// This revoke intentionally does NOT reset `writePolicy` to `.readOnly` and does NOT `transactions.failAll(...)` —
     /// unlike the CB-error branches, which DO call `failClosed`. A notify-barrier flip is not itself a
     /// disconnect, and failing every in-flight transaction on a (possibly transient) notify-state toggle
     /// would be an unbenched pump-link RELIABILITY change (aborting a mid-`perform()` bolus that may still
     /// be resolving). The write gate does NOT rely on `state == .ready` alone: a delivery is gated by
     /// `writePolicy` + `TandemBackend`'s own at-most-one-in-flight serialization
     /// (`deliveryInProgress`/`pumpTxBusy`) + `perform()`'s `defer { writePolicy = .readOnly }`. No
-    /// double-dose path exists through the elevated-policy window (verified in the Phase-14 review). A
+    /// double-dose path exists through the elevated-policy window. A
     /// fail-closed-on-notify-loss variant (reset `writePolicy` + `failAll(.connectionLost)` here) is a
     /// BENCH-GATED future consideration, not shipped unverified. `SendGateBoundary`/notification-loss tests
     /// pin this contract: after a notify-only revoke, `state` is `.discovering` and `writePolicy` is
     /// UNCHANGED — no caller may treat `state != .ready` alone as a write gate.
     ///
-    /// debug `pump-drop-no-reconnect` (symptom 2.1): the CX-T-05 premise above — `.ready` is "re-declarable
-    /// once the subscription is reconfirmed" — only holds if SOMETHING re-drives the PX-08 subscription-ready
+    /// The premise above — `.ready` is "re-declarable
+    /// once the subscription is reconfirmed" — only holds if SOMETHING re-drives the subscription-ready
     /// barrier. On real hardware the pump/OS can drop a notify subscription after a long session WITHOUT a CB
     /// disconnect (the ATT link stays up), so `didDisconnectPeripheral` never fires (the reconnect ladder is
     /// never armed) and the establishment watchdog was cancelled at `.ready` (`maybeBecomeReady`). With the
@@ -1318,7 +1317,7 @@ extension PumpBLEClient: CBPeripheralDelegate {
     private func revokeReadiness(lost: Characteristic? = nil) {
         state = .discovering
         if let lost, let peripheral, let cb = characteristics[lost] {
-            peripheral.setNotifyValue(true, for: cb)   // re-drive the PX-08 barrier over the still-live link
+            peripheral.setNotifyValue(true, for: cb)   // re-drive the subscription-ready barrier over the still-live link
         }
         armEstablishmentWatchdog()   // bounded backstop → reconnect ladder if the re-subscribe never confirms
     }
@@ -1338,7 +1337,7 @@ extension PumpBLEClient: CBPeripheralDelegate {
             var reassembler = reassembly[mapped] ?? PacketReassembler()
             if let frame = reassembler.ingest([UInt8](data)) {
                 reassembly[mapped] = PacketReassembler()
-                // PX-08: if an awaited transaction correlates to this frame, it consumes it. Otherwise
+                // If an awaited transaction correlates to this frame, it consumes it. Otherwise
                 // (unsolicited stream/status, or a caller still on the delegate path) deliver as before.
                 if !transactions.ingest(frame: frame, on: mapped) {
                     notify { $0.pumpClient(self, didReceiveFrame: frame, on: mapped) }
@@ -1373,8 +1372,8 @@ extension PumpBLEClient: CBPeripheralDelegate {
     /// the real delegate method's `characteristic` nor `peripheral` parameter was ever used in this body
     /// (before or after this fix), so no CB value needs to cross the boundary.
     ///
-    /// CX-T-05: a failed write orphans any transaction awaiting THAT write's correlated response — the
-    /// reply it was en route to unlock never arrives — so this must fail closed (PX-04/PX-08) exactly like
+    /// A failed write orphans any transaction awaiting THAT write's correlated response — the
+    /// reply it was en route to unlock never arrives — so this must fail closed exactly like
     /// its two correct siblings (`didUpdateNotificationStateFor`/`didUpdateValueFor`'s error branches),
     /// instead of only notifying and leaving the write policy elevated / the transaction hanging.
     func handleWriteResult(error: Error?) {

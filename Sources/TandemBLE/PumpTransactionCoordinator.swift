@@ -1,7 +1,7 @@
 import Foundation
 import TandemMessages
 
-/// Owns the lifecycle of an in-flight pump request/response pair (audit PX-08).
+/// Owns the lifecycle of an in-flight pump request/response pair.
 ///
 /// The Tandem protocol has no per-request response channel: a reply arrives as a notified frame on a
 /// characteristic, identified only by its `(characteristic, opCode)`. Historically each caller

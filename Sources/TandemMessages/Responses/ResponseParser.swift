@@ -16,7 +16,7 @@ public enum ResponseParser {
         case crcMismatch(expected: [UInt8], actual: [UInt8])
         case unknownOpcode(UInt8)
         case cargoLengthMismatch(opcode: UInt8, expected: Int, got: Int)
-        // VA-04: signed-response HMAC verification failures (fail-closed).
+        // Signed-response HMAC verification failures (fail-closed).
         case signatureMissing(opcode: UInt8)         // signed response but the 24-byte auth trailer is absent/short
         case signatureKeyUnavailable(opcode: UInt8)  // signed response but no session key to verify against
         case signatureInvalid(opcode: UInt8)         // trailer present but the HMAC-SHA1 does not verify
@@ -231,7 +231,7 @@ public enum ResponseParser {
         guard let reg = registry[Key(characteristic: characteristic, opCode: opCode)] else {
             throw ParseError.unknownOpcode(opCode)
         }
-        // VA-04: a signed response carries a 24-byte auth trailer (4-byte pumpTimeSinceReset + 20-byte
+        // A signed response carries a 24-byte auth trailer (4-byte pumpTimeSinceReset + 20-byte
         // HMAC-SHA1). Upstream (PacketArrayList.validate) recomputes and compares that HMAC and REJECTS a
         // mismatch; the earlier Swift port dropped the check (CRC-16 alone is not cryptographic), so a
         // CRC-valid FORGED signed response — e.g. a forged InitiateBolus NACK — was accepted, releasing the

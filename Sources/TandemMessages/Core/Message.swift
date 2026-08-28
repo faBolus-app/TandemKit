@@ -10,9 +10,9 @@ public protocol Message: Sendable {
 
     var cargo: [UInt8] { get set }
 
-    /// Operation-risk class for authorization (audit P-01). Defaults to the static
+    /// Operation-risk class for authorization. Defaults to the static
     /// `props.operationRisk`; a message whose risk depends on its *cargo* (e.g. a BG entry that is or
-    /// isn't a CGM calibration — PX-01) overrides this to compute risk per instance. `send()` reads
+    /// isn't a CGM calibration) overrides this to compute risk per instance. `send()` reads
     /// this instance property, so a per-instance override is enforced at the write interlock.
     var operationRisk: OperationRisk { get }
 
@@ -33,7 +33,7 @@ public extension Message {
     var stream: Bool { Self.props.stream }
     var type: MessageType { Self.props.type }
     var characteristic: Characteristic { Self.props.characteristic }
-    /// Operation-risk class for authorization (audit P-01).
+    /// Operation-risk class for authorization.
     var operationRisk: OperationRisk { Self.props.operationRisk }
 
     mutating func fillWithEmptyCargo() { cargo = [] }

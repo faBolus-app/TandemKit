@@ -32,7 +32,7 @@ public struct QualifyingEvent: OptionSet, Sendable, Hashable {
     public static let battery                     = QualifyingEvent(rawValue: 65536)
     public static let basalIQ                     = QualifyingEvent(rawValue: 131072)
     public static let remainingInsulin            = QualifyingEvent(rawValue: 262144)
-    /// The pump's comms-suspension signal — the specific bit Phase 13 (app-side pause-sends) acts on.
+    /// The pump's comms-suspension signal — the bit app-side pause-sends acts on.
     public static let pumpCommunicationsSuspended = QualifyingEvent(rawValue: 524288)
     public static let activeProfileSegmentChange  = QualifyingEvent(rawValue: 1_048_576)
     public static let basalIQStatus               = QualifyingEvent(rawValue: 2_097_152)

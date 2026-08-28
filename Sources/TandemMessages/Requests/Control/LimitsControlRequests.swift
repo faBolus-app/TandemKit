@@ -13,17 +13,16 @@ public struct SetMaxBolusLimitRequest: Message {
         characteristic: .control, responseOpCode: 0x87,
         minApi: .benchConservativeUnverifiedFloor)   // CONSERVATIVE/UNVERIFIED bench floor (T-1, >2.5 only)
 
-    /// CX-T-07 owner decision (2026-08-25, option-a ALIGN UP — see faBolus OWNER-DECISIONS.md 15-05 Task 1):
-    /// matches pumpX2's own unconditionally-enforced floor/ceiling (`SetMaxBolusLimitRequest.java`
+    /// Matches pumpX2's own unconditionally-enforced floor/ceiling (`SetMaxBolusLimitRequest.java`
     /// MIN/MAX_BOLUS_LIMIT_MILLIUNITS), but the app team has not independently bench-confirmed it, so it is
-    /// treated CONSERVATIVE/UNVERIFIED pending Phase-12 bench (T-1), like the minApi floors.
+    /// treated CONSERVATIVE/UNVERIFIED pending bench, like the minApi floors.
     public static let minMaxBolusMilliunits = 1_000     // 1.0 U — CONSERVATIVE/UNVERIFIED (T-1)
     public static let maxMaxBolusMilliunits = 25_000    // 25.0 U — matches Interlocks.absoluteMaxUnits
 
-    /// CX-T-07 (PX-07 convention): reject out-of-range args by throwing BEFORE the byte-encode.
+    /// Reject out-of-range args by throwing BEFORE the byte-encode.
     public enum ValidationError: Error, Equatable, LocalizedError {
         case maxBolusMilliunitsOutOfRange(Int)
-        // 15-IN-02: human-readable message for a caller surfacing `error.localizedDescription`.
+        // Human-readable message for a caller surfacing `error.localizedDescription`.
         public var errorDescription: String? {
             switch self {
             case .maxBolusMilliunitsOutOfRange(let mu): return "Max bolus limit \(Double(mu) / 1000) U is out of range — must be 1.0 to 25.0 U."
@@ -55,16 +54,15 @@ public struct SetMaxBasalLimitRequest: Message {
         characteristic: .control, responseOpCode: 0x89,
         minApi: .benchConservativeUnverifiedFloor)   // CONSERVATIVE/UNVERIFIED bench floor (T-1, >2.5 only)
 
-    /// CX-T-07 owner decision (2026-08-25, option-a ALIGN UP — see faBolus OWNER-DECISIONS.md 15-05 Task 1):
-    /// matches pumpX2's own unconditionally-enforced floor/ceiling (`SetMaxBasalLimitRequest.java`
-    /// MIN/MAX_BASAL_LIMIT_MILLIUNITS), CONSERVATIVE/UNVERIFIED pending Phase-12 bench (T-1).
+    /// Matches pumpX2's own unconditionally-enforced floor/ceiling (`SetMaxBasalLimitRequest.java`
+    /// MIN/MAX_BASAL_LIMIT_MILLIUNITS), CONSERVATIVE/UNVERIFIED pending bench.
     public static let minMaxHourlyBasalMilliunits: UInt32 = 1_000    // 1.0 U/hr — CONSERVATIVE/UNVERIFIED (T-1)
     public static let maxMaxHourlyBasalMilliunits: UInt32 = 15_000   // 15.0 U/hr
 
-    /// CX-T-07 (PX-07 convention): reject out-of-range args by throwing BEFORE the byte-encode.
+    /// Reject out-of-range args by throwing BEFORE the byte-encode.
     public enum ValidationError: Error, Equatable, LocalizedError {
         case maxHourlyBasalMilliunitsOutOfRange(UInt32)
-        // 15-IN-02: human-readable message for a caller surfacing `error.localizedDescription`.
+        // Human-readable message for a caller surfacing `error.localizedDescription`.
         public var errorDescription: String? {
             switch self {
             case .maxHourlyBasalMilliunitsOutOfRange(let mu): return "Max basal limit \(Double(mu) / 1000) U/hr is out of range — must be 1.0 to 15.0 U/hr."

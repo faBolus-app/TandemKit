@@ -59,7 +59,7 @@ public final class PairingCoordinator {
     /// Feed a reassembled inbound frame `[opcode, txId, len, cargo…, crc0, crc1]`.
     public func handle(frame: [UInt8]) {
         guard frame.count >= 5 else { return fail(PairingError.malformedFrame) }
-        // CX-T-08: mirror ResponseParser's CRC-then-length idiom (reusing the same
+        // Mirror ResponseParser's CRC-then-length idiom (reusing the same
         // Bytes.calculateCRC16 — never a second CRC implementation in an auth-critical path).
         // A malformed pairing frame must fail(.malformedFrame) and never advance the JPAKE
         // state machine or reach frameCargo's clamp.

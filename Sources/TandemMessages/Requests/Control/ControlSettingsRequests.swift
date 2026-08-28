@@ -14,7 +14,7 @@ public struct CgmHighLowAlertRequest: Message {
     public private(set) var alertType = 0, threshold = 0, repeatDurationMinutes = 0, bitmask = 0
     public private(set) var enableAlert = false
     public init() { cargo = [] }
-    // 15-WR-03 scope-note: CX-T-07's throwing bounds-validation covers ONLY the 4 delivery/limit request
+    // Throwing bounds-validation covers ONLY the 4 delivery/limit request
     // types by design; this settings encoder still truncates silently via `Bytes.firstTwoBytesLittleEndian`
     // (an out-of-range field wraps rather than rejecting) — callers MUST pre-bound the arguments.
     public init(alertType: Int, threshold: Int, repeatDurationMinutes: Int, enableAlert: Bool, bitmask: Int) {

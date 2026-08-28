@@ -144,7 +144,7 @@ public enum BenchBolusPlanner {
                     oracleTotalUnits: oracleTotal)
     }
 
-    /// Build the full, validated `InitiateBolusRequest` for this plan (PX-07 validating constructor), so
+    /// Build the full, validated `InitiateBolusRequest` for this plan (validating constructor), so
     /// the bench snapshots the ENTIRE planned request cargo.
     public static func request(for plan: Plan, bolusID: Int) throws -> InitiateBolusRequest {
         try InitiateBolusRequest(validating: plan.totalMilliunits, bolusID: bolusID, bolusTypeBitmask: plan.bitmask,

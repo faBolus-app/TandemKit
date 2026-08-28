@@ -15,10 +15,10 @@ public struct InitiateBolusRequest: Message {
     public static let bitCorrection: Int = 2
     public static let bitExtended: Int = 4
     public static let bitFood2: Int = 8        // no-carb food bit
-    /// Union of all known type bits — a mask with any other bit set is rejected (PX-07).
+    /// Union of all known type bits — a mask with any other bit set is rejected.
     public static let knownTypeBits: Int = 0x0F
 
-    /// Derive the bolus-type bitmask from what the dose contains (PX-06). **FOOD1 when carbs are
+    /// Derive the bolus-type bitmask from what the dose contains. **FOOD1 when carbs are
     /// present, else FOOD2** — never both — matching the oracle (`BolusDeliveryHistoryLog.BolusType`:
     /// FOOD1 "used when there is carbs", FOOD2 "no carbs"). Adds CORRECTION / EXTENDED as applicable.
     /// This is the single source of truth for the mask, shared by the bench harness and production so
@@ -30,7 +30,7 @@ public struct InitiateBolusRequest: Message {
         return mask
     }
 
-    /// Structured validation failure (PX-07). A malformed dose *throws* rather than silently truncating
+    /// Structured validation failure. A malformed dose *throws* rather than silently truncating
     /// or trapping — the caller decides how to surface it, and no out-of-range value ever reaches the wire.
     public enum ValidationError: Error, Equatable {
         case doseTooSmall(totalMilliunits: UInt32, extendedMilliunits: UInt32)
@@ -45,7 +45,7 @@ public struct InitiateBolusRequest: Message {
         case arithmeticOverflow(String)          // total+extended or food+correction overflows UInt32
     }
 
-    /// Validates all bounds + cross-field invariants without constructing anything (PX-07).
+    /// Validates all bounds + cross-field invariants without constructing anything.
     /// Called by `init(validating:)`; exposed so a caller/test can pre-check.
     public static func validate(
         totalVolume: UInt32, bolusID: Int, bolusTypeBitmask: Int,
@@ -108,7 +108,7 @@ public struct InitiateBolusRequest: Message {
         }
     }
 
-    /// Typed/throwing constructor (PX-07). Validates bounds + cross-field invariants, then builds. Prefer
+    /// Typed/throwing constructor. Validates bounds + cross-field invariants, then builds. Prefer
     /// this over the trapping `init(totalVolume:…)` for any value derived from external/computed input.
     public init(
         validating totalVolume: UInt32,

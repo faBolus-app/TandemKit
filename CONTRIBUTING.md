@@ -29,30 +29,13 @@ Every outgoing (request) message and every parsed response must **byte-match** t
 - Tag releases (`vX.Y.Z`); consumers pin to a tag. `v0.1.0` and `v0.2.0` exist; record every release
   in [`CHANGELOG.md`](CHANGELOG.md).
 
-## Branch model & versioning (§1.3/§1.4)
-Governance is **canonical in faBolus, not forked here.** The three-branch model
-(`deprecated`/`main`/`experimental`), the §1.2 experimental gate, and the §1.4 promotion criteria are
-defined once in [`../faBolus/BRANCHES.md`](../faBolus/BRANCHES.md) and apply to all three code repos in
-lockstep (§1.3). See the local [`BRANCHES.md`](BRANCHES.md) stub. Do not restate or diverge those rules.
+## Branch model & versioning
+Governance is canonical in [`../faBolus/BRANCHES.md`](../faBolus/BRANCHES.md). This repo's
+[`BRANCHES.md`](BRANCHES.md) is a pointer — do not fork the rules here.
 
-**Version-pinning contract (§1.3).** Consumers of a faBolus backend should pin an explicit released
-version: an annotated `vX.Y.Z` tag consumed by `url:` + version, with a committed `Package.resolved`
-and a documented local-path override for development.
-
-**Status: MET (Phase 3, pin bump `6efdd43` → current TandemKit pin `1a09dba`).** faBolus now consumes
-this package via a `url:` + `revision:` pin (`faBolus/project.yml`), with a documented
-`FABOLUS_TANDEM_LOCAL=1` local-path override for development. That is the **revision** form, not an
-annotated `vX.Y.Z` tag+version — a deliberate D-01 owner override of the tag+version approach,
-because SwiftPM refuses a URL+**version** dependency on a package that uses `.unsafeFlags`, but a
-URL+**revision** dependency is unrestricted. This package still has **two** such `.unsafeFlags`
-sites: `Package.swift:37` (`-DMBEDTLS_CONFIG_FILE` on `CMbedTLSJPAKE` — the actual blocker, since it
-is in the closure of the `TandemAuth`/`TandemBLE` products faBolus consumes) and `Package.swift:69`
-(a harness linker flag on the `TandemBenchHarness` executable, which faBolus does not consume).
-Removing them means vendoring the Mbed TLS config/headers in-tree and rehoming the 13 committed
-`CMbedTLSJPAKE/mbedtls_lib/*.c` symlinks — a build-graph/vendoring refactor guarded only by the oracle
-byte-parity + hardware-pairing tests. **That refactor remains deferred** (not required for §1.3,
-since the revision-form pin already satisfies the contract) **and is NOT attempted in this change.**
-Tracked as WIP-REGISTER item 8.
+faBolus consumes this package via `url:` + `revision:` in `faBolus/project.yml` (with
+`FABOLUS_TANDEM_LOCAL=1` for a sibling checkout). Read the pin from that file. Do not copy SHAs
+into this document.
 
 ## Safety
 - The dosing/signing path (`TandemAuth`, bolus/cancel/dismiss requests) is the most safety-critical
