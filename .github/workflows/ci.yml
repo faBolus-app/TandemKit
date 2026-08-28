@@ -58,9 +58,7 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_26.app || sudo xcode-select -s /Applications/Xcode.app
       - name: swift-format — is the tree formatted?
-        run: |
-          git ls-files -z '*.swift' | xargs -0 xcrun swift-format lint --strict --parallel 2>&1 | tee /tmp/sf.log || true
-          echo "swift-format findings: $(grep -c 'warning:\|error:' /tmp/sf.log || true)"
+        run: ./scripts/format.sh --lint
       - name: SwiftLint
         run: |
           brew list swiftlint >/dev/null 2>&1 || brew install swiftlint
@@ -78,10 +76,20 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
+      # Tolerate a missing ruleset rather than failing the job: this file lives in a SIBLING repo, so
+      # a rename there (or a transient outage) must not turn this repo's CI red for a lint concern.
       - name: Fetch the shared deslop ruleset
-        run: curl -fsSL -o /tmp/deslop.yml
-          https://raw.githubusercontent.com/faBolus-app/faBolus/main/.semgrep/deslop.yml
+        id: rules
+        run: |
+          if curl -fsSL -o /tmp/deslop.yml \
+              https://raw.githubusercontent.com/faBolus-app/faBolus/main/.semgrep/deslop.yml; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::shared deslop ruleset not reachable — skipping the Semgrep report"
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Semgrep (local deslop rules)
+        if: steps.rules.outputs.available == 'true'
         run: |
           pipx install semgrep || pip install --user semgrep
           semgrep --config /tmp/deslop.yml --metrics=off --error=false Sources Tests

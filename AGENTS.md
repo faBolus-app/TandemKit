@@ -39,6 +39,15 @@ oracle-parity test.**
 - Swift 6: keep CoreBluetooth delegate isolation correct.
 - Comments explain why (safety, oracle, hardware). Do not add phase/ticket IDs or pin SHAs here.
   faBolus's TandemKit pin lives in `faBolus/project.yml`.
+- **Run the formatter before you commit:** `./scripts/format.sh` (`--lint` to check only). The
+  committed `.swift-format` disables every swift-format *rule* and keeps only the pretty-printer, so
+  it reflows whitespace but never rewrites code — the disabled rules include ones that can widen
+  access, delete a public memberwise init, or insert underscores into numeric literals INCLUDING
+  OPCODES. CI reports (does not gate) on an unformatted tree.
+- `swiftlint lint --quiet Sources Tests` is advisory. Read `.swiftlint.yml` before "fixing" a hit:
+  the API-version cases keep their underscores because they are public API (`minApi: .v2_5`),
+  `Bytes.readString` keeps its lossy decode on purpose, and the metric rules describe wire-message
+  constructors. Never rename a wire field or public API to satisfy a linter.
 
 ## Consumed by
 `../faBolus` via SwiftPM. App-level UI and `AccessPolicy` live there; the wire format lives here.
