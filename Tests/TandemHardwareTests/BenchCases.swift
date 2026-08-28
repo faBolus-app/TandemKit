@@ -189,24 +189,17 @@ enum BenchCases {
         })
 
     // ─────────────────────────────────────────────────────────────────────────────────────────
-    // txId-MATCH PROBE (B7) — READ-ONLY, no cartridge, no CGM. RUNNABLE NOW.
-    //   Determines whether the pump supports txId-match (correlating a response to its request by the
-    //   transaction-id byte), which would justify a LATER, human-reviewed PR to correlate by txId and drop
-    //   the R3-D delivery-class *transport* serialization (WIP item 12 / BENCH-SESSION-PLAN Obj 2). This
-    //   case only MEASURES — it does not touch `PumpTransactionCoordinator` or remove any serialization.
+    // txId-match probe — read-only, no cartridge, no CGM.
+    //   Measures whether the pump echoes request txIds in responses. A positive result could justify
+    //   txId-match correlation and dropping delivery-class transport serialization later; this case only
+    //   MEASURES — it does not change `PumpTransactionCoordinator` or remove serialization.
     //
-    //   Three findings, in order, each recorded to `s.trace`:
-    //     (a) ECHO — a single read's response echoes the request txId (`response.frame[1] == request.frame[1]`).
-    //     (b) DISTINCT-ID PRESERVATION — successive commands get DISTINCT txIds, each echoed back.
-    //     (c) DECISIVE — two SAME-opcode reads PIPELINED (both issued before the first reply): the two
-    //         responses carry the two DISTINCT request txIds (a bijection), so responses are attributable
-    //         to the correct request BY txId even where opcode-FIFO is ambiguous.
+    //   Three findings, recorded to `s.trace`: (a) echo on a single read; (b) distinct txIds preserved
+    //   across successive commands; (c) pipelined same-opcode reads resolve by txId, not opcode-FIFO.
     //
-    //   HARD SAFETY: the pipelined test uses READ-ONLY, non-mutating status reads ONLY. NEVER pipeline two
-    //   delivery/bolus commands to "test" this — that is the exact double-dose the serialization prevents.
-    //   `exchangeCapturingTxId` throws on any non-read message; both software walls stay armed; no delivery
-    //   is issued. If all three pass → a follow-up MAY de-serialize the transport coordinator; if any fails
-    //   → serialization stays. The AppModel single-delivery mutex (P11) stays regardless.
+    //   HARD SAFETY: pipelined probe uses read-only status requests only — never pipeline delivery commands.
+    //   `exchangeCapturingTxId` throws on non-read messages. If all three pass, transport serialization
+    //   may be revisited; if any fails, serialization stays.
     // ─────────────────────────────────────────────────────────────────────────────────────────
     static let txIdMatchProbe = HardwareCase(
         name: "txid-match-probe (read-only)",

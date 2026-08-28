@@ -131,7 +131,7 @@ import TandemMessages
         #expect(bFrame.first == 0x05)
     }
 
-    // MARK: - R3-D: delivery-class serialization
+    // MARK: - delivery-class serialization
 
     /// A second delivery-class (`serialized`) transaction is rejected `.busy` — BEFORE any write — while
     /// one is outstanding, so two identical in-flight delivery opcodes can never cross-resolve. A

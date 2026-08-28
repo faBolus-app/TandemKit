@@ -150,7 +150,7 @@ import Foundation
         #expect(round.bolusTypeBitmask == (F1 | CORR))
     }
 
-    // MARK: R3-E — numeric-input safety (these inputs used to TRAP at the UInt32/Int conversions)
+    // MARK: numeric-input safety
 
     /// The 0.05 U → milliunit snap must never trap: non-finite → 0, and a dose beyond UInt32 clamps to
     /// UInt32.max (the bench cap then bounds it). Finite in-range values are byte-identical to the old code.
@@ -198,7 +198,7 @@ import Foundation
         #expect(nanIob.totalMilliunits == 4000)                                // NaN IOB == no IOB
     }
 
-    // MARK: R3-E — invalid-profile matrix (only carbRatio==0 was covered)
+    // MARK: invalid-profile matrix
 
     @Test func invalidIsfAndTargetSanityFailToZero() {
         let badIsf = BenchBolusPlanner.Profile(carbRatioGramsPerUnit: 10, isfMgdlPerUnit: 0, targetBgMgdl: 120, iobUnits: 0)
@@ -210,7 +210,7 @@ import Foundation
         }
     }
 
-    // MARK: R3-E — bench cap below the minimum dispensable dose
+    // MARK: bench cap below minimum dispensable dose
 
     @Test func capBelowMinimumYieldsNonDeliverablePlan() {
         let p = BenchBolusPlanner.plan(carbsGrams: 30, bgMgdl: nil, profile: profile(), benchCapMilliunits: 40)
@@ -221,7 +221,7 @@ import Foundation
         }
     }
 
-    // MARK: R3-E — matrix cells the earlier suite missed
+    // MARK: additional matrix cells
 
     @Test func atTargetNoCarbsIsZeroFood2() {
         let p = BenchBolusPlanner.plan(carbsGrams: nil, bgMgdl: 120, profile: profile())

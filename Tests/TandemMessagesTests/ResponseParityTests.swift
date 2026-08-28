@@ -379,10 +379,9 @@ import Testing
         #expect(msg.bolusId == 10650)
     }
 
-    /// R3-G decode-side guard: a short/garbage InitiateBolusResponse frame must be REJECTED by the parser
-    /// (throwing `ParseError`), never trap. The typed `InitiateBolusResponse.init(cargo:)` reads absolute
-    /// offsets 0/1/5, so this is the production invariant that guarantees it only ever sees ≥ 6 cargo bytes
-    /// — the most safety-critical inbound message (the bolus ack) cannot be built from a truncated frame.
+    /// A short or garbage InitiateBolusResponse frame must be rejected by the parser (throwing
+    /// `ParseError`), never trap. The typed initializer reads absolute offsets 0/1/5, so cargo must be
+    /// at least 6 bytes — the bolus ack cannot be built from a truncated frame.
     @Test func truncatedInitiateBolusResponseRejectedNonTrapping() {
         let op = InitiateBolusResponse.props.opCode
         // (a) declared length 26 → after the 24-byte HMAC strip, cargo = 2 bytes (< the required 6);
