@@ -4,13 +4,8 @@ import CoreBluetooth
 import TandemMessages
 @testable import TandemBLE
 
-/// CC-03 (kit half): the qualifying-events characteristic is subscribed but had no decode branch —
-/// its 4-byte bitmap reached consumers only as an opaque `didReceiveFrame`. These tests prove the
-/// added decode + typed-dispatch + reference-backed clear, extracted into
-/// `PumpBLEClient.handleQualifyingEventsFrame(_:clear:)` so it is unit-testable without CoreBluetooth
-/// (a macOS test host cannot construct a real `CBPeripheral`/`CBCharacteristic` — TCC-aborted at
-/// scan). The `clear` closure IS the minimal spy seam mirroring `PumpCentral`: production wires it to
-/// a real `.qualifyingEvents` characteristic write; the test wires it to a counter.
+/// The qualifying-events characteristic is subscribed; these tests pin decode, typed dispatch, and
+/// the reference-backed clear through `handleQualifyingEventsFrame`, without CoreBluetooth.
 @MainActor
 @Suite struct QualifyingEventsDecodeTests {
 

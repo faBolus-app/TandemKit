@@ -2,12 +2,9 @@ import Testing
 import TandemMessages
 @testable import TandemAuth
 
-/// CX-T-08: `PairingCoordinator.handle(frame:)` today only guards `frame.count >= 5` and
-/// `frameCargo` silently CLAMPS a declared length that overruns the frame — no CRC check exists
-/// in the pairing path at all. These tests prove the restored guard: a CRC-invalid frame, and a
-/// frame whose declared length does not satisfy `3 + declaredLen == frame.count - 2` (both
-/// too-long and too-short), fail the handshake via `fail(.malformedFrame)` instead of being
-/// parsed/clamped. A well-formed frame (real CRC, exact declared length) is unaffected.
+/// `PairingCoordinator.handle(frame:)` must fail closed on a CRC-invalid frame or a declared length
+/// that does not match the buffer (`3 + declaredLen == frame.count - 2`). A well-formed frame (real CRC,
+/// exact declared length) is unaffected.
 @Suite struct PairingCoordinatorFrameTests {
     /// A well-formed inbound frame carrying a REAL CRC16 (unlike the dummy `[0, 0]` trailer used
     /// by `PairingCoordinatorTests`'s `frame()` helper, now updated to match).
@@ -24,7 +21,7 @@ import TandemMessages
         return coord
     }
 
-    /// RED: a frame whose trailing 2 bytes are NOT `Bytes.calculateCRC16(body)` must fail the
+    /// A frame whose trailing 2 bytes are not `Bytes.calculateCRC16(body)` must fail the
     /// handshake via `fail(.malformedFrame)`, never advance to the next step.
     @Test func crcInvalidFrameFailsClosed() throws {
         let coord = try startedCoordinator()
@@ -42,7 +39,7 @@ import TandemMessages
         #expect(failure as? PairingCoordinator.PairingError == .malformedFrame)
     }
 
-    /// RED: a declared length that claims MORE cargo than is actually present (`3 + declaredLen
+    /// A declared length that claims more cargo than is actually present (`3 + declaredLen
     /// > frame.count - 2`) must fail closed rather than being clamped by `min(...)`.
     @Test func declaredLengthTooLongFailsClosed() throws {
         let coord = try startedCoordinator()
@@ -61,8 +58,8 @@ import TandemMessages
         #expect(failure as? PairingCoordinator.PairingError == .malformedFrame)
     }
 
-    /// RED: a declared length SHORTER than the actual cargo (`3 + declaredLen < frame.count - 2`)
-    /// must fail closed — today this silently truncates to a possibly-empty challenge instead.
+    /// A declared length shorter than the actual cargo (`3 + declaredLen < frame.count - 2`)
+    /// must fail closed rather than being clamped.
     @Test func declaredLengthTooShortFailsClosed() throws {
         let coord = try startedCoordinator()
         var failure: Error?
@@ -80,8 +77,8 @@ import TandemMessages
         #expect(failure as? PairingCoordinator.PairingError == .malformedFrame)
     }
 
-    /// GREEN: a well-formed frame (valid CRC, exact declared length) is handled exactly as before
-    /// the guard was added — no regression to the JPAKE happy path.
+    /// A well-formed frame (valid CRC, exact declared length) is handled as before — no regression
+    /// to the JPAKE happy path.
     @Test func wellFormedFrameAdvancesAuthNormally() throws {
         let coord = try startedCoordinator()
         coord.onError = { Issue.record("unexpected pairing error: \($0)") }

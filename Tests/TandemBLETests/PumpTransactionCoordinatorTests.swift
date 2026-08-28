@@ -3,10 +3,9 @@ import Foundation
 import TandemMessages
 @testable import TandemBLE
 
-/// PX-08: the transaction coordinator is the deterministic, CoreBluetooth-free "fake transport" the
-/// remediation plan requires for FB-02. A `write` thunk stands in for the BLE write; `ingest` stands in
-/// for a notified response frame. Every property the plan asks for — correlation, deadline, fail-closed
-/// completion, no-misfire on a stale deadline — is asserted here without hardware.
+/// The transaction coordinator is the CoreBluetooth-free fake transport: a `write` thunk stands in
+/// for the BLE write; `ingest` stands in for a notified response. Pins correlation, deadline,
+/// fail-closed completion, and no-misfire on a stale deadline.
 @Suite struct PumpTransactionCoordinatorTests {
 
     /// Drive `perform` to the point where its pending transaction is registered.
@@ -198,7 +197,7 @@ import TandemMessages
         _ = try await b.value
     }
 
-    // MARK: - D2 (Addendum G): txId correlation
+    // MARK: - txId correlation
 
     /// Fail-closed default: a fresh coordinator correlates by opcode FIFO (the `main` reference path).
     @MainActor @Test func defaultCorrelationModeIsOpcodeFIFO() {

@@ -4,10 +4,8 @@ import TandemMessages
 
 @Suite struct WritePolicyInterlockTests {
 
-    /// PX-02: assert the *pure* authorization decision, not `send()`. `send()` also fails with
-    /// `.notReady` (no connection in a unit test), which would mask a wrongly-*allowed* command if the
-    /// test only checked "some ClientError was thrown". `authorizationError(for:)` returns exactly the
-    /// block reason (or nil = permitted) with no transport involved.
+    /// Assert the pure authorization decision, not `send()`. `send()` also fails with `.notReady`
+    /// (no connection in a unit test), which would mask a wrongly-allowed command.
     @MainActor private func assertBlocked(_ client: PumpBLEClient, _ msg: Message,
                                           by policy: PumpBLEClient.WritePolicy,
                                           sourceLocation: SourceLocation = #_sourceLocation) {
@@ -30,20 +28,19 @@ import TandemMessages
         assertAllowed(client, ControlIQIOBRequest())   // a read is never blocked
     }
 
-    /// allowNonDelivery permits therapy-significant CONTROL (BolusPermission) but STILL hard-blocks
-    /// insulin delivery — AND, after PX-03, hard-blocks destructive commands too (it is settings-only now).
+    /// `.allowNonDelivery` permits therapy-significant CONTROL (BolusPermission) but still hard-blocks
+    /// insulin delivery and destructive commands (settings-only).
     @MainActor @Test func allowNonDeliveryIsSettingsOnly() {
         let client = PumpBLEClient.forUnitTest()
         client.writePolicy = .allowNonDelivery
         assertAllowed(client, BolusPermissionRequest())                                   // .settings ok
         assertBlocked(client, InitiateBolusRequest(totalVolume: 1000, bolusID: 1, bolusTypeBitmask: 1), by: .allowNonDelivery)  // delivery
-        assertBlocked(client, FactoryResetRequest(), by: .allowNonDelivery)               // PX-03: destructive blocked
+        assertBlocked(client, FactoryResetRequest(), by: .allowNonDelivery)               // destructive blocked
         assertBlocked(client, DisconnectPumpRequest(), by: .allowNonDelivery)
         assertBlocked(client, ActivateShelfModeRequest(), by: .allowNonDelivery)
     }
 
-    /// PX-03: destructive commands require the explicit `.allowDestructive` tier — which still hard-blocks
-    /// delivery. This is the "reserve destructive for an explicit, short-lived authorization" requirement.
+    /// Destructive commands require the explicit `.allowDestructive` tier, which still hard-blocks delivery.
     @MainActor @Test func allowDestructivePermitsDestructiveNotDelivery() {
         let client = PumpBLEClient.forUnitTest()
         client.writePolicy = .allowDestructive
@@ -54,7 +51,7 @@ import TandemMessages
         assertBlocked(client, InitiateBolusRequest(totalVolume: 1000, bolusID: 1, bolusTypeBitmask: 1), by: .allowDestructive)
     }
 
-    /// allowBenignControl (audit P-01) permits benign signed ops but blocks settings, destructive, delivery.
+    /// `.allowBenignControl` permits benign signed ops but blocks settings, destructive, and delivery.
     @MainActor @Test func allowBenignControlSeparatesBenignFromSettings() {
         let client = PumpBLEClient.forUnitTest()
         client.writePolicy = .allowBenignControl
@@ -65,7 +62,7 @@ import TandemMessages
         assertBlocked(client, InitiateBolusRequest(totalVolume: 1000, bolusID: 1, bolusTypeBitmask: 1), by: .allowBenignControl)
     }
 
-    /// PX-01: a remote BG entry is benign metadata, but the SAME message marked `useForCgmCalibration`
+    /// A remote BG entry is benign metadata, but the same message marked `useForCgmCalibration`
     /// recalibrates the CGM → therapy-significant, so it must be blocked under `.allowBenignControl`.
     @MainActor @Test func calibrationBgEntryIsNotBenign() {
         let plain = RemoteBgEntryRequest(bg: 120, useForCgmCalibration: false, entryTypeId: 0, sourceId: 1,
@@ -83,7 +80,7 @@ import TandemMessages
         assertAllowed(client, calib)                            // but is permitted at the settings tier
     }
 
-    // MARK: - PX-03/04: scoped one-operation policy elevation always restores .readOnly
+    // MARK: - Scoped one-operation policy elevation always restores `.readOnly`
 
     @MainActor @Test func withWritePolicyElevatesThenRestoresOnSuccess() async {
         let client = PumpBLEClient.forUnitTest()
@@ -115,7 +112,7 @@ import TandemMessages
         #expect(client.writePolicy == .readOnly)
     }
 
-    /// The operation-risk taxonomy classifies representative messages as expected (audit P-01).
+    /// The operation-risk taxonomy classifies representative messages as expected.
     @Test func operationRiskClassification() {
         #expect(InitiateBolusRequest(totalVolume: 1000, bolusID: 1, bolusTypeBitmask: 1).operationRisk == .delivery)
         #expect(SuspendPumpingRequest().operationRisk == .delivery)   // modifiesInsulinDelivery

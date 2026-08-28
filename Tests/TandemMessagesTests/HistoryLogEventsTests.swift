@@ -97,14 +97,9 @@ private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8]
     }
 }
 
-/// History-log types the oracle can't cross-check — NOT a stale-JAR problem (the vendored jar was
-/// verified byte-identical to a fresh dad3eea build). Every typeId here is in 128–255, and upstream
-/// `HistoryLog.parseBase` reads the typeId from a signed byte and adds 512 for negative values,
-/// mis-decoding this whole range: most read as "unknown", and a couple collide with other types
-/// (230→486, 191→447). Our Swift reads the typeId as a clean unsigned 12-bit value, so it's actually
-/// *more* correct than the reference — which is why these can only be Swift-dispatch-verified here.
-/// Promoting them to byte-exact parity needs an UPSTREAM parse() fix in a newer pumpx2 + a re-pin,
-/// not a jar rebuild.
+/// History-log types the oracle can't cross-check. Upstream `HistoryLog.parseBase` reads typeId from
+/// a signed byte and adds 512 for values in 128–255, mis-decoding this range. Swift reads typeId as
+/// unsigned, so these can only be Swift-dispatch-verified here.
 @Suite struct HistoryLogSwiftDispatchTests {
     static let cases: [(Int, String)] = [
         (171, "CgmAlertActivatedHistoryLog"),
@@ -248,11 +243,9 @@ private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8]
     }
 }
 
-/// CX-T-09: `HistoryLogStreamResponse` must reject a frame whose byte count is not exactly
-/// `numberOfHistoryLogs * 26 + 2` — mirroring the oracle's `HistoryLogStreamResponse.java:49` throw —
-/// via an explicit `isValid` flag, distinguishing a malformed frame (isValid == false, records == [])
-/// from a genuinely valid empty stream (isValid == true, records == []). Today the decode greedily
-/// slices whatever whole 26-byte records fit and has no validity flag at all.
+/// `HistoryLogStreamResponse` must reject a frame whose byte count is not exactly
+/// `numberOfHistoryLogs * 26 + 2`, distinguishing a malformed frame (`isValid == false`, records == [])
+/// from a genuinely valid empty stream (`isValid == true`, records == []).
 @Suite struct HistoryLogStreamResponseTests {
     /// Builds a well-formed n-record frame: [n, streamId, record0(26)...record(n-1)(26)].
     private func frame(count n: Int, streamId: Int = 5, recordByte: UInt8 = 0xAA) -> [UInt8] {
@@ -309,8 +302,7 @@ private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8]
     }
 }
 
-/// CX-T-09 (Pitfall 3): `HistoryLogResponse` must preserve the stream id from byte 1 — upstream
-/// `HistoryLogResponse.java:35` does, the port drops it.
+/// `HistoryLogResponse` must preserve the stream id from byte 1.
 @Suite struct HistoryLogResponseStreamIdTests {
     @Test func decodesStreamIdFromByteOne() {
         let resp = HistoryLogResponse(cargo: [0, 9])
@@ -326,11 +318,8 @@ private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8]
     }
 }
 
-/// CC-11 (Phase 14 14-04): the simplified `BolusHistoryRecord`/`HistoryLog.parseBolusRecord` decode
-/// (distinct from `BolusCompletedHistoryLog` above, which already carries `bolusId` and never rejected
-/// 0U) previously dropped the `bolusId` field and rejected a 0U-delivered completed record. Both are
-/// restored here — `bolusId` is the query key `TandemBackend.findBolusInHistory(bolusId:)` needs, and a
-/// 0U/partial completed record is exactly what a cancelled-before-any-insulin bolus reports.
+/// `BolusHistoryRecord` / `HistoryLog.parseBolusRecord` must expose `bolusId` (the query key) and
+/// accept a 0U-delivered completed record — a cancelled-before-any-insulin bolus reports exactly that.
 @Suite struct BolusHistoryRecordTests {
     /// Builds a 26-byte `LID_BOLUS_COMPLETED` (typeId 20) record with the layout `HistoryLog.parseBolusRecord`
     /// decodes: completionStatus = short@10, bolusId = short@12, iob = float@14, delivered = float@18.
@@ -357,9 +346,7 @@ private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8]
         #expect(abs((rec?.deliveredUnits ?? -1) - 1.25) < 0.0001)
     }
 
-    /// A 0U-delivered completed record (e.g. cancelled before any insulin went in) must still parse —
-    /// the prior `delivered > 0` guard rejected it outright, hiding the record from CC-11's exact-id
-    /// search entirely.
+    /// A 0U-delivered completed record must still parse — rejecting it would hide the record from exact-id search.
     @Test func parseBolusRecordAcceptsZeroUnitsCompleted() {
         let raw = bolusRecord(pumpTimeSec: 600, seq: 43, completionStatusId: 5, bolusId: 2001,
                               iobUnits: 0.4, deliveredUnits: 0)

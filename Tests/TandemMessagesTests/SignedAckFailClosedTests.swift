@@ -1,11 +1,9 @@
 import Testing
 @testable import TandemMessages
 
-/// VA-20: the two accept-bearing signed dose-acks must fail CLOSED — never decode as accepted/granted, and
-/// never trap — when constructed from a buffer shorter than their declared size. This is unreachable via
-/// `ResponseParser` (it length-guards the cargo and VA-04 HMAC-verifies a signed response before `make`),
-/// so these pins guard a DIRECT caller / future refactor: a truncated frame must not read as an authoritative
-/// accepted bolus or granted permission, and `Bytes.read*`'s `precondition` must not crash the process.
+/// Truncated cargo for the two accept-bearing signed dose-acks must decode as not-accepted / not-granted
+/// and must not trap. `ResponseParser` length-guards and HMAC-verifies before `make`, so this pins a
+/// direct caller / future refactor: a short buffer must not read as an authoritative accepted bolus.
 struct SignedAckFailClosedTests {
 
     @Test func initiateBolusResponseShortBufferIsNotAccepted() {
@@ -26,9 +24,8 @@ struct SignedAckFailClosedTests {
         #expect(!BolusPermissionResponse(cargo: [1, 0, 0, 0, 0, 0]).granted)
     }
 
-    // CX-T-12: SuspendPumpingResponse/ResumePumpingResponse/SetTempRateResponse must also fail CLOSED on a
-    // short/empty cargo — today an empty buffer leaves `status` at its default 0 (== accepted), which is
-    // exactly backwards for a signed dose-affecting ack decoded from attacker/test-controlled bytes.
+    // Truncated cargo for Suspend/Resume/SetTempRate must also fail closed — an empty buffer leaving
+    // `status` at default 0 would decode as accepted.
 
     @Test func suspendPumpingResponseShortBufferIsNotAccepted() {
         // size is 1; only the empty buffer is "short" for this type.
@@ -54,11 +51,8 @@ struct SignedAckFailClosedTests {
         #expect(!SetTempRateResponse(cargo: [1, 0, 0, 0]).accepted)
     }
 
-    // CX-T-02: a signed response with status==0 but a nonzero denial field (nackReasonId /
-    // statusTypeId) is a DENIAL, not a grant/accept. Collapsing the gate to `status == 0` alone
-    // accepts a response the pump is using to say "no". `granted`/`accepted` must gate on the
-    // denial field too — status==0 && denialField==0 — so an unknown/nonzero denial code fails
-    // CLOSED even though the leading status byte is zero.
+    // A signed response with status==0 but a nonzero denial field is a denial, not a grant.
+    // `granted`/`accepted` must require status==0 && denialField==0 so an unknown/nonzero denial fails closed.
 
     @Test func bolusPermissionResponseStatusZeroWithNackReasonIsNotGranted() {
         // status==0, bolusId==0, nackReasonId!=0 (byte index 5) ⇒ NOT granted despite status==0.
@@ -74,10 +68,8 @@ struct SignedAckFailClosedTests {
         #expect(InitiateBolusResponse(cargo: [0, 0, 0, 0, 0, 0]).accepted)
     }
 
-    // WR-01 (Phase 15 review): extend the CX-T-12 short-cargo fail-closed pins to the remaining
-    // delivery-affecting signed CONTROL acks (the fix's stated goal was "harden the public API", and it had
-    // been applied to only 3 of the signed-ack types). Each must decode a short/empty buffer as NOT accepted
-    // (and must not trap), and a full-length status-0 buffer must still decode accepted (no happy-path regression).
+    // Remaining delivery-affecting signed CONTROL acks: short/empty cargo must decode as not-accepted
+    // (and must not trap); a full-length status-0 buffer must still decode accepted.
 
     @Test func stopTempRateResponseShortBufferIsNotAccepted() {
         for short: [UInt8] in [[], [0], [0, 0]] {   // size 3

@@ -2,12 +2,9 @@ import Testing
 import Foundation
 @testable import TandemMessages
 
-/// Round-2 P1: the bench carb planner must match the Tandem oracle `BolusCalculator.parse()` — the same
-/// formula faBolus's `BolusMath` ports and `faBolusCore`'s 563-vector `BolusMathParityTests` verifies.
-/// The old harness formula used `max(0, (BG−target)/ISF)`, dropping the SIGNED below-target correction
-/// (and its IOB interaction) and skipping two-decimal component rounding — an over-delivery risk on saline.
-/// These deterministic cases lock the corrected behavior (signed correction, IOB, dp2, zero floor,
-/// 0.05 U snap, bench cap) and the full request cargo.
+/// The bench carb planner must match the Tandem oracle `BolusCalculator.parse()`: signed
+/// below-target correction (and its IOB interaction) and two-decimal component rounding. Dropping
+/// the signed correction is an over-delivery risk.
 @Suite struct BenchBolusPlannerTests {
 
     // A clean profile: 10 g/U, ISF 50 mg/dL/U, target 120 mg/dL.
@@ -18,7 +15,7 @@ import Foundation
     private let F2 = InitiateBolusRequest.bitFood2
     private let CORR = InitiateBolusRequest.bitCorrection
 
-    /// food+correction always equals total; a deliverable plan (≥ 0.05 U) builds a valid PX-07 request.
+    /// food+correction always equals total; a deliverable plan (≥ 0.05 U) builds a valid request.
     private func assertCoherent(_ p: BenchBolusPlanner.Plan) {
         #expect(p.foodMilliunits + p.correctionMilliunits == p.totalMilliunits)
         if p.totalMilliunits >= InitiateBolusRequest.minBolusMilliunits {
@@ -121,7 +118,7 @@ import Foundation
         #expect(p.carbGrams == 45 && p.bgMgdl == 180)
         #expect(p.iobMilliunits == 500)
         #expect(p.bitmask == (F1 | CORR))
-        let req = try BenchBolusPlanner.request(for: p, bolusID: 7)   // PX-07 validating build succeeds
+        let req = try BenchBolusPlanner.request(for: p, bolusID: 7)   // validating build succeeds
         #expect(!req.cargo.isEmpty)
         assertCoherent(p)
     }

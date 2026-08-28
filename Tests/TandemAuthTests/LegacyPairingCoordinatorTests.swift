@@ -48,12 +48,8 @@ import TandemMessages
         #expect(coord.authKey == Array(code.utf8))
     }
 
-    /// Reference regression (`PumpChallengeRequestBuilder.createV1`: `int appInstanceId =
-    /// challengeResponse.getAppInstanceId();`): `PumpChallengeRequest` (op18) must carry the
-    /// PUMP-ASSIGNED `appInstanceId` echoed in `CentralChallengeResponse` (op17), NOT this
-    /// coordinator's own op16 value — even when the two differ, and even when the coordinator's own
-    /// value is the non-default 0 (the historic bug: op18 silently reused op16's value/default 0,
-    /// ignoring `resp.appInstanceId` entirely).
+    /// `PumpChallengeRequest` (op18) must carry the pump-assigned `appInstanceId` echoed in
+    /// `CentralChallengeResponse` (op17), not this coordinator's own op16 value — even when the two differ.
     @Test func pumpChallengeRequestEchoesThePumpAssignedAppInstanceId() throws {
         let coord = try LegacyPairingCoordinator(pairingCode: code)   // op16 appInstanceId defaults to 0
         let pumpAssignedId = 517                                      // nonzero, deliberately != 0

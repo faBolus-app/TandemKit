@@ -18,7 +18,7 @@ import Testing
         let cr = Bytes.toUint32(10000); for i in 0..<4 { cargo[14 + i] = cr[i] }
         // maxBolusAmount (short @18) = 25000 milliunits
         let mb = Bytes.firstTwoBytesLittleEndian(25000); cargo[18] = mb[0]; cargo[19] = mb[1]
-        // maxBolusHourlyTotal (uint32 @20) = 15000 milliunits (Candidate #4)
+        // maxBolusHourlyTotal (uint32 @20) = 15000 milliunits
         let mbht = Bytes.toUint32(15000); for i in 0..<4 { cargo[20 + i] = mbht[i] }
 
         let m = BolusCalcDataSnapshotResponse(cargo: cargo)
@@ -35,18 +35,8 @@ import Testing
         #expect(!m.maxIobEventsExceeded)
     }
 
-    /// BolusCalcDataSnapshotResponse ceiling flags (WIP-REGISTER.md Adoption Candidate #4,
-    /// dose-path-adjacent — faBolus plan 09.15-11, D-05). Oracle-backed against
-    /// `vendor/pumpx2-oracle/.../BolusCalcDataSnapshotResponse.java:72-74`:
-    /// `maxBolusHourlyTotal = Bytes.readUint32(raw, 20)`, `maxBolusEventsExceeded = raw[24] != 0`,
-    /// `maxIobEventsExceeded = raw[25] != 0`.
-    ///
-    /// This fixture asserts the LAYOUT and the KNOWN-FALSE case only — a captured frame with
-    /// both flags false decodes to `false`/`false` at the correct offsets. The `true` case is
-    /// intentionally NOT asserted anywhere in this suite: no first-party capture of a `true`
-    /// frame exists yet (the Phase-11 bench blocker), so asserting it would be marking an
-    /// unverified byte pattern as verified. Do not add a `true`-case assertion here without a
-    /// bench-captured fixture backing it.
+    /// BolusCalcDataSnapshotResponse ceiling flags. This fixture asserts layout and the known-false
+    /// case only — do not add a `true`-case assertion without a bench-captured fixture.
     @Test func bolusCalcSnapshotCeilingFlagsKnownFalse() {
         var cargo = [UInt8](repeating: 0, count: 46)
         // maxBolusHourlyTotal (uint32 @20) = 20000 milliunits, ceiling configured but not hit
@@ -208,11 +198,9 @@ import Testing
         #expect(m.requestCodeId == 159 && m.errorCodeId == 3 && m.isInvalidParameter)
     }
 
-    /// D2 (Addendum G): the op-77 error reply also dispatches on `.control` (a NEW additive registry key).
-    /// A rejected control write is NACKed with op-77 echoing the failing request; registering the control
-    /// variant lets that decode as an ErrorResponse (reading requestCodeId@0/errorCodeId@1, tolerating the
-    /// larger control cargo) instead of throwing `unknownOpcode`. The pre-existing currentStatus variant
-    /// still dispatches unchanged — proving the addition is purely additive (byte-parity untouched).
+    /// The op-77 error reply also dispatches on `.control` as an additive `(characteristic, opcode)` key.
+    /// A rejected control write is NACKed with op-77; the pre-existing `.currentStatus` variant still
+    /// dispatches unchanged. Opcodes are not globally unique.
     @Test func op77ErrorDispatchesOnControlAndCurrentStatus() throws {
         func frame(_ op: UInt8, _ cargo: [UInt8]) -> [UInt8] {
             let body: [UInt8] = [op, 0x01, UInt8(cargo.count)] + cargo
@@ -229,14 +217,9 @@ import Testing
         #expect((cs.message as? ErrorResponse)?.requestCodeId == 159)
     }
 
-    /// CONTROL_STREAM state responses (A3): dispatch on .controlStream + offsets. Also exercises the
-    /// characteristic-aware parser for opcodes that only exist on CONTROL_STREAM.
-    ///
-    /// CX-T-01: these opcodes now declare `signed: true, stream: true`, so `ResponseParser` requires a
-    /// 24-byte auth trailer and strips it before decoding cargo. This is a decode/dispatch test (not a
-    /// signature test — see `ControlStreamSignedVerifyTests`), so frames carry a placeholder (zero)
-    /// trailer and `verifySignature: false` skips VA-04 verification, matching the documented escape
-    /// hatch used by the other signed-frame dispatch tests in this file.
+    /// CONTROL_STREAM state responses dispatch on `.controlStream`. These opcodes declare `signed: true,
+    /// stream: true`, so frames carry a placeholder (zero) trailer and `verifySignature: false` skips
+    /// HMAC verification — this is decode/dispatch, not a signature test.
     @Test func controlStreamStateResponses() throws {
         func frame(_ op: UInt8, _ cargo: [UInt8]) -> [UInt8] {
             let payload = cargo + [UInt8](repeating: 0, count: 24)
@@ -274,7 +257,7 @@ import Testing
         let payload: [UInt8] = [0, 0x9A, 0x29, 0, 0] + [UInt8](repeating: 0, count: 24)
         let body: [UInt8] = [0xFB, 0x01, UInt8(payload.count)] + payload
         let frame = body + Bytes.calculateCRC16(body)
-        // Dispatch/routing test with a placeholder (zero) HMAC → skip VA-04 signature verification.
+        // Dispatch/routing test with a placeholder (zero) HMAC → skip signature verification.
         #expect(try ResponseParser.parse(frame: frame, characteristic: .control, verifySignature: false).message is AdditionalBolusResponse)
     }
 
@@ -321,28 +304,16 @@ import Testing
         let payload = cargo + [UInt8](repeating: 0, count: 24)
         let body: [UInt8] = [0xA5, 0x01, UInt8(payload.count)] + payload
         let frame = body + Bytes.calculateCRC16(body)
-        // Opcode/characteristic dispatch test with a placeholder (zero) HMAC → skip VA-04 verification.
+        // Opcode/characteristic dispatch test with a placeholder (zero) HMAC → skip HMAC verification.
         let parsed = try ResponseParser.parse(frame: frame, characteristic: .control, verifySignature: false)
         #expect(parsed.message is SetTempRateResponse)
         let set = try #require(parsed.message as? SetTempRateResponse)
         #expect(set.accepted && set.tempRateId == 5)
     }
 
-    /// CurrentActiveIdpValuesResponse: pin the byte-4 targetBg decode against the REAL hardware
-    /// capture `7017000073002c012800` (pre-existing in upstream's own test suite, cited in
-    /// `gh pr diff 102 --repo jwoglom/pumpx2`). This is a capture-based assertion that is
-    /// INDEPENDENT of the pinned cliparser oracle, which is itself DEFECTIVE for this field
-    /// (its `buildCargo` writes targetBg at byte 5 with byte 4 = padding, and its parse reads
-    /// `readShort(raw,5)` asserting 11264 for the old overlapping layout). The real pump wire
-    /// carries targetBg at byte 4 (0x73 = 115), byte 5 = 0x00 — so no OracleRunner-constructed
-    /// vector can validate the correct offset by construction; this capture is the substitute
-    /// ground truth (owner-acknowledged deviation from the phase's no-unbacked-change rule,
-    /// OWNER-DECISIONS.md 2026-08-16 + independent Codex confirmation).
-    ///
-    /// Cargo bytes: 70 17 00 00 | 73 | 00 | 2c 01 | 28 00
-    ///   carbRatio uint32@0 = 0x00001770 = 6000; targetBg uint16LE@4 = 0x0073 = 115;
-    ///   insulinDuration uint16LE@6 = 0x012c = 300; ISF uint16LE@8 = 0x0028 = 40.
-    /// Against the pre-fix `Int(raw[5])` read this FAILS (targetBg decodes as 0).
+    /// CurrentActiveIdpValuesResponse: pin targetBg at byte 4 against a real hardware capture
+    /// (`7017000073002c012800`). The cliparser oracle writes targetBg at byte 5, so no oracle-constructed
+    /// vector can validate the correct offset.
     @Test func currentActiveIdpValuesCaptureTargetBgAtByte4() {
         func hex(_ s: String) -> [UInt8] {
             var out: [UInt8] = []; var i = s.startIndex
@@ -353,7 +324,7 @@ import Testing
         let cargo = hex("7017000073002c012800")
         #expect(cargo.count == 10)
         let m = CurrentActiveIdpValuesResponse(cargo: cargo)
-        #expect(m.currentTargetBg == 115)          // byte-4 fix; pre-fix Int(raw[5]) == 0 (RED)
+        #expect(m.currentTargetBg == 115)          // byte-4 decode; Int(raw[5]) would be 0
         #expect(m.currentInsulinDuration == 300)    // regression guard (byte 6-7, unaffected)
         #expect(m.currentIsf == 40)                 // regression guard (byte 8-9, unaffected)
         #expect(m.currentCarbRatio == 6000)         // regression guard (byte 0-3, unaffected)
@@ -371,13 +342,8 @@ import Testing
         #expect(m.hasValidReading)
     }
 
-    /// VA-20: a short buffer fed to a fixed-size pure-READ response `init(cargo:)` must NOT trap
-    /// (no `raw[i]` out-of-bounds / precondition) and must zero-default every decoded field —
-    /// never a garbage or partially-decoded value. `cargo` is still retained verbatim. This is
-    /// defense-in-depth for a direct/refactor caller; via BLE the ResponseParser length-gates
-    /// before `make`, so this path is unreachable on the wire. Distinct from the accept-bearing
-    /// signed acks (InitiateBolus/BolusPermission), which fail CLOSED to a non-zero status
-    /// (`SignedAckFailClosedTests`) rather than zero-defaulting.
+    /// A short buffer fed to a fixed-size pure-READ `init(cargo:)` must not trap and must zero-default
+    /// every decoded field. Distinct from accept-bearing signed acks, which fail closed to a non-zero status.
     @Test func va20ShortBufferPureReadsZeroDefaultNoTrap() {
         // HistoryLogStatusResponse needs 12 bytes; feed 4.
         let hl = HistoryLogStatusResponse(cargo: [1, 2, 3, 4])

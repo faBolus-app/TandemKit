@@ -4,19 +4,9 @@ import CoreBluetooth
 import TandemMessages
 @testable import TandemBLE
 
-/// Pump-pairing connect/disconnect-loop fix (`.planning/debug/pump-pairing-loop.md`, faBolus repo):
-/// `didDisconnectPeripheral` / `didFailToConnect` used to re-issue `central.connect()` immediately (zero
-/// delay), and `startReconnectWatchdog()` reset `reconnectAttempts = 0` on EVERY call — so a peer that
-/// kept accepting-then-dropping the link (classic during pairing: the official t:connect app still holds
-/// the pump, or the pump's pairing/GATT window closing) drove a rapid, unthrottled, never-escalating
-/// connect/disconnect loop.
-///
-/// This suite pins the fix at the unit that actually drives the ladder: `reconnectTick()` (one throttled
-/// attempt) and `startReconnectWatchdog()` (the arm entry point every disconnect/fail-to-connect calls).
-/// Both are exposed internal-not-private for this — same convention as `scanTimedOut()` in
-/// `ScanTimeoutTests.swift` — because `didDisconnectPeripheral`/`didFailToConnect` themselves take a live
-/// `CBPeripheral`, which cannot be constructed in a unit test (no public initializer, and a macOS test
-/// host is TCC-aborted at a real scan/connect — see `PumpBLEClient`'s class doc).
+/// Immediate zero-delay reconnect on every drop, plus resetting `reconnectAttempts` on every
+/// `startReconnectWatchdog()`, let a flapping peer loop forever. This suite pins that the ladder
+/// throttles, escalates to `.reconnectExhausted`, and only resets after a genuinely stable `.ready`.
 @MainActor
 @Suite struct ReconnectThrottleTests {
 
@@ -39,8 +29,7 @@ import TandemMessages
     /// surfaced without needing a full app-level delegate.
     final class RecordingDelegate: PumpBLEClientDelegate {
         var errors: [PumpBLEClient.ClientError] = []
-        /// D-05: every `willRetryReconnect` call, in order — the attempt# and jittered delay the ladder
-        /// computed for that scheduled attempt.
+        /// Attempt number and jittered delay for each `willRetryReconnect` callback.
         var retries: [(attempt: Int, delay: TimeInterval)] = []
         func pumpClient(_ client: PumpBLEClient, didChange state: PumpBLEClient.State) {}
         func pumpClient(_ client: PumpBLEClient, didDiscover peripheral: CBPeripheral, rssi: Int) {}
@@ -54,11 +43,7 @@ import TandemMessages
         }
     }
 
-    /// THE regression this fix targets: repeatedly arming the ladder (what every disconnect/fail-to-
-    /// connect callback does via `startReconnectWatchdog()`) while it's already running must NOT reset
-    /// `reconnectAttempts` back to 0. Pre-fix, `startReconnectWatchdog()` unconditionally set
-    /// `reconnectAttempts = 0` on every call — this is the exact line that let a flapping peer hold the
-    /// backoff at step 0 forever.
+    /// Repeatedly arming the ladder while it is already running must not reset `reconnectAttempts` to 0.
     @Test func repeatedArmCallsDoNotResetAttempts() {
         let fake = FakeCentral()
         let client = PumpBLEClient(central: fake)
@@ -160,11 +145,8 @@ import TandemMessages
         client.disconnect()
     }
 
-    /// D-05: `willRetryReconnect(attempt:after:)` fires once per scheduled attempt — the initial arm
-    /// (`scanTimedOut` → `startReconnectWatchdog` → `scheduleNextReconnectAttempt`, attempt# still 0) and
-    /// then once more from every throttled `reconnectTick()` up to (but not including) the ceiling tick —
-    /// escalating in lockstep with `reconnectAttemptsForTesting` and matching `reconnectBackoff = [5,10,20,30]`
-    /// (jitter only ever ADDS to the base step, never shortens it).
+    /// `willRetryReconnect(attempt:after:)` fires once per scheduled attempt, escalating in lockstep
+    /// with `reconnectAttemptsForTesting`. Jitter only ever adds to the base step, never shortens it.
     @Test func willRetryReconnectEscalatesAttemptNumberInLockstepWithReconnectAttempts() {
         let fake = FakeCentral()
         let client = PumpBLEClient(central: fake)
@@ -192,16 +174,9 @@ import TandemMessages
         client.disconnect()
     }
 
-    /// SECOND regression this fix targets — found via FRESH on-device evidence gathered AFTER the ladder
-    /// fix above had already landed and been verified (`.planning/debug/pump-pairing-loop.md`,
-    /// 2026-08-11): `maybeBecomeReady()` used to reset `reconnectAttempts`/`reconnectExhausted` the
-    /// INSTANT `.ready` was reached, unconditionally. On-device diagnostics showed the peer can accept
-    /// the connection and drop it again (`CBErrorDomain` code 7) in under a second, repeatedly — each
-    /// such cycle nominally "succeeded" (it did reach `.ready`), so the ladder reset every time and
-    /// `maxReconnectAttempts` never fired: this specific flap looped indefinitely despite the ceiling
-    /// existing. `readyHeldLongEnoughToResetLadder`/`consumeReadyStabilityAndMaybeReset` close that gap by
-    /// requiring the link to have held `.ready` for `readyStabilityWindow` before trusting it as a real
-    /// recovery.
+    /// `maybeBecomeReady()` must not reset the ladder the instant `.ready` is reached. A peer that
+    /// accepts then drops inside the stability window would otherwise never hit `maxReconnectAttempts`.
+    /// Reset only after the link has held `.ready` for `readyStabilityWindow`.
     @Test func briefReadyDoesNotResetLadderButLongReadyDoes() {
         #expect(!PumpBLEClient.readyHeldLongEnoughToResetLadder(heldFor: 0))
         #expect(!PumpBLEClient.readyHeldLongEnoughToResetLadder(heldFor: 0.9))
@@ -210,11 +185,8 @@ import TandemMessages
         #expect(PumpBLEClient.readyHeldLongEnoughToResetLadder(heldFor: 28))   // on-device "healthy" cycle length
     }
 
-    /// A peer that repeatedly reaches `.ready` and drops again WITHIN the stability window must still
-    /// climb the ladder to the ceiling instead of resetting to step 0 every cycle — the exact defect this
-    /// fix closes. `readySinceForTesting` + `consumeReadyStabilityAndMaybeReset()` simulate what
-    /// `didDisconnectPeripheral` does on a real drop, without needing a live `.ready` transition (which
-    /// requires a real `CBPeripheral` — see the class doc).
+    /// A peer that repeatedly reaches `.ready` and drops inside the stability window must still
+    /// climb the ladder to the ceiling instead of resetting to step 0 every cycle.
     @Test func briefReadyRepeatedlyDoesNotDefeatTheCeiling() {
         let fake = FakeCentral()
         let client = PumpBLEClient(central: fake)

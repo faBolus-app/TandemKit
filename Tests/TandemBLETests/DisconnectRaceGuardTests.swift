@@ -4,25 +4,9 @@ import CoreBluetooth
 import TandemMessages
 @testable import TandemBLE
 
-/// CX-T-10 (phase 14 delivery-safety remediation). `disconnect()` sets `intentionalDisconnect` synchronously
-/// but the actual link teardown (`central.cancelPeripheralConnection`) and the resulting
-/// `state`/`peripheral`/`characteristics` reset are async, arriving later via `didDisconnectPeripheral`.
-/// Before this fix, `disconnect()` only published `state = .disconnected` when there was no live
-/// `peripheral` (a first-pair scan); with a live peripheral, `state` stayed whatever it was — often
-/// `.ready` — until the delegate callback caught up, so a straggler `send()` issued in that window would
-/// sail through `send()`'s `state == .ready` readiness guard onto a link CoreBluetooth was already tearing
-/// down.
-///
-/// The fix is defense-in-depth: (a) `disconnect()` now publishes `state = .disconnected` SYNCHRONOUSLY,
-/// unconditionally, before the async teardown; (b) `send()` ALSO guards directly on `intentionalDisconnect`
-/// (mirroring the `!intentionalDisconnect` guards already used elsewhere in the class), refusing with a
-/// DISTINCT `ClientError.disconnecting` — not the reused `.notReady` — so the refusal is observable in a
-/// unit test without a live `CBPeripheral`/`CBCharacteristic` (the same reason `.unsupportedOnDevice` is
-/// its own case rather than `.notReady`, per `SendGateBoundaryTests`'s doc comment). A real end-to-end
-/// "send actually proceeds on a `.ready` + live-peripheral link" scenario needs hardware (TCC-aborted at
-/// scan on a macOS test host — see the class doc); (a) is proven directly via the reachable no-peripheral
-/// branch, and (b) proves the specific hazard named in the plan's truths — a stale-`.ready`-looking send
-/// during the gap is refused, not silently emitted.
+/// `disconnect()` publishes `state = .disconnected` synchronously before async teardown, and `send()`
+/// also refuses on `intentionalDisconnect` with `.disconnecting` (not reused `.notReady`) so a
+/// straggler send cannot ride a stale `.ready` onto a link CoreBluetooth is already tearing down.
 @Suite struct DisconnectRaceGuardTests {
 
     final class FakeCentral: PumpCentral {
@@ -66,8 +50,8 @@ import TandemMessages
 
     // MARK: - (b) send() refuses during the disconnect()→didDisconnect gap
 
-    /// NEGATIVE PATH: once `disconnect()` has set `intentionalDisconnect`, `send()` must refuse with the
-    /// DISTINCT `.disconnecting` error — checked BEFORE the readiness guard, so the refusal is not masked
+    /// Once `disconnect()` has set `intentionalDisconnect`, `send()` must refuse with the
+    /// distinct `.disconnecting` error — checked before the readiness guard, so the refusal is not masked
     /// by (and not confusable with) a plain `.notReady`.
     @MainActor @Test func sendRefusesDuringDisconnectGap() {
         let client = PumpBLEClient(central: FakeCentral())

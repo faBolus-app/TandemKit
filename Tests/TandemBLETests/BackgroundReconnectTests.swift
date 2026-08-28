@@ -4,31 +4,10 @@ import CoreBluetooth
 import TandemMessages
 @testable import TandemBLE
 
-/// Debug session `pump-background-disconnect` (owner-authorized 2026-08-20, re-scoped pass). Pins the
-/// KIT half of the two-part root cause: a pump BLE link that drops while the app is BACKGROUNDED was never
-/// recovered until the app was reopened, because the sole post-drop `central.connect()` re-issue lived in
-/// `reconnectTick()` on a main-RunLoop `Timer` that freezes once the app suspends (H1).
-///
-/// The fix issues ONE background-safe `central.connect()` INLINE on an unintended drop (a pending CB connect
-/// has no timeout and does not poll, so CoreBluetooth completes it while the app is suspended — battery-
-/// neutral). The HIGHEST-BUG-RISK part is the reconciliation of that inline connect against the existing
-/// throttled reconnect ladder (the pump-pairing-loop flap throttle, `.planning/debug/pump-pairing-loop.md`):
-///
-///   1. A NAIVE inline connect on EVERY drop would reintroduce that regression — a zero-delay connect that
-///      recovers a flapping peer faster than the 5 s ladder tick means `reconnectAttempts` never climbs and
-///      `.reconnectExhausted` never fires (an unthrottled accept-then-drop loop). So the inline connect is
-///      GATED on the drop following a `>= readyStabilityWindow` stable `.ready` (the SAME signal
-///      `consumeReadyStabilityAndMaybeReset` already trusts): a genuine stable-link drop (e.g. a background
-///      idle/supervision-timeout drop) inline-connects; a sub-window flap does NOT, and is left to the
-///      throttled ladder which still escalates to `.reconnectExhausted`.
-///   2. The `inlineConnectPending` flag demotes the ladder's FIRST tick to pure backoff so it does NOT
-///      stack a second concurrent connect; the drop path never resets `reconnectAttempts`/`reconnectExhausted`.
-///
-/// Like `ReconnectThrottleTests`/`ScanTimeoutTests`, this drives the internal-not-private state machine with
-/// an injected `PumpCentral` fake — `didDisconnectPeripheral` itself takes a live `CBPeripheral` (no public
-/// initializer; a macOS test host is TCC-aborted at a real connect), and the single `central.connect(peripheral,…)`
-/// on that real handle is the only part that needs hardware (bench/device-verified). `planUnintendedDropRecovery`
-/// factors out the reconcilable core so the throttle-preservation + non-stacking logic is unit-testable here.
+/// An unintended drop after a stable `.ready` issues one background-safe `central.connect()` inline
+/// (a pending CB connect has no timeout and completes while the app is suspended). A sub-window
+/// flap does not: that would skip the 5 s reconnect ladder and never reach `.reconnectExhausted`.
+/// The `inlineConnectPending` flag demotes the ladder's first tick so it does not stack a second connect.
 @MainActor
 @Suite struct BackgroundReconnectTests {
 
@@ -59,7 +38,7 @@ import TandemMessages
         }
     }
 
-    // MARK: - Throttle preservation (the reconciliation, rail 2)
+    // MARK: - Throttle preservation
 
     /// A GENUINE stable-then-dropped link (held `.ready` >= the stability window) plans an inline
     /// background-safe connect AND arms the ladder — but must NOT reset the flap-throttle counters.

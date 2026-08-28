@@ -1,14 +1,9 @@
 import Testing
 @testable import TandemMessages
 
-/// VA-04: `ResponseParser` must fully verify the HMAC-SHA1 auth trailer on a signed response and FAIL
-/// CLOSED on a forged/tampered/absent trailer or a missing key. Upstream (`PacketArrayList.validate`)
-/// does this; the earlier Swift port dropped it, so a CRC-valid FORGED signed response — e.g. a forged
-/// InitiateBolus NACK — was accepted, releasing the durable delivery lock (double-dose window).
-///
-/// These use the oracle to mint a REAL signed frame whose HMAC is valid under `testPairingCode`, then
-/// assert: (a) a valid trailer verifies, (b) a tampered-but-CRC-fixed frame is rejected (the exploit),
-/// (c) an absent trailer fails closed, (d) an empty key fails closed, (e) a wrong key is rejected.
+/// `ResponseParser` must HMAC-SHA1-verify the auth trailer on a signed response and fail closed on a
+/// forged, tampered, absent, or wrong-key trailer. A CRC-valid forged InitiateBolus NACK must not be
+/// accepted (that would release the durable delivery lock).
 @Suite(.enabled(if: OracleRunner.isAvailable)) struct SignedResponseHmacVerifyTests {
 
     private let key = Array(OracleRunner.testPairingCode.utf8)
@@ -43,8 +38,8 @@ import Testing
         #expect(msg.bolusId == 10650)
     }
 
-    /// THE EXPLOIT: flip the status/accept byte (cargo[0] at body[3]) to forge a NACK, then recompute the
-    /// CRC so integrity passes — the HMAC must still reject it.
+    /// Flip the status/accept byte to forge a NACK, then recompute the CRC so integrity passes —
+    /// the HMAC must still reject it.
     @Test func tamperedStatusWithFixedCrcIsRejected() throws {
         var frame = try validSignedFrame()
         var body = Array(frame[0..<(frame.count - 2)])

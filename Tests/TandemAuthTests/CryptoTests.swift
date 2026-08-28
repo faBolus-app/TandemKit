@@ -32,11 +32,8 @@ import TandemMessages
         }
     }
 
-    /// `.planning/debug/pump-pairing-loop.md`: owner tried the pump's 16-char code with and without
-    /// dashes and observed the identical loop both ways — this pins the reason down as an EQUALITY,
-    /// not just "both validate": dashed and undashed forms of the same code must canonicalize to the
-    /// exact same 16-char string (so they produce the identical `CentralChallengeRequest` on the wire),
-    /// ruling dash formatting itself out as a variable in that investigation.
+    /// Dashed and undashed forms of the same 16-char pairing code must canonicalize to the exact
+    /// same string, so they produce the identical `CentralChallengeRequest` on the wire.
     @Test func dashedAndUndashedLongCodesCanonicalizeIdentically() throws {
         let dashed = try PairingAuth.processPairingCode("1234-5678-9012-3456", type: .long16Char)
         let undashed = try PairingAuth.processPairingCode("1234567890123456", type: .long16Char)
@@ -85,13 +82,8 @@ import TandemMessages
         #expect(req.cargo.count == 22)
     }
 
-    /// Independent golden vector for `createV1` — the expected digest was computed OUTSIDE Swift
-    /// (Python `hmac`/`hashlib`), so it pins the FULL path (pairing-code processing → HMAC argument
-    /// order → digest) against a reference the app's own `Crypto.hmacSha1` cannot circularly satisfy.
-    /// The self-check above compares two Swift computations, so a regression in `hmacSha1` (or the
-    /// arg order flipping) would pass it; this vector would fail. Inputs: the upstream 16-char example
-    /// code + the real pump `hmacKey` from jwoglom `CentralChallengeResponseTest` (840c4e16873046bc);
-    /// `pumpChallengeHash = HMAC-SHA1(key = pairingCode UTF-8, data = hmacKey)`.
+    /// Independent golden vector for `createV1` — expected digest computed outside Swift, so it pins
+    /// pairing-code processing, HMAC argument order, and digest against a non-circular reference.
     @Test func createV1MatchesIndependentGolden() throws {
         let hmacKey = try Hex.decode("840c4e16873046bc")
         let req = try PairingAuth.createV1(appInstanceId: 1, hmacKey: hmacKey, pairingCode: "6VeDeRAL5DCigGw2")

@@ -3,25 +3,9 @@ import Foundation
 import TandemMessages
 @testable import TandemAuth
 
-/// Phase 09.8 (Candidate #3) — JPAKE round-4 key-confirmation timing side-channel.
-///
-/// `JpakeAuth.verifyServerRound4` compared the expected HMAC-SHA256 digest against the server's
-/// digest with Swift Array `Equatable`, which short-circuits on the first mismatching byte — a
-/// timing side-channel on the HMAC comparison. Upstream jwoglom/pumpX2 PR #102 fixed the Java
-/// equivalent with the constant-time `MessageDigest.isEqual`; this pins the Swift port to the
-/// CryptoKit constant-time equivalent (`HMAC<SHA256>.isValidAuthenticationCode`).
-///
-/// The static guard below scans the REAL Sources file (mirrors the project's #filePath-rooted
-/// source-scan guard pattern, see `D2CorrelationAllowlistTests.repoRootURL`/`readSource`) so a
-/// future edit that reintroduces a short-circuiting `==`/`!=` compare on the digest trips this
-/// test — no Sources mutation, read-only. It is RED against the pre-fix source (elementwise
-/// `expected == serverHashDigest`) and GREEN once `verifyServerRound4` routes through the
-/// constant-time primitive.
-///
-/// The behavioral tests are a safety net that pass BOTH before and after the fix — they pin that
-/// correctness (not just timing) is preserved: a correct digest still verifies, a wrong digest
-/// (whether same-length-but-flipped, truncated, or over-length) still throws
-/// `JpakeAuthError.keyConfirmationFailed` cleanly, never crashes.
+/// Round-4 key confirmation must compare HMAC-SHA256 digests with CryptoKit's constant-time
+/// `isValidAuthenticationCode`, not Array `==` (which short-circuits). The source-scan guard fails
+/// if a short-circuiting compare is reintroduced; the behavioral tests pin that a wrong digest still throws.
 @Suite struct JpakeConstantTimeGuardTests {
 
     // MARK: - Source resolution (mirrors D2CorrelationAllowlistTests' #filePath-rooted pattern)
@@ -42,13 +26,11 @@ import TandemMessages
         return try? String(contentsOf: root.appendingPathComponent(relativePath), encoding: .utf8)
     }
 
-    // MARK: - Task 1: static drift guard (RED against the pre-fix `==` compare)
+    // MARK: - Source-scan guard
 
-    /// `verifyServerRound4` must NOT use a short-circuiting Array `==`/`!=` compare against the
-    /// server's digest, and MUST route through the constant-time primitive. Scans the real
-    /// `JpakeAuth.swift` source rather than re-deriving behavior, so it fails on the exact line
-    /// (133-135 pre-fix) that carried the timing side-channel, independent of whether the
-    /// behavioral tests below happen to still pass.
+    /// `verifyServerRound4` must not use a short-circuiting Array `==`/`!=` compare against the
+    /// server's digest, and must route through the constant-time primitive. Scans the real
+    /// `JpakeAuth.swift` source so a reintroduced short-circuit fails here even if behavioral tests still pass.
     @Test func verifyServerRound4UsesConstantTimeCompareStructuralGuard() throws {
         guard let source = Self.readSource("Sources/TandemAuth/JpakeAuth.swift") else {
             Issue.record("could not resolve JpakeAuth.swift from #filePath=\(#filePath)")
@@ -72,12 +54,10 @@ import TandemMessages
                 "verifyServerRound4 must route through a constant-time comparison primitive")
     }
 
-    // MARK: - Task 2: behavioral regression safety net (green both before and after the fix)
+    // MARK: - Behavioral safety net
 
-    /// Reuses the round-1→4 handshake setup from `JpakeTests.round4KeyConfirmation` (~line 90) to
-    /// obtain real, matching key material, then exercises `verifyServerRound4` with a correct
-    /// digest, a single-byte-flipped (same-length) digest, a truncated digest, and an over-length
-    /// digest — pinning that correctness (pass/throw) is unaffected by the constant-time swap.
+    /// Handshake setup reused to pin that a correct digest still verifies and a wrong digest
+    /// (flipped, truncated, or over-length) still throws `keyConfirmationFailed`.
     private func makeAuthenticatedPair() throws -> (auth: JpakeAuth, serverSecret: [UInt8], serverNonce3: [UInt8]) {
         let auth = try JpakeAuth(pairingCode: "123456")
         let server = try EcJpakeContext(role: .server, secret: JpakeAuth.pairingCodeToBytes("123456"))

@@ -1,10 +1,9 @@
 import Testing
 @testable import TandemMessages
 
-/// VA-19: CGM-history trend-rate (raw[13]) and RSSI (raw[15]) are signed one-byte fields — the
-/// pinned Java oracle sign-extends them (`this.rate = raw[13]` on a `byte[]`), so `0xFE` decodes to
-/// `-2` and `0xA7` to `-89`. These decoders previously read them UNSIGNED. The raw cargo starts at
-/// offset 10, so `tail[3]` maps to raw[13] (rate) and `tail[5]` to raw[15] (rssi).
+/// CGM-history trend-rate (raw[13]) and RSSI (raw[15]) are signed one-byte fields — the Java oracle
+/// sign-extends them, so `0xFE` decodes to `-2` and `0xA7` to `-89`. An unsigned read would be wrong.
+/// The raw cargo starts at offset 10, so `tail[3]` maps to raw[13] and `tail[5]` to raw[15].
 @Suite struct CgmHistorySignedByteTests {
     /// Builds a 26-byte history-log record with the given header + a tail starting at offset 10.
     /// Mirrors the helper in HistoryLogEventsTests.swift (that copy is file-private).

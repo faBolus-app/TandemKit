@@ -1,12 +1,9 @@
 import Testing
 @testable import TandemMessages
 
-/// C8 / defect E8: faBolus must never *calculate* a trend arrow, and "no trend available" has to render
-/// as no arrow rather than an inferred one.
-///
-/// The authoritative source is `HomeScreenMirrorResponse.cgmTrendIconId` — the icon the pump is showing
-/// on its own home screen, which includes an explicit `noArrow` state. The client-side derivation from
-/// `CurrentEgvGuiDataV2Response.trendRate` is a fallback and must return `nil` rather than guess.
+/// faBolus must never calculate a trend arrow. The pump's own `HomeScreenMirrorResponse.cgmTrendIconId`
+/// is authoritative (including an explicit `noArrow` state); a client-side derivation from
+/// `CurrentEgvGuiDataV2Response.trendRate` must return `nil` rather than guess.
 @Suite struct TrendProvenanceTests {
 
     // MARK: The pump's own icon (authoritative)
