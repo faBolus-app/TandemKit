@@ -105,13 +105,12 @@ public enum Bytes {
     /// Java `b > 0`), which truncated any non-ASCII string at its first byte >= 0x80 (e.g. "café"
     /// decoded as "caf"). This is the intent of upstream jwoglom/pumpX2 PR #123.
     ///
-    /// NO CLEAN ORACLE BACKING (deliberate, D-05): the vendored pumpx2-oracle Java `Bytes.java`
+    /// NO CLEAN ORACLE BACKING (deliberate): the vendored pumpx2-oracle Java `Bytes.java`
     /// (submodule pin dad3eea2, pre-PR#123) still carries the old `b > 0` terminator, so this fix
     /// intentionally diverges from the vendored oracle and cannot be validated by OracleParityTests.
-    /// The direct `BytesTests.readWriteStringDecodesNonAscii` case is the substitute ground truth
-    /// (same posture as the 09.8-04 targetBg capture-based deviation). Re-check the submodule pin
-    /// before any future re-run: if upstream ever merges PR #123 to pumpx2 main, this divergence note
-    /// no longer applies.
+    /// The direct `BytesTests.readWriteStringDecodesNonAscii` case is the substitute ground truth.
+    /// Re-check the submodule pin before any future re-run: if upstream ever merges PR #123 to
+    /// pumpx2 main, this divergence note no longer applies.
     public static func readString(_ raw: [UInt8], _ i: Int, _ length: Int) -> String {
         precondition(i >= 0 && i < raw.count)
         var strBytes = [UInt8]()
@@ -133,11 +132,10 @@ public enum Bytes {
     /// call sites and force a semver bump (CONTRIBUTING.md public-API stability). This is the intent
     /// of upstream jwoglom/pumpX2 PR #123 (which throws `IllegalArgumentException`).
     ///
-    /// NO CLEAN ORACLE BACKING (deliberate, D-05): the vendored pumpx2-oracle Java `Bytes.java`
+    /// NO CLEAN ORACLE BACKING (deliberate): the vendored pumpx2-oracle Java `Bytes.java`
     /// (submodule pin dad3eea2, pre-PR#123) has NO overlong-reject and zero string-codec test
     /// coverage, so no OracleParityTests vector can validate this fix by construction. The direct
-    /// `BytesTests.writeStringExactFitBoundaryAndPad` case is the substitute ground truth (same
-    /// posture as the 09.8-04 targetBg capture-based deviation).
+    /// `BytesTests.writeStringExactFitBoundaryAndPad` case is the substitute ground truth.
     ///
     /// CALLER OBLIGATION: the bound is on encoded UTF-8 BYTES, not characters (a single character
     /// such as "é" is two UTF-8 bytes). Callers passing user-supplied text (e.g. IDP profile names

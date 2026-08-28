@@ -11,7 +11,7 @@ public struct BolusPermissionRequest: Message {
         type: .request,
         characteristic: .control,
         responseOpCode: 0xA3,       // BolusPermissionResponse
-        minApi: .v2_5               // upstream API_V2_5 (D-08)
+        minApi: .v2_5               // upstream API_V2_5
     )
 
     public var cargo: [UInt8]

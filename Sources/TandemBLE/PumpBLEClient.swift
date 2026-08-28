@@ -3,11 +3,10 @@ import Foundation
 import TandemMessages
 import os
 
-/// D-06/D-07: fixed, documented literal subsystem/category — NOT `Bundle.main.bundleIdentifier`.
-/// `LocalConfig.xcconfig` (faBolus repo) overrides `APP_BUNDLE_ID` per developer (gitignored), so a
-/// bundle-derived subsystem would silently stop matching the off-device `log show` predicate on another
-/// machine's build. This is the ONLY path to the true `bluetoothd`/HCI disconnect reason CoreBluetooth's
-/// own `CBError` surface cannot reach (see D-03's CBError capture, app-side) — pull with:
+/// Fixed literal subsystem/category — not `Bundle.main.bundleIdentifier`.
+/// `LocalConfig.xcconfig` (faBolus) overrides `APP_BUNDLE_ID` per developer (gitignored), so a
+/// bundle-derived subsystem would stop matching `log show` on another machine's build. This is
+/// the only path to the bluetoothd/HCI disconnect reason CoreBluetooth's `CBError` cannot reach:
 ///   `log collect --device-udid <UDID> --last 10m --output ~/fabolus.logarchive`
 ///   `log show ~/fabolus.logarchive --predicate 'subsystem == "com.fabolus.app" AND category == "ble"' --info --debug`
 private let bleLog = Logger(subsystem: "com.fabolus.app", category: "ble")
@@ -24,38 +23,28 @@ public protocol PumpBLEClientDelegate: AnyObject {
     /// concatenated packet payloads (opcode/txId/len/cargo/…/crc), ready for parsing.
     func pumpClient(_ client: PumpBLEClient, didReceiveFrame frame: [UInt8], on characteristic: Characteristic)
     func pumpClient(_ client: PumpBLEClient, didError error: Error)
-    /// D-05: fired from `scheduleNextReconnectAttempt()` every time the reconnect ladder schedules a
-    /// throttled attempt — including a silently-failed attempt that never reaches a `didChange`/`didError`
-    /// state edge. `attempt` is the CONSECUTIVE-drop counter (`reconnectAttempts`, not reset on every
-    /// drop — see its doc); `delay` is the jittered backoff actually armed for this attempt. This is the
-    /// only way the count/backoff — which otherwise lives only in this class's private state — leaves the
-    /// kit, so a host can record it for diagnostics without the kit taking on any logging concern itself.
+    /// Fired when the reconnect ladder arms a throttled attempt — including a silently-failed
+    /// attempt that never reaches `didChange`/`didError`. `attempt` is consecutive drops
+    /// (`reconnectAttempts`); `delay` is the jittered backoff actually armed. Only way this
+    /// private ladder state leaves the kit.
     func pumpClient(_ client: PumpBLEClient, willRetryReconnect attempt: Int, after delay: TimeInterval)
-    /// CC-03 (kit half): the pump's qualifying-events bitmap, decoded and dispatched typed. Fired
-    /// only when the decoded set is non-empty (an all-zero bitmap dispatches nothing). App-side
-    /// pause-sends / dedup consumption is NOT this delegate method's concern; the kit
-    /// only decodes + dispatches + issues the reference-backed clear (see `PumpBLEClient
-    /// .handleQualifyingEventsFrame`).
+    /// Qualifying-events bitmap, decoded and dispatched typed. Fired only when the set is
+    /// non-empty (all-zero dispatches nothing). The kit decodes, dispatches, and issues the
+    /// reference-backed clear — it does not pause sends or dedup.
     func pumpClient(_ client: PumpBLEClient, didReceiveQualifyingEvent event: QualifyingEvent)
 }
 
-/// Default no-op for `willRetryReconnect` — every conformer that doesn't care about the reconnect
-/// ladder's internals (today: `WatchPumpClient` and the TandemKit test/bench-harness conformers) keeps
-/// compiling unchanged; only a conformer that wants the signal overrides it.
+/// Default no-op for `willRetryReconnect`. Test/bench conformers keep compiling; override to observe the ladder.
 @MainActor
 public extension PumpBLEClientDelegate {
     func pumpClient(_ client: PumpBLEClient, willRetryReconnect attempt: Int, after delay: TimeInterval) {}
-    /// Default no-op, mirroring `willRetryReconnect` above — every existing conformer (WatchPumpClient,
-    /// test/bench/harness delegates) keeps compiling unchanged; faBolus overrides this to
-    /// consume the comms-suspension signal instead of silently dropping it.
+    /// Default no-op. Existing conformers keep compiling; faBolus overrides this to consume
+    /// the comms-suspension signal instead of dropping it.
     func pumpClient(_ client: PumpBLEClient, didReceiveQualifyingEvent event: QualifyingEvent) {}
 }
 
-/// B3(b) TEST SEAM — the minimal `CBCentralManager` surface `PumpBLEClient` actually uses. `CBCentralManager`
-/// satisfies it unchanged (the empty conformance below), so injecting the real manager is behavior-preserving
-/// by construction — if this compiles, the production path is untouched. A unit test injects a fake to
-/// branch-test the connection lifecycle (scan timeout, retrieve-vs-scan) without CoreBluetooth/hardware,
-/// which a macOS test host can't run (TCC-aborted at scan — see the class note).
+/// Test seam: the `CBCentralManager` surface `PumpBLEClient` actually uses. The real manager
+/// satisfies it unchanged. Tests inject a fake so scan/retrieve can run without CoreBluetooth.
 protocol PumpCentral: AnyObject {
     var state: CBManagerState { get }
     func scanForPeripherals(withServices serviceUUIDs: [CBUUID]?, options: [String: Any]?)
@@ -99,23 +88,15 @@ public final class PumpBLEClient: NSObject {
         case writeFailed(Characteristic)
         /// A message was refused by the current `writePolicy`.
         case writeBlocked(policy: WritePolicy, opcode: UInt8)
-        /// A message was refused by the device/API send gate (D-08): the KNOWN connected pump does not
-        /// support this opcode (wrong device family, or a negotiated API below the message's `minApi`).
-        /// A refusal, not a delivery outcome — thrown BEFORE any byte is emitted, exactly like
-        /// `writeBlocked`. Only ever raised for a KNOWN-incompatible target; an unknown target fails open.
+        /// Known connected pump does not support this opcode (wrong family, or API below `minApi`).
+        /// Refusal, not a delivery outcome — thrown BEFORE any byte is emitted, like `writeBlocked`.
+        /// Unknown target fails open.
         case unsupportedOnDevice(opcode: UInt8)
-        /// CC-06 (REMED-15.5): a model-restricted message was refused because the send-time target is
-        /// UNIDENTIFIED-OR-UNTRUSTED, carrying the refused message's `opcode`. DISTINCT from
-        /// `.unsupportedOnDevice`: that case is raised for a KNOWN-TRUSTED-incompatible target (the model
-        /// is confidently wrong); this case is raised when there is no trusted model to check against at
-        /// all — either `connectedPumpModel == nil`, or a non-nil model that was never established via a
-        /// TRUSTED source (see `identityTrusted`'s doc — the codex C1 hazard this closes: a t:slim
-        /// misidentified as Mobi by op33's ambiguous API-version heuristic must NOT satisfy this gate). A
-        /// refusal, not a delivery outcome — thrown BEFORE any byte is emitted, exactly like `writeBlocked`
-        /// / `unsupportedOnDevice`. GENERALIZED (15.5-03, owner-ratified S-B): covers every
-        /// `supportedDevices`-restricted message — the 14 control/delivery messages AND the 2
-        /// model-restricted reads — minus the (currently empty) `SendGateBootstrapAllowlist` (see
-        /// `identityGateError`'s doc for the exact predicate).
+        /// Model-restricted message refused because the send-time target is unidentified or untrusted.
+        /// Distinct from `.unsupportedOnDevice` (known-trusted but incompatible). A non-nil model from
+        /// op33's API-version heuristic alone is not enough — a t:slim misidentified as Mobi must not
+        /// satisfy this gate. Thrown BEFORE any byte is emitted. Covers every `supportedDevices`-
+        /// restricted message except the bootstrap-read allowlist (see `identityGateError`).
         case identityNotEstablished(opcode: UInt8)
         /// The reconnect ladder hit `maxReconnectAttempts` without reaching `.ready` — surfaced alongside
         /// `State.reconnectExhausted` so a delegate that only observes `didError` still sees it.
@@ -193,9 +174,9 @@ public final class PumpBLEClient: NSObject {
         return try await body()
     }
 
-    /// The pump product family, for the D2 (Addendum G) txId-correlation allowlist. The KIT owns the
-    /// allowlist; the caller supplies only the identified family (it owns the BLE-name → model
-    /// classification), so the kit never guesses a model.
+    /// Pump family for the txId-correlation allowlist. The kit owns the mapping so a caller
+    /// cannot enable txId correlation for a Mobi. The caller supplies only the identified family
+    /// (it owns BLE-name → model); the kit never guesses.
     public enum PumpFamily: Sendable, Equatable {
         /// t:slim X2 — hardware-confirmed to echo the request txId in an inbound frame's `frame[1]`.
         case tslim
@@ -205,50 +186,31 @@ public final class PumpBLEClient: NSObject {
         case unknown
     }
 
-    /// Apply the D2 txId-correlation allowlist for the connected pump (Addendum G, `experimental` only).
-    ///
-    /// The allowlist is **all t:slim, and ONLY t:slim**: a t:slim enables `.txIdMatch`; Mobi and any
-    /// unidentified pump stay on `.opcodeFIFO` (the `main` reference path). The kit enforces that mapping
-    /// here, so a caller cannot accidentally enable txId correlation for a Mobi. The mode is reset to
-    /// `.opcodeFIFO` on every disconnect/error/restore by `failClosed`, so this must be called AFTER each
-    /// (re)identification. Correlation mode never relaxes delivery-class serialization (a bolus is never
-    /// pipelined), so this only ever affects how concurrent READ replies are disambiguated.
+    /// Apply the txId-correlation allowlist: t:slim → `.txIdMatch`; Mobi and unidentified stay
+    /// `.opcodeFIFO`. Call after each (re)identification; `failClosed` resets to FIFO.
+    /// Never relaxes delivery-class serialization.
     public func setPumpFamily(_ family: PumpFamily) {
         transactions.correlationMode = (family == .tslim) ? .txIdMatch : .opcodeFIFO
     }
 
-    /// The KNOWN connected pump model, or `nil` when unidentified. Input to the device/API send gate
-    /// (D-08); `nil` means the gate fails **open** (send, let firmware NACK), preserving today's behavior.
-    /// Reset to `nil` on every disconnect/error by `failClosed` — a fresh connection re-identifies.
+    /// Known connected pump model, or `nil` when unidentified. Input to the device/API send gate;
+    /// `nil` fails **open** (send, let firmware NACK). Cleared by `failClosed` on every link change.
     public private(set) var connectedPumpModel: PumpModel?
-    /// CC-06 (REMED-15.5): whether `connectedPumpModel` was established via a TRUSTED source — live
-    /// BLE-name detection, or a persisted trusted identity reapplied for the same peripheral (15.5-02) —
-    /// as opposed to a merely-plausible non-nil model. Defaults to `false`. This is `identityGateError`'s
-    /// (CC-06) trust signal for the model-restricted send gate: it is deliberately a SEPARATE bit from
-    /// `connectedPumpModel != nil`, because `connectedPumpModel` alone can be set by op33's ambiguous
-    /// API-version heuristic — an inference, not an identification — and a silent reconnect can land it on
-    /// the WRONG family (the codex C1 hazard: a real t:slim misidentified as Mobi). `identityGateError`
-    /// MUST NEVER treat a non-nil `connectedPumpModel` as sufficient on its own; it must consult this flag.
-    /// `deviceSupportError` (D-08 / VA-06) is INTENTIONALLY UNCHANGED by this flag — it keeps consulting
-    /// `connectedPumpModel` regardless of trust, since that gate's fail-open contract predates CC-06 and is
-    /// out of scope here. Reset to `false` on every disconnect/error by `failClosed`, alongside
-    /// `connectedPumpModel`, so a reconnect starts untrusted until a TRUSTED source re-establishes it.
+    /// Whether `connectedPumpModel` came from a trusted source (live BLE name, or a persisted
+    /// identity for this same peripheral) — not a merely-plausible non-nil model. Separate from
+    /// `connectedPumpModel != nil`: op33's API-version heuristic can set a model without identifying
+    /// the pump, and a silent reconnect can land the wrong family. `identityGateError` must consult
+    /// this flag; `deviceSupportError` still uses `connectedPumpModel` regardless of trust (fail-open
+    /// on unknown). Cleared by `failClosed` with the model.
     public private(set) var identityTrusted: Bool = false
-    /// The negotiated pump API version, or `nil` when not yet negotiated. Input to the device/API send
-    /// gate (D-08); `nil` fails **open**. Reset to `nil` on every disconnect/error by `failClosed`.
+    /// Negotiated API version, or `nil` when not yet negotiated. `nil` fails **open**. Cleared by `failClosed`.
     public private(set) var negotiatedApiVersion: ApiVersion?
 
-    /// Supply the identified device context for the device/API send gate (D-08) and the CC-06
-    /// trusted-identity gate. The caller owns model classification + API negotiation (as with
-    /// `setPumpFamily`); the kit never guesses. Passing `nil` for `model`/`apiVersion` keeps that dimension
-    /// fail-open. `trusted` is REQUIRED (no default) so every call site makes an explicit, auditable trust
-    /// decision — mirroring the codebase's explicit-over-implicit idiom — rather than silently defaulting
-    /// to either extreme. Pass `true` only when `model` was identified via a TRUSTED source (BLE-name
-    /// detection, or 15.5-02's persisted-trusted reapplication); pass `false` for any heuristic-derived
-    /// model (e.g. op33's API-version inference alone), which is exactly the codex C1 hazard this gate
-    /// exists to close. `identityTrusted` is set to `trusted && (model != nil)` — trust is meaningless
-    /// without a model. Must be called AFTER each (re)identification, since `failClosed` clears both
-    /// `connectedPumpModel` and `identityTrusted` on every link change.
+    /// Set identified device context for the device/API gate and the trusted-identity gate.
+    /// The caller owns classification; the kit never guesses. `nil` model/api stays fail-open.
+    /// `trusted` is required — pass `true` only for BLE-name (or persisted reapplication for this
+    /// peripheral); `false` for heuristic-only models (op33 API-version inference). Trust is
+    /// `trusted && (model != nil)`. Call after each (re)identification; `failClosed` clears both.
     public func setDeviceContext(model: PumpModel?, apiVersion: ApiVersion?, trusted: Bool) {
         connectedPumpModel = model
         negotiatedApiVersion = apiVersion
@@ -264,44 +226,24 @@ public final class PumpBLEClient: NSObject {
             : .writeBlocked(policy: writePolicy, opcode: message.opCode)
     }
 
-    /// Pure device/API send-gate decision (D-08), separated from readiness/transport so it is
-    /// deterministically testable and cannot be masked by `.notReady`. Returns `.unsupportedOnDevice`
-    /// when the KNOWN connected pump does not support `message` (wrong family, or a negotiated API below
-    /// the message's `minApi`), or `nil` when it is supported. **Fails open** on an unknown model/api:
-    /// `MessageProps.isSupported` returns `true` for any nil target dimension, so an unidentified pump
-    /// never gates a send — today's send-then-firmware-NACK behavior is preserved. `send()` consults this
-    /// AFTER `authorizationError` (the write-policy interlock stays the first line of defense).
+    /// Device/API send-gate, separated from readiness so it cannot be masked by `.notReady`.
+    /// Returns `.unsupportedOnDevice` when the known pump does not support `message`. **Fails open**
+    /// on unknown model/api. `send()` consults this after `authorizationError`.
     public func deviceSupportError(for message: Message) -> ClientError? {
         message.props.isSupported(onModel: connectedPumpModel, apiVersion: negotiatedApiVersion)
             ? nil
             : .unsupportedOnDevice(opcode: message.opCode)
     }
 
-    /// CC-06 (REMED-15.5): pure trusted-identity send-gate decision, separated from readiness/transport so
-    /// it is deterministically testable and cannot be masked by `.notReady` — same `xxxError(for:)` shape
-    /// and doc discipline as the sibling `deviceSupportError` (D-08), which this is layered ABOVE (not a
-    /// replacement for it — `deviceSupportError` is UNCHANGED and still consults `connectedPumpModel`
-    /// regardless of trust). Returns `nil` (fail OPEN) when the identity is TRUSTED and known
-    /// (`connectedPumpModel != nil AND identityTrusted`) — the codex C1 fix: gating on non-nil alone would
-    /// let a wrong op33-heuristic model satisfy the gate, which this predicate must never do — this trust
-    /// condition is preserved UNCHANGED through the 15.5-03 generalization below.
+    /// Trusted-identity send-gate, same shape as `deviceSupportError` (layered above it, not a
+    /// replacement — that gate still consults `connectedPumpModel` regardless of trust).
     ///
-    /// GENERALIZED (15.5-03, owner-ratified scope S-B — see `OWNER-DECISIONS.md` "15.5-03 scope of the
-    /// fail-closed net"): the 15.5-01 tracer's opcode-narrowing guard (which refused ONLY
-    /// `SetSleepScheduleRequest`'s 0xCE) is REMOVED. The final predicate:
-    ///  1. `connectedPumpModel != nil AND identityTrusted` → fail OPEN (unchanged, see above).
-    ///  2. `message.props.supportedDevices == nil` (UNRESTRICTED message) → fail OPEN, exactly like
-    ///     `deviceSupportError`'s own unrestricted case.
-    ///  3. `(message.characteristic, message.opCode)` is in `SendGateBootstrapAllowlist.entries`
-    ///     (or, in a `#if DEBUG` build, `bootstrapAllowlistOverrideForTesting` when non-nil — see that
-    ///     property's doc) **AND** `message.operationRisk == .read` → fail OPEN. The `operationRisk == .read`
-    ///     conjunct is a STRUCTURAL, runtime-enforced guard (codex C2): even a mistaken control/delivery-class
-    ///     entry in the allowlist can NEVER be honored, because this check is inside the gate itself, not a
-    ///     convention the allowlist's authors must uphold. Under S-B every model-restricted message not
-    ///     covered by 1–3 above is refused — the full 14 control/delivery messages AND the 2 model-restricted
-    ///     reads (`CgmStatusV2Request` 0xBE, `UnknownMobiOpcode110Request` 110) all fail closed on an
-    ///     untrusted/unidentified target.
-    ///  4. Otherwise → `.identityNotEstablished(opcode:)`.
+    ///  1. Known + trusted model → fail open.
+    ///  2. Unrestricted message (`supportedDevices == nil`) → fail open.
+    ///  3. `(characteristic, opCode)` on the bootstrap allowlist AND `operationRisk == .read` →
+    ///     fail open. The `.read` check is inside the gate: a mistaken control/delivery allowlist
+    ///     entry can never be honored.
+    ///  4. Otherwise → `.identityNotEstablished`. A non-nil untrusted model must not satisfy (1).
     public func identityGateError(for message: Message) -> ClientError? {
         if connectedPumpModel != nil && identityTrusted { return nil }
         guard message.props.supportedDevices != nil else { return nil }
@@ -316,13 +258,9 @@ public final class PumpBLEClient: NSObject {
     }
 
     #if DEBUG
-    /// Test-only override for the CC-06 bootstrap-read allowlist (codex C2 Open Question #2), so a test can
-    /// prove the ALLOWLISTED branch of `identityGateError` is reachable and correct without depending on
-    /// today's real (empty) `SendGateBootstrapAllowlist.entries` content. `nil` (the default) uses the real
-    /// production allowlist. Mirrors the existing `*ForTesting` test-seam idiom used elsewhere in this class
-    /// (e.g. `establishmentTimeoutForTesting`) and in the app (`PumpReadScheduler.alertReadDelaySecForTesting`).
-    /// `send()`'s call site (`identityGateError(for: message)`) stays byte-unchanged — this seam is consulted
-    /// entirely inside `identityGateError` itself.
+    /// Test-only override for the bootstrap-read allowlist, so a test can prove the allowlisted
+    /// branch of `identityGateError` without depending on today's empty production entries.
+    /// `nil` uses the real allowlist. Consulted only inside `identityGateError`; `send()` is unchanged.
     var bootstrapAllowlistOverrideForTesting: Set<SendGateAllowlistKey>?
     #endif
 
@@ -335,8 +273,7 @@ public final class PumpBLEClient: NSObject {
     public private(set) var state: State = .unknown {
         didSet {
             if state != oldValue {
-                // D-08: a fixed enum case name is never PHI — .public is safe and necessary for this to
-                // survive to a pulled logarchive (redaction is emit-time and unrecoverable — Pitfall 2).
+                // Enum case names are not PHI — `.public` so they survive a pulled logarchive.
                 bleLog.log("BLE state → \(String(describing: self.state), privacy: .public)")
                 notify { $0.pumpClient(self, didChange: self.state) }
             }
@@ -369,7 +306,7 @@ public final class PumpBLEClient: NSObject {
         self.central = CBCentralManager(delegate: self, queue: .main, options: options)
     }
 
-    /// B3(b) TEST SEAM ONLY — inject a fake `PumpCentral` so the connection lifecycle (scan timeout,
+    /// Test seam: inject a fake `PumpCentral` so scan/timeout/retrieve can run without hardware.
     /// retrieve-vs-scan) can be branch-tested without CoreBluetooth/hardware. Never used in production
     /// (the real path is `init(restoreIdentifier:)`, which builds a real `CBCentralManager`).
     init(central: PumpCentral) {
@@ -450,18 +387,13 @@ public final class PumpBLEClient: NSObject {
     /// Set once `reconnectAttempts` exceeds `maxReconnectAttempts` without reaching `.ready`. While true,
     /// automatic reconnect is suspended (`startReconnectWatchdog` becomes a no-op) — see `State.reconnectExhausted`.
     private var reconnectExhausted = false
-    /// debug pump-background-disconnect (H1). Set when an UNINTENDED-drop path has issued its ONE inline
-    /// background-safe `central.connect()` (see `planUnintendedDropRecovery`), so the reconnect ladder's
-    /// FIRST tick is pure BACKOFF and does NOT stack a second concurrent connect against the still-pending
-    /// one. Cleared on any link change (`failClosed`), a successful `didConnect`, a fresh user-initiated
-    /// connect (`cancelReconnectWatchdog`), the first tick that consumes it, and ladder exhaustion.
+    /// Set when an unintended-drop path has issued its one inline background-safe `central.connect()`,
+    /// so the ladder's first tick is backoff and does not stack a second connect. Cleared on any
+    /// link change, successful connect, user-initiated connect, first tick, and ladder exhaustion.
     private var inlineConnectPending = false
-    /// Identifier of the peripheral we're trying to keep/recover, so we can re-resolve or re-target it.
-    /// CC-06/C10 (REMED-15.5): read-only exposed (`public private(set)`) so faBolus's app-side trust
-    /// reapplication (`reapplyTrustedIdentityIfKnown`) can confirm the peripheral the kit is ACTUALLY
-    /// (re)connecting before stamping a persisted trusted identity — a stale trusted record for a
-    /// DIFFERENT peripheral (pump-swap-mid-reconnect, or a restoration adopting a different peripheral)
-    /// must never be applied. Additive, read-only — no writer changed, no behavior change.
+    /// Peripheral we are trying to keep/recover. Public so faBolus can confirm the kit is
+    /// reconnecting THIS peripheral before applying a persisted trusted identity — a stale
+    /// record for a different pump must never be applied.
     public private(set) var reconnectTargetId: UUID?
     /// A cold-launch `connectKnownPeripheral(identifier:)` that arrived before Bluetooth was powered on;
     /// the retrieve is deferred to `centralManagerDidUpdateState` once the central reports `.poweredOn`.
@@ -739,11 +671,10 @@ public final class PumpBLEClient: NSObject {
     private func scheduleNextReconnectAttempt() {
         let base = Self.reconnectBackoff[min(reconnectAttempts, Self.reconnectBackoff.count - 1)]
         let delay = Self.jitteredDelay(base: base)   // break phone↔pump fixed-interval lockstep (group C)
-        // D-08: reconnect attempt# and backoff duration are both non-PHI numerics — .public per the
-        // allowlist, so a flapping-peer pattern is visible in a pulled logarchive without correlating
-        // back to the app-side BLESessionLog.
+        // Attempt# and backoff are non-PHI numerics — .public so a flapping-peer pattern is
+        // visible in a pulled logarchive without correlating to the app-side BLESessionLog.
         bleLog.log("reconnect attempt=\(self.reconnectAttempts, privacy: .public) delay=\(delay, privacy: .public)s")
-        notify { $0.pumpClient(self, willRetryReconnect: self.reconnectAttempts, after: delay) }   // D-05
+        notify { $0.pumpClient(self, willRetryReconnect: self.reconnectAttempts, after: delay) }
         reconnectWatchdog?.invalidate()
         reconnectWatchdog = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated { self?.reconnectTick() }
@@ -755,7 +686,7 @@ public final class PumpBLEClient: NSObject {
         reconnectAttempts = 0
         reconnectExhausted = false
         readySince = nil   // a fresh user-initiated connect discards any stale stability window
-        inlineConnectPending = false   // debug pump-background-disconnect: fresh intent → no stale pending connect
+        inlineConnectPending = false   // fresh intent → no stale pending connect
         cancelEstablishmentWatchdog()  // R2-11: a fresh intent / teardown must not leave a stale cold-connect deadline
     }
 
@@ -838,18 +769,13 @@ public final class PumpBLEClient: NSObject {
         // `.notReady`. `.readOnly` blocks any control/signed/delivery; `.allowNonDelivery` blocks
         // destructive too; `.allowBenignControl` permits only benign ops.
         if let authError = authorizationError(for: message) { throw authError }
-        // Device/API send gate (D-08): refuse — do NOT emit — a message the KNOWN connected pump does not
-        // support (wrong family or a negotiated API below the message's minApi). Checked BEFORE readiness
-        // so a KNOWN-incompatible send can't be masked by `.notReady`; fail-OPEN on an unknown target
-        // (nil model/api ⇒ isSupported == true ⇒ proceed exactly as today). Lives here, above the
-        // coordinator — PumpTransactionCoordinator is untouched (D-05).
+        // Device/API send gate: refuse — do NOT emit — a message the known pump does not
+        // support. Checked before readiness so a known-incompatible send can't hide behind
+        // `.notReady`. Fail-open on an unknown target.
         if let deviceError = deviceSupportError(for: message) { throw deviceError }
-        // CC-06 (REMED-15.5): refuse — do NOT emit — a model-restricted message (GENERALIZED, 15.5-03,
-        // S-B: the full model-restricted set minus the SendGateBootstrapAllowlist) whose target is
-        // UNIDENTIFIED-OR-UNTRUSTED. Checked STRICTLY AFTER `deviceSupportError`
-        // (that gate's fail-open-on-unknown contract is unchanged) and BEFORE the disconnecting
-        // guard, so a refusal here stays pre-write and determinate — never masked by `.notReady` — and
-        // fails open on an unrestricted message or a trusted-known target.
+        // Identity gate: refuse a model-restricted message whose target is unidentified or
+        // untrusted. After `deviceSupportError` (that gate's fail-open-on-unknown is unchanged),
+        // before the disconnecting guard. Fail-open on unrestricted messages or a trusted-known target.
         if let identityError = identityGateError(for: message) { throw identityError }
         // Refuse during the `disconnect()` → `didDisconnectPeripheral` gap. `disconnect()` sets
         // `intentionalDisconnect` synchronously but the link teardown (`cancelPeripheralConnection`) and the
@@ -885,7 +811,7 @@ public final class PumpBLEClient: NSObject {
     ///
     /// - Parameter responseOpCode: the opcode to correlate; defaults to `message.props.responseOpCode`.
     ///   Throws `ClientError.notReady` if the message declares no response opcode and none is given.
-    /// - Parameter serialized: caller opt-in for the R3-D at-most-one-in-flight delivery lane.
+    /// - Parameter serialized: caller opt-in for the at-most-one-in-flight delivery lane.
     ///   This is OR'd with `message.props.modifiesInsulinDelivery`, never just trusted — a delivery-class
     ///   message is serialized BY CONSTRUCTION even if a caller forgets (or a future call site is added
     ///   without) the opt-in, so "is this a delivery command" has exactly one source of truth
@@ -923,25 +849,21 @@ public final class PumpBLEClient: NSObject {
     /// left `.allowDelivery` standing into the next connection.
     private func failClosed(resumePending: Bool) {
         writePolicy = .readOnly
-        // D2 (Addendum G): revert to the FIFO reference correlation on EVERY link change, exactly like the
-        // write policy. A relaunched/reconnected central must be re-told the pump family before txId
-        // correlation resumes — a fresh connection can never inherit a prior connection's elevated mode.
+        // FIFO correlation on every link change, same as write policy. A reconnect must be
+        // re-told the pump family before txId correlation resumes.
         transactions.correlationMode = .opcodeFIFO
-        // D-08: clear the identified device context so a reconnected/relaunched central re-identifies
-        // before the device/API send gate can refuse anything — fail-OPEN across every link change.
+        // Clear identified device context so a reconnect re-identifies. Fail-open across link changes.
         connectedPumpModel = nil
         negotiatedApiVersion = nil
-        // CC-06 (REMED-15.5): clear the trust signal alongside the model so a reconnect starts UNTRUSTED
-        // until a TRUSTED source (BLE-name detection, or 15.5-02's persisted reapplication) re-establishes
-        // it — a stale `identityTrusted == true` must never survive a link change.
+        // Clear trust with the model so a reconnect starts untrusted until a trusted source
+        // (BLE name, or persisted reapplication for this peripheral) re-establishes it.
         identityTrusted = false
         // debug pump-background-disconnect (H1): every link change resolves any inline background-safe
         // connect (a drop re-sets it below; a failed-connect / restore / power-off leaves it clear so the
         // ladder escalates normally). Consistent with resetting write policy/correlation/device context here.
         inlineConnectPending = false
-        // R2-11 defect 3: every link change ends any in-flight establishment, so its watchdog must not
-        // outlive the attempt (it would otherwise fire into the NEXT establishment). Cancel here — this is
-        // the fail-closed choke point every disconnect / failed-connect / restore / power-off routes through.
+        // Every link change ends in-flight establishment; the watchdog must not fire into the next
+        // one. Cancel here — fail-closed choke point for disconnect / failed-connect / restore / power-off.
         cancelEstablishmentWatchdog()
         if resumePending { transactions.failAll(.connectionLost) }
     }
@@ -954,21 +876,17 @@ public final class PumpBLEClient: NSObject {
         if let d = delegate { block(d) }
     }
 
-    /// CC-03 (kit half): decode + typed-dispatch + reference-backed clear of the qualifying-events
-    /// bitmap. Extracted out of `didUpdateValueFor` so it is unit-testable via an injected `clear`
-    /// closure — a macOS test host cannot construct a real `CBPeripheral`/`CBCharacteristic` (TCC-
-    /// aborted at scan; see the class note). STRICTLY ADDITIVE: this is the only new dispatch this
-    /// phase adds; the reassembler -> `transactions.ingest` -> `didReceiveFrame` path it is called
-    /// alongside stays byte-identical.
+    /// Decode + typed-dispatch + reference-backed clear of the qualifying-events bitmap.
+    /// Extracted from `didUpdateValueFor` so tests can inject `clear` (a macOS test host cannot
+    /// construct a real `CBPeripheral`). The reassembler → `transactions.ingest` → `didReceiveFrame`
+    /// path this sits alongside is unchanged.
     ///
-    /// - An empty decoded bitmap (all-zero, or an undersized buffer) dispatches NOTHING and clears
-    ///   NOTHING, mirroring upstream's `if (!rawEvents.isEmpty())` clear gate.
-    /// - A non-empty bitmap always dispatches the typed event via the additive delegate method.
-    /// - The reference-backed clear (`[0,0,0,0]` `.withResponse` to `.qualifyingEvents`, per
-    ///   `TandemBluetoothHandler.clearQualifyingEvents`) fires ONLY when no delivery-class
-    ///   (`serialized`) transaction is in flight (delivery-transaction-safety guard, freeze-
-    ///   reconciliation note). If one IS in flight, the clear is DEFERRED — fire-and-forget, no
-    ///   retry, matching upstream: the next non-empty bitmap clears again.
+    /// - Empty bitmap (all-zero or undersized): dispatch nothing, clear nothing — mirrors upstream's
+    ///   `if (!rawEvents.isEmpty())` gate.
+    /// - Non-empty: always dispatch the typed event.
+    /// - Clear (`[0,0,0,0]` `.withResponse` to `.qualifyingEvents`) fires only when no delivery-class
+    ///   (`serialized`) transaction is in flight. If one is, defer — fire-and-forget, no retry;
+    ///   the next non-empty bitmap clears again.
     func handleQualifyingEventsFrame(_ frame: [UInt8], clear: () -> Void) {
         let events = QualifyingEvent.decode(frame)
         guard !events.isEmpty else { return }
@@ -1018,7 +936,7 @@ extension PumpBLEClient: CBCentralManagerDelegate {
                     startScan()
                 }
             } else if central.state != .poweredOn {
-                // R3-D: any non-usable central state — poweredOff, unauthorized, unsupported, resetting —
+                // Any non-usable central state — poweredOff, unauthorized, unsupported, resetting —
                 // means the link is gone. `didDisconnectPeripheral` does NOT necessarily fire for a BT
                 // power-off, so without this an outstanding transaction would hang to its deadline and an
                 // elevated write policy would survive the outage. Fail closed: reset to read-only and
@@ -1111,10 +1029,9 @@ extension PumpBLEClient: CBCentralManagerDelegate {
             // long-held `.ready` (e.g. a stray late reconnect after exhaustion) can flip it back to false.
             consumeReadyStabilityAndMaybeReset()
             if let error {
-                // D-03/D-06: domain+code are stable machine tokens, not PHI → .public, so they survive to
-                // a pulled logarchive alongside the app-side CBError capture. `localizedDescription` can
-                // occasionally embed a peripheral/device name on some CB error paths → stays .private
-                // (D-08; redaction is emit-time and unrecoverable — Pitfall 2).
+                // domain+code are stable machine tokens, not PHI → .public so they survive a pulled
+                // logarchive. `localizedDescription` can embed a peripheral name → stays .private
+                // (redaction is emit-time and unrecoverable).
                 let ns = error as NSError
                 bleLog.log("disconnect domain=\(ns.domain, privacy: .public) code=\(ns.code, privacy: .public) desc=\(ns.localizedDescription, privacy: .private)")
                 notify { $0.pumpClient(self, didError: error) }
@@ -1341,11 +1258,9 @@ extension PumpBLEClient: CBPeripheralDelegate {
                 // (unsolicited stream/status, or a caller still on the delegate path) deliver as before.
                 if !transactions.ingest(frame: frame, on: mapped) {
                     notify { $0.pumpClient(self, didReceiveFrame: frame, on: mapped) }
-                    // CC-03 (kit half), STRICTLY ADDITIVE: the qualifying-events characteristic
-                    // carries a raw little-endian 4-byte bitmap (no opcode/txId/len/crc framing,
-                    // per upstream QualifyingEvent.fromRawBtBytes) — decode + typed-dispatch + a
-                    // reference-backed clear write, alongside (not instead of) the opaque
-                    // didReceiveFrame delivery above.
+                    // Qualifying-events is a raw little-endian 4-byte bitmap (no opcode/txId/len/crc
+                    // framing, per upstream QualifyingEvent.fromRawBtBytes). Decode + typed-dispatch +
+                    // a reference-backed clear, alongside (not instead of) didReceiveFrame above.
                     if mapped == .qualifyingEvents {
                         handleQualifyingEventsFrame(frame) { [self] in
                             // `self.peripheral` (not the `peripheral:` parameter of this delegate

@@ -7,8 +7,8 @@ import TandemMessages
 /// characteristic, identified only by its `(characteristic, opCode)`. Historically each caller
 /// (`TandemBackend`) hand-rolled a single mutable continuation slot per response type, with no deadline,
 /// no correlation to the request that is actually in flight, and no guaranteed resumption when the link
-/// drops — so a lost reply could suspend a bolus forever and leave an elevated write policy standing
-/// (audit A-03 / FB-02). This coordinator centralizes that ownership:
+/// drops — so a lost reply could suspend a bolus forever and leave an elevated write policy standing.
+/// This coordinator centralizes that ownership:
 ///
 /// - **Correlated:** each `perform` registers the `(characteristic, responseOpCode)` it awaits; an
 ///   ingested frame resolves the oldest matching pending transaction (FIFO), never an unrelated one.
@@ -25,21 +25,21 @@ public final class PumpTransactionCoordinator {
 
     public enum TxError: Error, Equatable {
         /// No response within the deadline. The request may or may not have been acted on by the pump —
-        /// callers of a delivery transaction MUST treat this as *indeterminate*, not failed (FB-02).
+        /// callers of a delivery transaction MUST treat this as *indeterminate*, not failed.
         case timedOut(characteristic: Characteristic, opCode: UInt8)
         /// The link dropped / was torn down / a frame failed to parse before the response arrived.
         case connectionLost
         /// The transaction was explicitly cancelled by the owner.
         case cancelled
         /// A delivery-class (`serialized`) transaction was requested while another was still outstanding.
-        /// Round-3 §5.2.5 / R3-D: at most ONE delivery-class command may be in flight, so two identical
-        /// in-flight delivery opcodes can never cross-resolve. Rejected fail-closed BEFORE any bytes are
-        /// written — nothing was sent, so the caller may retry once the first resolves. Deliberately a
-        /// rejection, not a queue: silently queuing a second bolus is the very hazard §5.3 forbids.
+        /// At most one delivery-class command may be in flight, so two identical in-flight delivery
+        /// opcodes can never cross-resolve. Rejected fail-closed BEFORE any bytes are written — nothing
+        /// was sent, so the caller may retry once the first resolves. A rejection, not a queue:
+        /// silently queuing a second bolus is the hazard this exists to prevent.
         case busy
     }
 
-    /// How `ingest` correlates an inbound frame to a pending transaction (Addendum G / D2). The mode is a
+    /// How `ingest` correlates an inbound frame to a pending transaction. The mode is a
     /// property (not a per-call arg) because it is a per-connection policy, set once the pump family is
     /// identified and reset fail-closed on every link change (see `PumpBLEClient.setPumpFamily`).
     public enum CorrelationMode: Sendable, Equatable {
@@ -77,9 +77,9 @@ public final class PumpTransactionCoordinator {
         let expectedCharacteristic: Characteristic
         let expectedOpCode: UInt8
         /// The wire txId returned by the writer, for logging/ownership (correlation is by response
-        /// opcode; txId is retained so a future stricter match can assert it — see the R3-D note below).
+        /// opcode; txId is retained so a future stricter match can assert it).
         let txId: UInt8
-        /// Delivery-class: at most one such transaction may be outstanding at a time (R3-D).
+        /// Delivery-class: at most one such transaction may be outstanding at a time.
         let serialized: Bool
         let continuation: CheckedContinuation<[UInt8], Error>
         var deadline: Task<Void, Never>?
@@ -102,7 +102,7 @@ public final class PumpTransactionCoordinator {
     ///   - expectedResponseOn: the characteristic the reply is expected on.
     ///   - opCode: the response opcode to correlate (normally `request.props.responseOpCode`).
     ///   - deadline: seconds before the transaction resolves `.timedOut`.
-    ///   - serialized: delivery-class (R3-D). When true, the call is rejected with `.busy` — before any
+    ///   - serialized: delivery-class. When true, the call is rejected with `.busy` — before any
     ///     bytes are written — if another serialized transaction is already outstanding, so at most one
     ///     delivery command is ever in flight and two identical delivery opcodes can't cross-resolve.
     ///     Non-serialized reads (status polling) are unaffected and may still run concurrently.
@@ -117,8 +117,8 @@ public final class PumpTransactionCoordinator {
         serialized: Bool = false,
         write: () throws -> UInt8
     ) async throws -> [UInt8] {
-        // R3-D: reject a second delivery-class command BEFORE writing anything. Checked before the write
-        // so no bytes go out and no pending is registered — a clean fail-closed the caller can retry.
+        // Reject a second delivery-class command BEFORE writing anything. Checked before the write
+        // so no bytes go out and no pending is registered — fail-closed; the caller can retry.
         if serialized && pending.contains(where: { $0.serialized }) { throw TxError.busy }
         // Pre-write cancellation check: if the owning task was already cancelled, do not emit bytes.
         try Task.checkCancellation()
@@ -149,14 +149,12 @@ public final class PumpTransactionCoordinator {
     /// `(characteristic, opCode)`, that transaction resolves and this returns `true` (the frame was
     /// consumed). Returns `false` if no transaction awaited it (the caller should route it elsewhere,
     /// e.g. an unsolicited stream/status frame to a delegate).
-    // R3-D FOLLOW-UP (Addendum G / D2): the STRICTER `frame[1] == entry.txId` match the R3-D note
-    // anticipated now exists behind `correlationMode`. `.txIdMatch` is gated on the hardware finding that a
-    // t:slim response ECHOES the request txId in `frame[1]` (confirmed sequentially on a legacy pump; the
-    // pipelined-bijection proof remains NEEDS-BENCH), and is enabled ONLY for an allowlisted pump via
-    // `PumpBLEClient.setPumpFamily`. `.opcodeFIFO` stays the `main` reference path and the fail-closed
-    // default — matching a txId the pump does not echo would fail EVERY correlation, so a non-t:slim pump
-    // never leaves FIFO. Delivery-class serialization above is KEPT in BOTH modes (a bolus is never
-    // pipelined), so txId correlation only ever disambiguates concurrent READS. See WIP-REGISTER.md.
+    // `.txIdMatch` is gated on the hardware finding that a t:slim response ECHOES the request txId
+    // in `frame[1]` (confirmed sequentially on a legacy pump; pipelined bijection still needs bench).
+    // Enabled only for an allowlisted pump via `PumpBLEClient.setPumpFamily`. `.opcodeFIFO` is the
+    // fail-closed default — matching a txId the pump does not echo would fail every correlation, so
+    // a non-t:slim pump never leaves FIFO. Delivery-class serialization is kept in both modes (a
+    // bolus is never pipelined); txId correlation only disambiguates concurrent reads.
     @discardableResult
     public func ingest(frame: [UInt8], on characteristic: Characteristic) -> Bool {
         guard let opCode = frame.first else { return false }

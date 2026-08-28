@@ -72,7 +72,7 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     /// The coverage loop reads a partner's cell state from here instead of driving it standalone (a restore
     /// command only makes sense in its primary's context — e.g. StopTempRate needs an active temp rate).
     var deliveryPairResults: [String: (state: BenchCellState, note: String)] = [:]
-    /// op-77 NACK txId-echo sub-probe state (Addendum G / P1a). While `nackProbeActive`, the ErrorResponse
+    /// op-77 NACK txId-echo sub-probe state. While `nackProbeActive`, the ErrorResponse
     /// delegate case records the pump's ECHOED txId (frame[1], surfaced as `parsed.txId`) so the sub-probe
     /// can assert it equals the failing request's SENT txId. UNVALIDATED until bench hardware (see the probe
     /// header block above `probeTxIdMatch`).
@@ -341,11 +341,11 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
             if Date() > deadline { return false }
             try? await Task.sleep(nanoseconds: 200_000_000)
         }
-        // 15.5-WR-03: a mid-sweep reconnect runs failClosed(), which resets identityTrusted/connectedPumpModel;
-        // re-wire the operator's TRUSTED device context here (the sweep's per-command choke point) so the
-        // subsequent Mobi-only commands exercise deviceSupportError (D-08) instead of spuriously reporting
-        // .identityNotEstablished — otherwise a single drop-and-recover understates real coverage for the
-        // rest of the sweep. Gated on identity actually being lost, so it's a no-op when nothing dropped.
+        // A mid-sweep reconnect runs failClosed(), which resets identityTrusted/connectedPumpModel;
+        // re-wire the operator's TRUSTED device context so subsequent Mobi-only commands exercise
+        // deviceSupportError instead of spuriously reporting .identityNotEstablished — otherwise a
+        // single drop-and-recover understates coverage for the rest of the sweep. Gated on identity
+        // actually being lost, so it's a no-op when nothing dropped.
         if let ctx = wiredDeviceContext, !client.identityTrusted {
             wireDeviceContext(isMobi: ctx.isMobi, major: ctx.major, minor: ctx.minor)
         }
@@ -391,7 +391,7 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         }
     }
 
-    // MARK: - txId correlation probes (Addendum G / P1a — PIPELINED same-opcode bijection)
+    // MARK: - txId correlation probes (PIPELINED same-opcode bijection)
     //
     // ⚠️⚠️  UNVALIDATED BENCH PROBE — NEEDS PHYSICAL PUMP HARDWARE.  ⚠️⚠️
     //
@@ -416,7 +416,7 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     /// How many same-opcode reads to hold outstanding at once for the pipelined bijection probe.
     private static let pipelineDepth = 4
 
-    /// Phase 2 entry: sequential echo baseline (pre-existing) → PIPELINED bijection (2b) → op-77 NACK echo (2c).
+    /// Sequential echo baseline → pipelined bijection → op-77 NACK echo.
     private func probeTxIdMatch() async {
         print("\n--- Phase 2: txId correlation probes (Addendum G / P1a) ---")
         // Prominent RUNTIME banner (mirrors the code-comment header above): this probe is UNVALIDATED.
@@ -549,7 +549,7 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         } else {
             print("    ⏭️  could not send the NACK-inducing request")
         }
-        _ = await awaitPaired()   // the legacy pump drops the link after op-77 — recover before Phase 3
+        _ = await awaitPaired()   // the legacy pump drops the link after op-77 — recover before the next sweep
     }
 
     /// The full no-cartridge/no-CGM probe: signing time → read sweep → txId-match → signed-write
@@ -664,7 +664,7 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
             signingTimestamp = t.signingTimestamp
         }
 
-        // Identify the pump → wire the D-08 send gate (affordance b) + build the session config.
+        // Identify the pump → wire the device/API send gate (affordance b) + build the session config.
         var isMobi = false, apiMajor = 0, apiMinor = 0
         if let api = await probeRead(ApiVersionRequest(), as: ApiVersionResponse.self, "apiVersion") {
             isMobi = api.isMobi; apiMajor = api.majorVersion; apiMinor = api.minorVersion
@@ -744,11 +744,11 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         print("\n========== COVERAGE COMPLETE — press Ctrl-C to exit ==========\n")
     }
 
-    /// Affordance (b): activate the D-08 device/API send gate for THIS pump. From here the kit refuses
+    /// Affordance (b): activate the device/API send gate for THIS pump. From here the kit refuses
     /// (throws `.unsupportedOnDevice`) any model/API-restricted message — the same gate faBolus relies on.
-    /// 15.5-WR-03: the operator's TRUSTED device identification, retained so the sweep can RE-wire it after a
-    /// mid-sweep reconnect (`failClosed()` resets identityTrusted/connectedPumpModel on every link drop). Set
-    /// on the first successful wire.
+    /// The operator's TRUSTED device identification is retained so the sweep can re-wire it after a
+    /// mid-sweep reconnect (`failClosed()` resets identityTrusted/connectedPumpModel on every link drop).
+    /// Set on the first successful wire.
     private var wiredDeviceContext: (isMobi: Bool, major: Int, minor: Int)?
 
     /// `failClosed()` clears it on any link drop; the pure `plan()` already excludes model-N/A commands, so
@@ -756,9 +756,9 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     private func wireDeviceContext(isMobi: Bool, major: Int, minor: Int) {
         guard major > 0 else { print("  ⏭️  device-context not wired (no ApiVersion read)"); return }
         // trusted: true — the bench operator's own identification of the pump under test is a TRUSTED
-        // source (CC-06 / REMED-15.5), distinct from op33's ambiguous API-version heuristic.
+        // source, distinct from op33's ambiguous API-version heuristic.
         client.setDeviceContext(model: isMobi ? .mobi : .tslim, apiVersion: ApiVersion(major: major, minor: minor), trusted: true)
-        wiredDeviceContext = (isMobi, major, minor)   // 15.5-WR-03: remember it, so awaitPaired can re-wire after a reconnect
+        wiredDeviceContext = (isMobi, major, minor)   // remember it so awaitPaired can re-wire after a reconnect
     }
 
     /// A generic read probe for the coverage sweep: send `req` read-only and await its correlated response.
@@ -1141,8 +1141,8 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     }
 
     /// Affordance (a): read `CurrentActiveIdpValues` and log the RAW cargo hex + the byte-4 vs byte-5
-    /// targetBg decode (BENCH-SESSION-PLAN Obj 4 / D-07 — confirm byte-4 carries the pump-set target on
-    /// THIS pump family + firmware before trusting the typed decode).
+    /// targetBg decode — confirm byte-4 carries the pump-set target on THIS pump family + firmware
+    /// before trusting the typed decode.
     private func logCurrentTargetBgRaw() async {
         guard let r = await probeRead(CurrentActiveIdpValuesRequest(), as: CurrentActiveIdpValuesResponse.self, "activeIDP raw") else {
             print("  ⏭️  currentTargetBg raw: activeIDP read rejected on this pump"); return
@@ -1221,7 +1221,7 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
                 print("ℹ️ [hardware] capability bitmask = 0x\(String(m.featureBitmask, radix: 16)) "
                     + "· controlIQSupported(bit1024)=\(m.controlIQSupported)")
             case let m as ErrorResponse:
-                // P1a (Addendum G): during the op-77 NACK sub-probe, capture the pump's ECHOED txId so the
+                // During the op-77 NACK sub-probe, capture the pump's ECHOED txId so the
                 // sub-probe can assert it equals the failing request's sent txId. `parsed.txId` == frame[1].
                 if nackProbeActive { nackProbeEchoedTxId = parsed.txId }
                 // Attribute the error to the read that triggered it via the echoed txId (this legacy

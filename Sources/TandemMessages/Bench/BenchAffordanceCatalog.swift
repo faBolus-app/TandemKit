@@ -11,16 +11,11 @@ import Foundation
 // `TandemBenchHarness` `coverage` runner (which CANNOT be unit-tested — CoreBluetooth aborts under
 // `swift test`) is a thin driver over this catalog, exactly like `BenchCommandCatalog`.
 //
-// Safety model (owner decision 2026-08-23):
-//   • DELIVERY affordances (the 14 `modifiesInsulinDelivery` commands) are gated behind the SINGLE flag
-//     `PUMPX2_DELIVER_SALINE` and verified by the pump's OWN history-log / state read-back.
-//   • NON-DELIVERY signed writes do NOT need `PUMPX2_DELIVER_SALINE`, but MUST be reversible and
-//     recorded — never left in a changed state. The preferred discipline is capture→(set|re-apply)→
-//     verify→restore, with a READ as the oracle.
-//   • GENUINELY destructive / irreversible / session-disrupting commands (factory reset, shelf mode,
-//     force-disconnect, CGM-session/pairing changes, undocumented test ops) are NEVER auto-fired. They
-//     are classified `.manualOnly` here and surface as documented GAP cells the owner decides at the
-//     bench — never silently dropped.
+// Safety:
+//   • Delivery commands (`modifiesInsulinDelivery`) require `PUMPX2_DELIVER_SALINE` and
+//     pump history/state read-back.
+//   • Non-delivery signed writes must be reversible and recorded — never left changed.
+//   • Destructive / irreversible / session-disrupting commands are `.manualOnly` — never auto-fired.
 
 /// The reversibility STRATEGY the harness uses to exercise a command safely.
 public enum BenchAffordanceKind: String, Sendable, Codable, CaseIterable {

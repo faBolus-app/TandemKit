@@ -100,7 +100,7 @@ public enum Packetize {
         return [UInt8](mac)
     }
 
-    /// Constant-time verification of an HMAC-SHA1 `mac` over `data` under `key` (VA-04). Mirrors
+    /// Constant-time verification of an HMAC-SHA1 `mac` over `data` under `key`. Mirrors
     /// `doHmacSha1`'s algorithm so it is byte-exact with the oracle's `PacketArrayList.validate`, but
     /// compares via CryptoKit's `isValidAuthenticationCode` (constant-time; returns false — never traps —
     /// on a wrong-length mac). Use this to verify signed pump RESPONSES; never compare digests with `==`.

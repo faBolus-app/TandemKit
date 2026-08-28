@@ -10,7 +10,7 @@ import Foundation
 public struct RemoteCarbEntryRequest: Message {
     public static let props = MessageProps(
         opCode: 0xF2, size: 9, signed: true, type: .request,
-        characteristic: .control, risk: .benign, responseOpCode: 0xF3, minApi: .v2_5)   // records carb metadata; does not dose (P-01); upstream API_V2_5 (D-08)
+        characteristic: .control, risk: .benign, responseOpCode: 0xF3, minApi: .v2_5)   // records carb metadata; does not dose; upstream API_V2_5
     public var cargo: [UInt8]
     public private(set) var carbs = 0
     public private(set) var unknown = 0
@@ -46,7 +46,7 @@ public struct RemoteCarbEntryRequest: Message {
 public struct RemoteBgEntryRequest: Message {
     public static let props = MessageProps(
         opCode: 0xB6, size: 11, signed: true, type: .request,
-        characteristic: .control, risk: .benign, responseOpCode: 0xB7, minApi: .v2_5)   // records BG metadata; does not dose (P-01); upstream API_V2_5 (D-08)
+        characteristic: .control, risk: .benign, responseOpCode: 0xB7, minApi: .v2_5)   // records BG metadata; does not dose; upstream API_V2_5
     public var cargo: [UInt8]
     public private(set) var bg = 0
     public private(set) var useForCgmCalibration = false

@@ -131,9 +131,9 @@ public enum ResponseParser {
         add(UnknownMobiOpcode110Response.self)
         add(TempRateResponse.self)
         add(ErrorResponse.self)
-        // D2 (Addendum G): the same op-77 error reply also arrives on CONTROL when a signed control write
-        // is NACKed (echoing the failing request's txId). Register the control variant so it decodes as an
-        // ErrorResponse instead of `unknownOpcode`. Additive new key — the currentStatus variant is untouched.
+        // Same op-77 error reply also arrives on CONTROL when a signed control write is NACKed
+        // (echoing the failing request's txId). Register the control variant so it decodes as
+        // ErrorResponse instead of `unknownOpcode`. Additive key — currentStatus variant untouched.
         add(ErrorResponse.self, on: .control)
         // AUTHORIZATION — legacy (V1 / 16-char) pairing replies. The modern JPAKE pairing replies
         // (op 33/35/37/39/41) are parsed inline by PairingCoordinator and are intentionally NOT
