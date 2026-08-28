@@ -1,0 +1,59 @@
+# CodeQL — semantic security analysis (taint, injection, unsafe API, cleartext handling).
+#
+# This is a SECURITY layer, not a style or slop gate. CodeQL does not find phase-ticket comments or
+# vacuous tests; Semgrep and SwiftLint cover those in ci.yml.
+#
+# Triage rule for this repo: do NOT "fix" a construct the pump protocol requires. Queries in the
+# crypto/randomness family will fire on TandemAuth's EC-JPAKE pairing and on the HMAC packetizer.
+# Those are protocol-mandated. Review each alert, dismiss with a reason in the code-scanning UI, and
+# never weaken a fail-closed path or a constant-time compare to satisfy a query.
+#
+# Swift analysis requires macOS and a real compile — there is no Linux or Windows path. This repo is
+# public, so GitHub code scanning is free; a private fork would need GitHub Advanced Security.
+
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly, so a newly published query reaches the default branch without waiting for a push.
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    name: Analyze Swift
+    runs-on: macos-15
+    timeout-minutes: 60
+    permissions:
+      security-events: write
+      packages: read
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # mbedtls + the pumpx2 oracle are submodules; `swift build` needs the C target present.
+          submodules: recursive
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.app || sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: swift
+          build-mode: manual
+
+      # Manual build mode, not autobuild: `swift build` is exactly what ci.yml uses for the
+      # oracle-parity job, so the database describes the same code the tests exercise.
+      - name: Build
+        run: swift build
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:swift

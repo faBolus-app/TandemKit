@@ -47,6 +47,45 @@ jobs:
           PUMPX2_JAVA: ${{ env.JAVA_HOME }}/bin/java
         run: swift test
 
+  # Style / lint report (advisory). SwiftLint here is a REPORT, never a gate: continue-on-error keeps
+  # it from turning CI red. `.swiftlint.yml` documents which rules are deliberately configured away
+  # (wire-field names, message-constructor metrics). `swift-format lint` proves the formatter was run.
+  style:
+    runs-on: macos-15
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.app || sudo xcode-select -s /Applications/Xcode.app
+      - name: swift-format — is the tree formatted?
+        run: |
+          git ls-files -z '*.swift' | xargs -0 xcrun swift-format lint --strict --parallel 2>&1 | tee /tmp/sf.log || true
+          echo "swift-format findings: $(grep -c 'warning:\|error:' /tmp/sf.log || true)"
+      - name: SwiftLint
+        run: |
+          brew list swiftlint >/dev/null 2>&1 || brew install swiftlint
+          swiftlint lint --quiet --reporter github-actions-logging Sources Tests || true
+          swiftlint lint --quiet --reporter csv Sources Tests > /tmp/sl.csv || true
+          echo "SwiftLint findings by rule:"
+          cut -d, -f6 /tmp/sl.csv | sort | uniq -c | sort -rn
+          echo "at error severity: $(cut -d, -f5 /tmp/sl.csv | grep -c -i error || true)"
+
+  # Semgrep — the shared local ruleset lives in ONE place (faBolus `.semgrep/deslop.yml`) rather than
+  # being copied into each repo. Flags AI-process residue and vacuous tests. Advisory: every hit needs
+  # human triage, because a genuine safety comment can match a residue pattern.
+  semgrep:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch the shared deslop ruleset
+        run: curl -fsSL -o /tmp/deslop.yml
+          https://raw.githubusercontent.com/faBolus-app/faBolus/main/.semgrep/deslop.yml
+      - name: Semgrep (local deslop rules)
+        run: |
+          pipx install semgrep || pip install --user semgrep
+          semgrep --config /tmp/deslop.yml --metrics=off --error=false Sources Tests
+
   # SBOM / license-provenance check (P16 §3.1). Independent of the oracle job so it can NEVER affect
   # the build. Non-blocking-if-risky: continue-on-error keeps a heuristic provenance false-positive
   # from turning CI red, but the check is expected to stay green.
