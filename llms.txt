@@ -1,29 +1,16 @@
 # TandemKit — LLM guide
 
-> A Swift port of the Tandem t:slim X2 / Mobi Bluetooth protocol (from jwoglom's pumpX2), used by the
-> faBolus app: it builds pump messages, runs the JPAKE pairing/auth, and speaks BLE — verified
-> **byte-exact** against the vendored Java oracle in `vendor/pumpx2-oracle/`. Safety-critical: a wrong
-> byte can misdose insulin.
+> Swift port of the Tandem t:slim X2 / Mobi Bluetooth protocol (jwoglom/pumpx2). Builds messages,
+> runs JPAKE pairing/auth, speaks BLE. Verified **byte-exact** against `vendor/pumpx2-oracle/`.
+> A wrong byte can misdose insulin.
 
-This file is intentionally thin (a map, not a manual) to avoid drifting out of sync. For the real
-working guidance, use:
+Thin map. Working guide: [`AGENTS.md`](AGENTS.md). Oracle workflow: [`README.md`](README.md).
+Pinned upstream + hardware log: [`PINNED.md`](PINNED.md). Branch policy:
+[`../faBolus/BRANCHES.md`](../faBolus/BRANCHES.md).
 
-- **`AGENTS.md`** — canonical working guide: SPM layout (`TandemMessages` / `TandemAuth` / `TandemBLE`),
-  the oracle-parity golden rule, how to add or change a message, and running the tests
-  (`./scripts/test.sh`, needs **JDK 21**).
-- **`README.md`** — the modules, using it as a SwiftPM dependency, and the cliparser oracle workflow.
-- **`PINNED.md`** — the pinned upstream commit + the on-hardware validation log.
-- Tests live in `Tests/TandemMessagesTests/` (`OracleParityTests`, `ResponseParityTests`,
-  `InitiateBolusExtendedTests`, …).
-
-The one rule that matters most: **never change message bytes without a matching oracle-parity test**,
-and `ResponseParser` dispatches on **(characteristic, opcode)** — opcodes are not globally unique.
-
-Two more facts you need before touching safety code:
-- **Write policy is risk-tiered, not a boolean.** `WritePolicy` has `.readOnly`, `.allowBenignControl`
-  (dismiss-alert / find-my-pump — no therapy change), `.allowNonDelivery`, and `.allowDelivery`; `send()`
-  enforces `message.operationRisk ≤ policy.maxRisk` (`OperationRisk`: read < benign < settings <
-  destructive < delivery). Don't reach for `.allowDelivery` when a benign tier suffices.
-- **Oracle-parity tests need the Java oracle (JDK 21).** `scripts/test.sh` runs the vendored oracle; note
-  the current default behavior if the oracle/JDK is absent (see `AGENTS.md`) — a fail-closed CI mode
-  (assert the expected oracle case count ran) is tracked as PX-09.
+- Products: `TandemMessages`, `TandemAuth`, `TandemBLE` (+ `TandemBenchHarness` executable).
+- **Never change message bytes without a matching oracle-parity test.**
+- `ResponseParser` dispatches on **(characteristic, opcode)** — opcodes are not globally unique.
+- `WritePolicy`: `.readOnly`, `.allowBenignControl`, `.allowNonDelivery`, `.allowDestructive`,
+  `.allowDelivery`. Don't reach for `.allowDelivery` when a lower tier suffices.
+- Tests: `swift test` (JDK 17+ + built cliparser.jar for oracle parity; CI uses JDK 21).

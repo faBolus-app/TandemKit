@@ -83,9 +83,8 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     var ciqClosedLoopEnabled: Bool?
     var permissionSent = false
     var currentBolusId: Int = 0
-    // Bolus type bits are derived by the shared library helper `InitiateBolusRequest.typeBitmask`
-    // (PX-06): FOOD1 when carbs present, else FOOD2 — never both. (The harness previously OR-ed FOOD2
-    // into carb boluses, contradicting the oracle FOOD1 byte-lock.)
+    // Bolus type bits are derived by the shared library helper `InitiateBolusRequest.typeBitmask`:
+    // FOOD1 when carbs present, else FOOD2 — never both.
 
     // Carb-bolus computed plan (milliunits) + inputs collected from the pump.
     var carbGrams: Double = 0
@@ -203,7 +202,7 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         currentBolusId = bolusId
         print("[bolus] initiating \(Double(milliunits)/1000.0) u SALINE (bolusId \(bolusId))…")
         do {
-            // Units-only manual bolus → no carbs → FOOD2 (via the shared helper). Validated (PX-07).
+            // Units-only manual bolus → no carbs → FOOD2 (via the shared helper). Validated.
             let mask = InitiateBolusRequest.typeBitmask(hasCarbs: false, hasCorrection: false, isExtended: false)
             try client.send(
                 try InitiateBolusRequest(validating: milliunits, bolusID: bolusId, bolusTypeBitmask: mask),
@@ -253,7 +252,7 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         print(String(format: "[carb-bolus] initiating %.2f u SALINE (bolusId %d)…", Double(planTotalMU) / 1000.0, bolusId))
         guard let plan = carbPlan else { print("[carb-bolus] no plan computed"); return }
         do {
-            // Build the full, validated request from the SAME plan the snapshot printed (PX-07).
+            // Build the full, validated request from the SAME plan the snapshot printed.
             try client.send(try BenchBolusPlanner.request(for: plan, bolusID: bolusId),
                             authenticationKey: authKey, pumpTimeSinceReset: signingTimestamp, allowInsulinDelivery: true)
         } catch { print("[carb-bolus] initiate failed: \(error)") }
@@ -848,7 +847,7 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         case "SetMaxBolusLimitRequest":
             guard let r = await probeRead(GlobalMaxBolusSettingsRequest(), as: GlobalMaxBolusSettingsResponse.self, "maxBolus (pre)") else { return (.fail, "pre-read failed") }
             let prior = r.maxBolus
-            // CX-T-07: `prior` is a REAL on-pump value, not a hardcoded literal — a legacy config below the
+            // `prior` is a REAL on-pump value, not a hardcoded literal — a legacy config below the
             // new 1000 mU floor must not crash the harness; report it as a distinct outcome instead.
             guard let reapplyReq = try? SetMaxBolusLimitRequest(maxBolusMilliunits: prior) else {
                 return (.fail, "on-pump maxBolus \(prior) mU is outside the kit's throwing bounds — cannot no-op re-apply")

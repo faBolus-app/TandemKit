@@ -18,13 +18,13 @@ public struct SetTempRateRequest: Message {
     public static let minPercent = 0
     public static let maxPercent = 250
 
-    /// CX-T-07 (PX-07 convention): reject out-of-range args by throwing BEFORE any truncating byte-encode
+    /// Reject out-of-range args by throwing BEFORE any truncating byte-encode
     /// helper — never silently convert an invalid value into a different valid command (e.g. percent
     /// 65536 would truncate to 0% via `Bytes.firstTwoBytesLittleEndian`).
     public enum ValidationError: Error, Equatable, LocalizedError {
         case minutesOutOfRange(Int)
         case percentOutOfRange(Int)
-        // 15-IN-02: human-readable messages so a caller surfacing `error.localizedDescription` (e.g. the
+        // Human-readable messages so a caller surfacing `error.localizedDescription` (e.g. the
         // app's generic control-error catch) shows a clear cause, not a bridged NSError string.
         public var errorDescription: String? {
             switch self {

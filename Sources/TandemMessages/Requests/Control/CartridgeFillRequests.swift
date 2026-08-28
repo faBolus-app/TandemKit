@@ -57,14 +57,14 @@ public struct FillCannulaRequest: Message {
         supportedDevices: [.mobi], minApi: .mobi_v3_5) // upstream MOBI_ONLY + MOBI_API_V3_5 (D-08)
 
     /// Bounds enforced upstream (`Validate.isTrue`, pumpX2 `FillCannulaRequest`): 0 is invalid (never a
-    /// valid "no-op" fill) and > 3000 mU is rejected as a sanity check. CX-T-07.
+    /// valid "no-op" fill) and > 3000 mU is rejected as a sanity check.
     public static let minPrimeSize = 1
     public static let maxPrimeSize = 3000
 
-    /// CX-T-07 (PX-07 convention): reject out-of-range `primeSize` by throwing BEFORE the byte-encode.
+    /// Reject out-of-range `primeSize` by throwing BEFORE the byte-encode.
     public enum ValidationError: Error, Equatable, LocalizedError {
         case primeSizeOutOfRange(Int)
-        // 15-IN-02: human-readable message for a caller surfacing `error.localizedDescription`.
+        // Human-readable message for a caller surfacing `error.localizedDescription`.
         public var errorDescription: String? {
             switch self {
             case .primeSizeOutOfRange(let s): return "Fill-cannula prime size \(s) mU is out of range — must be 1 to 3000 milliunits."

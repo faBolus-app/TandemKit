@@ -23,8 +23,7 @@ public enum PairingCodeType: String, Sendable {
 /// `builders/PumpChallengeRequestBuilder`.
 ///
 /// The V2 (JPAKE / 6-digit) path is NOT implemented here — it requires an elliptic-curve
-/// J-PAKE implementation (upstream uses `io.particle.crypto.EcJpake`). See `JpakeAuth` and
-/// the plan's open question about the crypto library.
+/// J-PAKE implementation (upstream uses `io.particle.crypto.EcJpake`). See `JpakeAuth`.
 public enum PairingAuth {
     public enum PairingError: Error, Equatable {
         case invalidLongPairingCode

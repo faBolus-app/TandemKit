@@ -35,7 +35,7 @@ public struct SetAutoOffAlertRequest: Message {
     public private(set) var autoOffDuration = 0
     public private(set) var bitmask = 0
     public init() { cargo = [] }
-    // 15-WR-03 scope-note: CX-T-07's throwing bounds-validation covers ONLY the 4 delivery/limit request
+    // Throwing bounds-validation covers ONLY the 4 delivery/limit request
     // types by design; this alert-settings encoder still truncates `autoOffDuration` silently via
     // `Bytes.firstTwoBytesLittleEndian` (unchecked) — callers MUST pre-bound the argument.
     public init(enableAutoOff: Bool, autoOffDuration: Int, bitmask: Int) {

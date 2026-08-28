@@ -29,7 +29,7 @@ public struct HistoryLogRequest: Message {
 
     public init() { cargo = [] }
 
-    // 15-WR-03 scope-note: CX-T-07's throwing bounds-validation is intentionally applied ONLY to the 4
+    // Throwing bounds-validation is intentionally applied ONLY to the 4
     // delivery/limit request types (SetTempRate/FillCannula/SetMaxBolusLimit/SetMaxBasalLimit). This read
     // encoder still TRUNCATES silently — `numberOfLogs & 0xFF` maps e.g. 300 → 44 rather than rejecting —
     // by design; the sole app call site already bounds `count ≤ historySearchPageSize (≤255)` before

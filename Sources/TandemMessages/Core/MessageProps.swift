@@ -1,10 +1,8 @@
 import Foundation
 
-/// Operation-risk class for a message (audit P-01). The 3-state `WritePolicy` byte gate is too coarse:
-/// its `.allowNonDelivery` band lumps genuinely-benign signed ops (dismiss an alert, find-my-pump) with
-/// therapy-significant configuration (set max bolus, Control-IQ, time sync) and destructive commands
-/// (factory reset). This class lets a caller authorize on the *consequence* of a message, not just on
-/// "does it dispense insulin". Ordered least→most dangerous.
+/// Operation-risk class for a message. `WritePolicy` is a coarse byte gate; this class lets a
+/// caller authorize on the *consequence* of a message, not just on "does it dispense insulin".
+/// Ordered least→most dangerous.
 public enum OperationRisk: Int, Sendable, Comparable, CaseIterable {
     /// Reads, pairing, unsigned non-control traffic. No pump state change.
     case read = 0
@@ -114,7 +112,7 @@ public struct MessageProps: Sendable {
         return true
     }
 
-    /// The operation-risk class (audit P-01). Uses the explicit `risk:` when a message declares one;
+    /// The operation-risk class. Uses the explicit `risk:` when a message declares one;
     /// otherwise derives a **fail-safe** default: anything that modifies delivery is `.delivery`; any
     /// other control-characteristic or signed message is treated as `.settings` (therapy-significant)
     /// until it proves itself benign by declaring `risk: .benign`; everything else is `.read`. Using

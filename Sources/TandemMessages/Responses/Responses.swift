@@ -99,8 +99,8 @@ public struct SuspendPumpingResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        // VA-20/CX-T-12: fail CLOSED on a short buffer — never default to status 0 (== accepted). Unreachable
-        // via ResponseParser (length-guarded + VA-04 HMAC-verified first), but a direct caller must not decode
+        // fail CLOSED on a short buffer — never default to status 0 (== accepted). Unreachable
+        // via ResponseParser (length-guarded + HMAC-verified first), but a direct caller must not decode
         // an empty/truncated frame as an ACCEPTED suspend.
         guard raw.count >= Self.props.size else { status = 1; return }
         status = Int(raw[0])
@@ -118,8 +118,8 @@ public struct ResumePumpingResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        // VA-20/CX-T-12: fail CLOSED on a short buffer — never default to status 0 (== accepted). Unreachable
-        // via ResponseParser (length-guarded + VA-04 HMAC-verified first), but a direct caller must not decode
+        // fail CLOSED on a short buffer — never default to status 0 (== accepted). Unreachable
+        // via ResponseParser (length-guarded + HMAC-verified first), but a direct caller must not decode
         // an empty/truncated frame as an ACCEPTED resume.
         guard raw.count >= Self.props.size else { status = 1; return }
         status = Int(raw[0])
@@ -139,9 +139,9 @@ public struct SetTempRateResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        // VA-20/CX-T-12: fail CLOSED on a short buffer — the status decode itself must be guarded, not just
+        // fail CLOSED on a short buffer — the status decode itself must be guarded, not just
         // tempRateId's partial (length-3) read, or an empty/truncated buffer defaults status to 0 (== accepted).
-        // Unreachable via ResponseParser (length-guarded + VA-04 HMAC-verified first), but a direct caller must
+        // Unreachable via ResponseParser (length-guarded + HMAC-verified first), but a direct caller must
         // not decode an empty/truncated frame as an ACCEPTED temp-rate change.
         guard raw.count >= Self.props.size else { status = 1; return }
         status = Int(raw[0])
@@ -162,7 +162,7 @@ public struct StopTempRateResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        // WR-01/CX-T-12: fail CLOSED on a short buffer — a truncated/empty ack must never decode status 0
+        // fail CLOSED on a short buffer — a truncated/empty ack must never decode status 0
         // (== accepted) for a delivery-affecting stop-temp-rate. Unreachable via ResponseParser
         // (length-guarded + HMAC-verified), but a direct caller must not read an ACCEPTED stop from an
         // empty/truncated frame. Mirrors the already-hardened SetTempRateResponse.
@@ -232,7 +232,7 @@ public struct PrimeTubingSuspendResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        // WR-01/CX-T-12: fail CLOSED on a short buffer — never decode statusCode 0 (== accepted) from a
+        // fail CLOSED on a short buffer — never decode statusCode 0 (== accepted) from a
         // truncated/empty prime-tubing-suspend ack.
         guard raw.count >= Self.props.size else { statusCode = 1; return }
         statusCode = Int(raw[0])
@@ -395,7 +395,7 @@ public struct SetSensorTypeResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        // WR-01/CX-T-12: fail CLOSED on a short buffer — never decode status 0 (== accepted) from a
+        // fail CLOSED on a short buffer — never decode status 0 (== accepted) from a
         // truncated/empty set-sensor-type ack.
         guard raw.count >= Self.props.size else { status = 1; return }
         status = Int(raw[0])
@@ -427,7 +427,7 @@ public struct CancelBolusResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        // WR-01/CX-T-12: fail CLOSED on a short buffer. `wasCancelled == (statusId == 0 && reasonId == 0)`,
+        // fail CLOSED on a short buffer. `wasCancelled == (statusId == 0 && reasonId == 0)`,
         // so a fully-empty cargo would otherwise decode "your bolus was cancelled" from ZERO pump bytes.
         // Set BOTH statusId and reasonId to a non-success sentinel so `wasCancelled` can never be true from
         // a truncated/empty frame (unreachable via ResponseParser, but a direct caller must fail closed).
@@ -993,7 +993,7 @@ public struct ControlIQIOBResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        // VA-20: length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
+        // Length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
         // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
         guard raw.count >= Self.props.size else { return }
         mudaliarIOB = Bytes.readUint32(raw, 0)
@@ -1041,7 +1041,7 @@ public struct InsulinStatusResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        // VA-20: length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
+        // Length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
         // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
         guard raw.count >= Self.props.size else { return }
         currentInsulinAmount = Bytes.readShort(raw, 0)
@@ -1061,7 +1061,7 @@ public struct CurrentBatteryV2Response: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        // VA-20: length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
+        // Length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
         // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
         guard raw.count >= Self.props.size else { return }
         currentBatteryAbc = Int(raw[0])
@@ -1084,7 +1084,7 @@ public struct CurrentEgvGuiDataV2Response: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        // VA-20: length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
+        // Length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
         // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
         guard raw.count >= Self.props.size else { return }
         bgReadingTimestampSeconds = Bytes.readUint32(raw, 0)
@@ -1167,7 +1167,7 @@ public struct TimeSinceResetResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        // VA-20: length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
+        // Length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
         // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
         guard raw.count >= Self.props.size else { return }
         currentTime = Bytes.readUint32(raw, 0)
@@ -1189,7 +1189,7 @@ public struct CurrentBasalStatusResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        // VA-20: length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
+        // Length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
         // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
         guard raw.count >= Self.props.size else { return }
         profileBasalRate = Bytes.readUint32(raw, 0)
@@ -1212,7 +1212,7 @@ public struct LastBolusStatusV2Response: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        // VA-20: length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
+        // Length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
         // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
         guard raw.count >= Self.props.size else { return }
         status = Int(raw[0])
@@ -1237,8 +1237,7 @@ public struct LastBolusStatusV2Response: ResponseMessage {
 /// `maxBolusEventsExceeded = raw[24] != 0`, `maxIobEventsExceeded = raw[25] != 0`). Only the
 /// LAYOUT and the KNOWN-FALSE case are oracle-backed here (`ResponseDirectTests`); the `true`
 /// case for the two safety-relevant flags has never been observed in a first-party capture, so
-/// it is NOT asserted anywhere and NOT marked verified — that capture is the Phase-11 bench
-/// blocker (faBolus plan 09.15-11, D-05), not a code gap. Two further upstream fields
+/// it is NOT asserted anywhere and NOT marked verified — not a code gap. Two further upstream fields
 /// (`isUnacked`@0, `isAutopopAllowed`@37) remain intentionally undecoded — out of this
 /// additive-only change's scope; the full 46-byte `cargo` is retained regardless.
 public struct BolusCalcDataSnapshotResponse: ResponseMessage {
@@ -1256,16 +1255,16 @@ public struct BolusCalcDataSnapshotResponse: ResponseMessage {
     public private(set) var maxBolusHourlyTotal: UInt32 = 0
     /// true if the maximum bolus has been exceeded for the interval. Oracle @24. LAYOUT +
     /// KNOWN-FALSE case oracle-backed only — the `true` case has never been observed
-    /// (Phase-11 bench blocker); NOT marked verified.
+    /// NOT marked verified.
     public private(set) var maxBolusEventsExceeded: Bool = false
     /// true if the maximum iob has been reached for the interval. Oracle @25. LAYOUT +
     /// KNOWN-FALSE case oracle-backed only — the `true` case has never been observed
-    /// (Phase-11 bench blocker); NOT marked verified.
+    /// NOT marked verified.
     public private(set) var maxIobEventsExceeded: Bool = false
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        // VA-20: length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
+        // Length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
         // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
         guard raw.count >= Self.props.size else { return }
         correctionFactor = Bytes.readShort(raw, 1)
@@ -1297,8 +1296,8 @@ public struct BolusPermissionResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        // VA-20: fail CLOSED on a short buffer — never default to status 0 (== granted). Unreachable via
-        // ResponseParser (length-guarded + VA-04 HMAC-verified first), but a direct caller must neither
+        // fail CLOSED on a short buffer — never default to status 0 (== granted). Unreachable via
+        // ResponseParser (length-guarded + HMAC-verified first), but a direct caller must neither
         // trap (precondition on raw[0]) nor decode a truncated frame as a GRANTED bolus permission.
         guard raw.count >= Self.props.size else { status = 1; return }
         status = Int(raw[0])
@@ -1306,7 +1305,7 @@ public struct BolusPermissionResponse: ResponseMessage {
         nackReasonId = Int(raw[5])
     }
     public mutating func parse(_ raw: [UInt8]) { self = BolusPermissionResponse(cargo: raw) }
-    // CX-T-02: status==0 alone is not sufficient — a nonzero nackReasonId is a denial the pump
+    // status==0 alone is not sufficient — a nonzero nackReasonId is a denial the pump
     // is signaling via a secondary field. Gate on both so a status-0-but-denied response is not
     // mistaken for a grant.
     public var granted: Bool { status == 0 && nackReasonId == 0 }
@@ -1322,8 +1321,8 @@ public struct InitiateBolusResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        // VA-20: fail CLOSED on a short buffer — never default to status 0 (== accepted). Unreachable via
-        // ResponseParser (length-guarded + VA-04 HMAC-verified first), but a direct caller must neither
+        // fail CLOSED on a short buffer — never default to status 0 (== accepted). Unreachable via
+        // ResponseParser (length-guarded + HMAC-verified first), but a direct caller must neither
         // trap (precondition on raw[0]) nor decode a truncated frame as an ACCEPTED bolus.
         guard raw.count >= Self.props.size else { status = 1; return }
         status = Int(raw[0])
@@ -1331,7 +1330,7 @@ public struct InitiateBolusResponse: ResponseMessage {
         statusTypeId = Int(raw[5])
     }
     public mutating func parse(_ raw: [UInt8]) { self = InitiateBolusResponse(cargo: raw) }
-    // CX-T-02: status==0 alone is not sufficient — a nonzero statusTypeId is a denial the pump
+    // status==0 alone is not sufficient — a nonzero statusTypeId is a denial the pump
     // is signaling via a secondary field. Gate on both so a status-0-but-denied response is not
     // mistaken for an accept.
     public var accepted: Bool { status == 0 && statusTypeId == 0 }

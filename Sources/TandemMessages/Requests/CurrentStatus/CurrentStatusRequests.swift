@@ -249,7 +249,7 @@ public struct HighestAamRequest: EmptyCurrentStatusRequest {
     // API-2.5 t:slim X2 → op-77 → the pump tore the BLE link down (~90 ms) → connect/disconnect flap. Given
     // the SAME `.mobi_v3_5` floor as its AAM sibling — defense-in-depth for the app-side static suppression
     // in `PumpKnownUnsupportedReads`. Metadata-only (does not affect wire bytes, so OracleParity is
-    // unchanged); fail-open on a nil apiVersion is preserved (CX-T-04 deferred), so the floor bites only once
+    // unchanged); fail-open on a nil apiVersion is preserved, so the floor bites only once
     // a call site supplies a KNOWN below-floor apiVersion — the app-side static suppression is the live fix.
     public static let props = statusProps(120, minApi: .mobi_v3_5); public var cargo: [UInt8] = []; public init(emptyCargo: Void = ()) { cargo = [] }
 }

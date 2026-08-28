@@ -18,7 +18,7 @@ public struct HistoryLogStatusResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        // VA-20: length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
+        // Length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
         // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
         guard raw.count >= Self.props.size else { return }
         numEntries = Bytes.readUint32(raw, 0)
@@ -35,13 +35,13 @@ public struct HistoryLogResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var status: Int = 0
     /// The stream id this ack correlates with the subsequent `HistoryLogStreamResponse` frames.
-    /// Upstream `HistoryLogResponse.java:35` decodes byte 1; the port previously dropped it (Pitfall 3).
+    /// Upstream `HistoryLogResponse.java:35` decodes byte 1.
     public private(set) var streamId: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
         if raw.count >= 1 { status = Int(raw[0]) }
-        // CX-T-09: preserve streamId — guarded so a 1-byte cargo still decodes status safely.
+        // Preserve streamId — guarded so a 1-byte cargo still decodes status safely.
         if raw.count >= 2 { streamId = Int(raw[1]) }
     }
     public mutating func parse(_ raw: [UInt8]) { self = HistoryLogResponse(cargo: raw) }
@@ -60,7 +60,7 @@ public struct CgmHistoryReading: Sendable, Equatable {
 public struct BolusHistoryRecord: Sendable, Equatable {
     public let pumpTimeSec: UInt32
     public let sequenceNum: UInt32
-    /// The pump-assigned bolus id (short@12) — restored (CC-11, Phase 14 14-04) so a host-side
+    /// The pump-assigned bolus id (short@12) — so a host-side
     /// exact-id history search (`TandemBackend.findBolusInHistory(bolusId:)`) can key off it. Mirrors
     /// `BolusCompletedHistoryLog.bolusId`'s existing correct decode of the same field/offset.
     public let bolusId: Int
@@ -106,8 +106,8 @@ public enum HistoryLog {
     /// record. Layout (`BolusCompletedHistoryLog`): completionStatus = short@10, bolusId = short@12,
     /// iob = float@14, insulinDelivered = float@18, insulinRequested = float@22.
     ///
-    /// CC-11 (Phase 14 14-04): a 0U-delivered completed record (e.g. cancelled before any insulin
-    /// went in) is now ACCEPTED, not rejected — `completionStatusId` still distinguishes a genuine
+    /// A 0U-delivered completed record (e.g. cancelled before any insulin
+    /// went in) is ACCEPTED, not rejected — `completionStatusId` still distinguishes a genuine
     /// partial/cancel from a full delivery, so a 0U record is real, meaningful data for the exact-id
     /// history search, never a sentinel to discard. Only the upper bound (`< 100`, an implausible-
     /// units guard against a garbage/corrupted float) stays a fail-closed sanity check.
@@ -136,7 +136,7 @@ public struct HistoryLogStreamResponse: ResponseMessage {
     public private(set) var streamId: Int = 0
     /// The raw 26-byte records in this frame.
     public private(set) var records: [[UInt8]] = []
-    /// CX-T-09: true ONLY when `raw.count == numberOfHistoryLogs * 26 + 2` exactly (the oracle's ground-
+    /// True ONLY when `raw.count == numberOfHistoryLogs * 26 + 2` exactly (the oracle's ground-
     /// truth formula, `HistoryLogStreamResponse.java:49`). A malformed frame (short OR long) leaves this
     /// false with `records == []` — the same shape as a genuinely valid empty stream — so callers must
     /// check `isValid`, not just emptiness, to distinguish "nothing to report" from "reject this frame".

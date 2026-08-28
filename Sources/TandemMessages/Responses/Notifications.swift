@@ -48,7 +48,7 @@ public struct AlertStatusResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        // VA-20: length-guard a fixed-size pure READ — zero bitmap is safe (no accept/grant field).
+        // Length-guard a fixed-size pure READ — zero bitmap is safe (no accept/grant field).
         // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
         guard raw.count >= Self.props.size else { return }
         bitmap = Bytes.readUint64(raw, 0)
@@ -104,7 +104,7 @@ public struct AlarmStatusResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        // VA-20: length-guard a fixed-size pure READ — zero bitmap is safe (no accept/grant field).
+        // Length-guard a fixed-size pure READ — zero bitmap is safe (no accept/grant field).
         // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
         guard raw.count >= Self.props.size else { return }
         bitmap = Bytes.readUint64(raw, 0)
@@ -142,7 +142,7 @@ public struct CGMAlertStatusResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        // VA-20: length-guard a fixed-size pure READ — zero bitmap is safe (no accept/grant field).
+        // Length-guard a fixed-size pure READ — zero bitmap is safe (no accept/grant field).
         // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
         guard raw.count >= Self.props.size else { return }
         bitmap = Bytes.readUint64(raw, 0)
@@ -198,7 +198,7 @@ public struct ReminderStatusResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        // VA-20: length-guard a fixed-size pure READ — zero bitmap is safe (no accept/grant field).
+        // Length-guard a fixed-size pure READ — zero bitmap is safe (no accept/grant field).
         // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
         guard raw.count >= Self.props.size else { return }
         bitmap = Bytes.readUint64(raw, 0)
@@ -225,7 +225,7 @@ public struct MalfunctionBitmaskStatusResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        // VA-20: length-guard a fixed-size pure READ — zero bitmap is safe (no accept/grant field).
+        // Length-guard a fixed-size pure READ — zero bitmap is safe (no accept/grant field).
         // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
         guard raw.count >= Self.props.size else { return }
         bitmap = Bytes.readUint64(raw, 0)
