@@ -43,7 +43,8 @@ public enum Bytes {
     /// 32-bit little-endian IEEE-754 float at offset `i`.
     public static func readFloat(_ raw: [UInt8], _ i: Int) -> Float {
         precondition(i >= 0 && i + 3 < raw.count)
-        let bits = UInt32(raw[i]) | (UInt32(raw[i + 1]) << 8)
+        let bits =
+            UInt32(raw[i]) | (UInt32(raw[i + 1]) << 8)
             | (UInt32(raw[i + 2]) << 16) | (UInt32(raw[i + 3]) << 24)
         return Float(bitPattern: bits)
     }
@@ -67,14 +68,18 @@ public enum Bytes {
 
     public static func toFloat(_ f: Float) -> [UInt8] {
         let bits = f.bitPattern
-        return [UInt8(bits & 0xFF), UInt8((bits >> 8) & 0xFF),
-                UInt8((bits >> 16) & 0xFF), UInt8((bits >> 24) & 0xFF)]
+        return [
+            UInt8(bits & 0xFF), UInt8((bits >> 8) & 0xFF),
+            UInt8((bits >> 16) & 0xFF), UInt8((bits >> 24) & 0xFF)
+        ]
     }
 
     /// 4-byte little-endian unsigned 32-bit.
     public static func toUint32(_ v: UInt32) -> [UInt8] {
-        [UInt8(v & 0xFF), UInt8((v >> 8) & 0xFF),
-         UInt8((v >> 16) & 0xFF), UInt8((v >> 24) & 0xFF)]
+        [
+            UInt8(v & 0xFF), UInt8((v >> 8) & 0xFF),
+            UInt8((v >> 16) & 0xFF), UInt8((v >> 24) & 0xFF)
+        ]
     }
 
     /// 8-byte little-endian unsigned 64-bit.
@@ -151,8 +156,9 @@ public enum Bytes {
     /// gate is NOT cleared here; the Phase-11 saline bench remains the real-insulin gate.
     public static func writeString(_ input: String, _ length: Int) -> [UInt8] {
         var encoded = [UInt8](input.utf8)
-        precondition(encoded.count <= length,
-                     "writeString: encoded UTF-8 byte count \(encoded.count) exceeds field width \(length)")
+        precondition(
+            encoded.count <= length,
+            "writeString: encoded UTF-8 byte count \(encoded.count) exceeds field width \(length)")
         while encoded.count < length { encoded.append(0) }
         return encoded
     }
@@ -176,7 +182,7 @@ public enum Bytes {
         55628, 51565, 63758, 59695, 39368, 35305, 47498, 43435, 22596, 18533, 30726, 26663, 6336, 2273, 14466, 10403,
         52093, 56156, 60223, 64286, 35833, 39896, 43963, 48026, 19061, 23124, 27191, 31254, 2801, 6864, 10931, 14994,
         64814, 60687, 56684, 52557, 48554, 44427, 40424, 36297, 31782, 27655, 23652, 19525, 15522, 11395, 7392, 3265,
-        61215, 65342, 53085, 57212, 44955, 49082, 36825, 40952, 28183, 32310, 20053, 24180, 11923, 16050, 3793, 7920,
+        61215, 65342, 53085, 57212, 44955, 49082, 36825, 40952, 28183, 32310, 20053, 24180, 11923, 16050, 3793, 7920
     ]
 
     /// CRC-16 over `bytes`, returned as 2 little-endian bytes. Byte-exact port of `calculateCRC16`.

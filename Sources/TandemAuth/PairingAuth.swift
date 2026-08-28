@@ -68,8 +68,8 @@ public enum PairingAuth {
     public static func detectType(_ pairingCode: String) -> PairingCodeType {
         let alnum = PairingCodeType.long16Char.filterCharacters(pairingCode)
         let digits = PairingCodeType.short6Char.filterCharacters(pairingCode)
-        if alnum.count == 16 { return .long16Char }                    // unambiguous: 16 alphanumeric
-        if digits.count == 6 && alnum.count == 6 { return .short6Char } // purely-numeric 6-digit
+        if alnum.count == 16 { return .long16Char }  // unambiguous: 16 alphanumeric
+        if digits.count == 6 && alnum.count == 6 { return .short6Char }  // purely-numeric 6-digit
         // Fall back to the upstream heuristic for anything else.
         if pairingCode.count == 6 || digits.count == 6 { return .short6Char }
         return .long16Char

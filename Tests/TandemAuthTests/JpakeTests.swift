@@ -18,7 +18,7 @@ import TandemMessages
         // scalar happens to have a leading zero (random per nonce; 329 observed in CI). Assert a
         // magnitude range, not an exact count — the real invariant is the equal derived secret
         // below. (An exact-count assertion here was a recurring randomness-dependent CI flake.)
-        #expect((326...330).contains(cR1.count))   // secp256r1 round one (length varies by nonce)
+        #expect((326...330).contains(cR1.count))  // secp256r1 round one (length varies by nonce)
         try client.readRoundOne(sR1)
         try server.readRoundOne(cR1)
 
@@ -39,11 +39,13 @@ import TandemMessages
         let client = try EcJpakeContext(role: .client, secret: JpakeAuth.pairingCodeToBytes("123456"))
         let server = try EcJpakeContext(role: .server, secret: JpakeAuth.pairingCodeToBytes("654321"))
         let cR1 = try client.writeRoundOne(), sR1 = try server.writeRoundOne()
-        try client.readRoundOne(sR1); try server.readRoundOne(cR1)
+        try client.readRoundOne(sR1)
+        try server.readRoundOne(cR1)
         let cR2 = try client.writeRoundTwo(), sR2 = try server.writeRoundTwo()
-        try client.readRoundTwo(sR2); try server.readRoundTwo(cR2)
+        try client.readRoundTwo(sR2)
+        try server.readRoundTwo(cR2)
         let a = try client.deriveSecret(), b = try server.deriveSecret()
-        #expect(a != b)   // different passwords → different keys
+        #expect(a != b)  // different passwords → different keys
     }
 
     /// JpakeAuth produces the 1a/1b split and round-2 request shapes.
@@ -81,7 +83,7 @@ import TandemMessages
         let req4 = auth.makeRound4Request(serverNonce3: serverNonce3)
         let expectedClientHash = Crypto.hmacSha256(
             data: req4.nonce, key: Crypto.hkdf(nonce: serverNonce3, keyMaterial: serverSecret))
-        #expect(req4.hashDigest == expectedClientHash)          // server-side check would pass
+        #expect(req4.hashDigest == expectedClientHash)  // server-side check would pass
 
         let serverNonce4 = JpakeAuth.randomBytes(8)
         let serverHash = Crypto.hmacSha256(

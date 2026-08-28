@@ -25,7 +25,8 @@ enum BenchCoverageStore {
     /// Load the accumulated matrix, or an empty one if none exists yet (first session).
     static func load() -> BenchCoverageMatrix {
         guard let data = try? Data(contentsOf: jsonURL),
-              let matrix = try? JSONDecoder().decode(BenchCoverageMatrix.self, from: data) else {
+            let matrix = try? JSONDecoder().decode(BenchCoverageMatrix.self, from: data)
+        else {
             return BenchCoverageMatrix()
         }
         return matrix
@@ -60,25 +61,30 @@ enum BenchCoverageSelfTest {
     // rather than accumulating a duplicate row.
     static let representativeSessions: [BenchSessionConfig] = [
         // old t:slim X2 (legacy V1, no cartridge, no CGM) — the RUNNABLE-NOW config.
-        BenchSessionConfig(model: .tslim, apiVersion: .v2_5, firmwareLabel: "API 2.5",
-                           pairingScheme: .legacyV1, cartridgePresent: false, cgmPresent: false,
-                           salineAttested: false, deliveryEnabled: false),
+        BenchSessionConfig(
+            model: .tslim, apiVersion: .v2_5, firmwareLabel: "API 2.5",
+            pairingScheme: .legacyV1, cartridgePresent: false, cgmPresent: false,
+            salineAttested: false, deliveryEnabled: false),
         // new t:slim X2 (JPAKE), saline cartridge, no CGM.
-        BenchSessionConfig(model: .tslim, apiVersion: .v3_4, firmwareLabel: "API 3.4",
-                           pairingScheme: .jpake, cartridgePresent: true, cgmPresent: false,
-                           salineAttested: true, deliveryEnabled: true),
+        BenchSessionConfig(
+            model: .tslim, apiVersion: .v3_4, firmwareLabel: "API 3.4",
+            pairingScheme: .jpake, cartridgePresent: true, cgmPresent: false,
+            salineAttested: true, deliveryEnabled: true),
         // new t:slim X2 (JPAKE), saline cartridge + CGM.
-        BenchSessionConfig(model: .tslim, apiVersion: .v3_4, firmwareLabel: "API 3.4",
-                           pairingScheme: .jpake, cartridgePresent: true, cgmPresent: true,
-                           salineAttested: true, deliveryEnabled: true),
+        BenchSessionConfig(
+            model: .tslim, apiVersion: .v3_4, firmwareLabel: "API 3.4",
+            pairingScheme: .jpake, cartridgePresent: true, cgmPresent: true,
+            salineAttested: true, deliveryEnabled: true),
         // Mobi (JPAKE), saline cartridge, no CGM — the only config that can cover the 11 Mobi-only deliveries.
-        BenchSessionConfig(model: .mobi, apiVersion: .mobi_v3_6, firmwareLabel: "API 3.6",
-                           pairingScheme: .jpake, cartridgePresent: true, cgmPresent: false,
-                           salineAttested: true, deliveryEnabled: true),
+        BenchSessionConfig(
+            model: .mobi, apiVersion: .mobi_v3_6, firmwareLabel: "API 3.6",
+            pairingScheme: .jpake, cartridgePresent: true, cgmPresent: false,
+            salineAttested: true, deliveryEnabled: true),
         // Mobi (JPAKE), saline cartridge + CGM.
-        BenchSessionConfig(model: .mobi, apiVersion: .mobi_v3_6, firmwareLabel: "API 3.6",
-                           pairingScheme: .jpake, cartridgePresent: true, cgmPresent: true,
-                           salineAttested: true, deliveryEnabled: true),
+        BenchSessionConfig(
+            model: .mobi, apiVersion: .mobi_v3_6, firmwareLabel: "API 3.6",
+            pairingScheme: .jpake, cartridgePresent: true, cgmPresent: true,
+            salineAttested: true, deliveryEnabled: true)
     ]
 
     static func run() {
@@ -91,10 +97,12 @@ enum BenchCoverageSelfTest {
         let rolls = matrix.rollups()
         var counts: [BenchCellState: Int] = [:]
         for r in rolls { counts[r.best, default: 0] += 1 }
-        print("\n\(BenchCommandCatalog.all.count) commands enumerated · \(matrix.cells.count) cells across "
-            + "\(representativeSessions.count) representative configs")
-        print("rolled-up dispositions: "
-            + BenchCellState.allCases.filter { (counts[$0] ?? 0) > 0 }
+        print(
+            "\n\(BenchCommandCatalog.all.count) commands enumerated · \(matrix.cells.count) cells across "
+                + "\(representativeSessions.count) representative configs")
+        print(
+            "rolled-up dispositions: "
+                + BenchCellState.allCases.filter { (counts[$0] ?? 0) > 0 }
                 .map { "\($0.rawValue)=\(counts[$0]!)" }.joined(separator: "  "))
         do {
             try BenchCoverageStore.save(matrix, generatedAt: ts)
@@ -114,8 +122,10 @@ enum BenchSessionDetect {
     /// Build the session config from live-read model/API + the env axes. `isMobi`/`major`/`minor` come
     /// from the pump's own `ApiVersionResponse`; the cartridge/CGM/saline axes come from env (a read
     /// cannot tell saline from insulin, nor reliably that a cartridge is physically loaded).
-    static func config(isMobi: Bool, apiMajor: Int, apiMinor: Int, pairingScheme: BenchPairingScheme,
-                       firmwareTag: String?) -> BenchSessionConfig {
+    static func config(
+        isMobi: Bool, apiMajor: Int, apiMinor: Int, pairingScheme: BenchPairingScheme,
+        firmwareTag: String?
+    ) -> BenchSessionConfig {
         let model: PumpModel = isMobi ? .mobi : .tslim
         let api = ApiVersion(major: apiMajor, minor: apiMinor)
         let label = firmwareTag ?? "API \(apiMajor).\(apiMinor)"

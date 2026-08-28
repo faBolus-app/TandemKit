@@ -30,7 +30,7 @@ import Testing
 
     /// A known Mobi below the API floor is gated even though the device family matches.
     @Test func apiFloorGatesKnownBelowMinimum() {
-        #expect(mobiOnly.isSupported(onModel: .mobi, apiVersion: .v3) == false) // 3.0 < 3.5
+        #expect(mobiOnly.isSupported(onModel: .mobi, apiVersion: .v3) == false)  // 3.0 < 3.5
     }
 
     /// VA-06: a FULLY-unknown target fails open (send-then-firmware-NACK), but a partially-known target is
@@ -38,7 +38,7 @@ import Testing
     /// dimensions known before gating either) is closed. A known-COMPATIBLE partial still fails open on the
     /// still-unknown dimension (so an unknown API can't deadlock bootstrap).
     @Test func partialTargetGatesOnKnownViolationFullyUnknownFailsOpen() {
-        #expect(mobiOnly.isSupported(onModel: nil, apiVersion: nil))               // both unknown ⇒ open
+        #expect(mobiOnly.isSupported(onModel: nil, apiVersion: nil))  // both unknown ⇒ open
         // Known API below the 3.5 floor while family is still unknown ⇒ GATED (was fail-open pre-VA-06).
         #expect(mobiOnly.isSupported(onModel: nil, apiVersion: .v2_5) == false)
         // Known t:slim (wrong family) while API is still unknown ⇒ GATED (was fail-open pre-VA-06).
@@ -80,7 +80,7 @@ import Testing
             SetMaxBasalLimitRequest.props,
             PlaySoundRequest.props,
             SetPumpSoundsRequest.props,
-            ChangeTimeDateRequest.props,
+            ChangeTimeDateRequest.props
         ]
         for props in floored {
             #expect(props.minApi == .benchConservativeUnverifiedFloor)
@@ -112,7 +112,7 @@ import Testing
             IDPSettingsRequest.props,
             IDPSegmentRequest.props,
             CreateHistoryLogRequest.props,
-            StreamDataReadinessRequest.props,
+            StreamDataReadinessRequest.props
         ]
         for props in flooredReads {
             #expect(props.minApi == .benchConservativeUnverifiedFloor)
@@ -135,8 +135,8 @@ import Testing
     // fail-open on nil is preserved (CX-T-04 deferred), so the app-side static suppression is the live fix.
     @Test func aamReadsCarryTheControlIQEraFloor() {
         let aamReads: [MessageProps] = [
-            HighestAamRequest.props,      // op120 — upstream unannotated; floored here (tslim-reconnect-loop)
-            ActiveAamBitsRequest.props,   // op146/0x92 — upstream minApi = MOBI_API_V3_5
+            HighestAamRequest.props,  // op120 — upstream unannotated; floored here (tslim-reconnect-loop)
+            ActiveAamBitsRequest.props  // op146/0x92 — upstream minApi = MOBI_API_V3_5
         ]
         for props in aamReads {
             #expect(props.minApi == .mobi_v3_5)
@@ -165,7 +165,7 @@ import Testing
             DetectingCartridgeStateStreamResponse.props,
             FillTubingStateStreamResponse.props,
             FillCannulaStateStreamResponse.props,
-            ExitFillTubingModeStateStreamResponse.props,
+            ExitFillTubingModeStateStreamResponse.props
         ]
         for p in props {
             #expect(p.signed == true)

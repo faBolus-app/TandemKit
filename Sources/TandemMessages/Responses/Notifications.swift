@@ -14,27 +14,38 @@ public enum NotificationKind: Int, Sendable {
 
 /// A single active pump notification.
 public struct PumpNotification: Sendable, Equatable, Identifiable {
-    public let id: Int            // bit index in the status bitmap == dismiss notificationId
+    public let id: Int  // bit index in the status bitmap == dismiss notificationId
     public let kind: NotificationKind
     public let title: String
     public let detail: String?
     /// Malfunctions are hardware faults that can't be dismissed remotely (view-only).
     public let dismissable: Bool
     public init(id: Int, kind: NotificationKind, title: String, detail: String?, dismissable: Bool = true) {
-        self.id = id; self.kind = kind; self.title = title; self.detail = detail; self.dismissable = dismissable
+        self.id = id
+        self.kind = kind
+        self.title = title
+        self.detail = detail
+        self.dismissable = dismissable
     }
 }
 
 /// Decodes the active bits of a bitmap into `PumpNotification`s using a name table.
 enum NotificationBitmap {
-    static func decode(_ bitmap: UInt64, kind: NotificationKind, names: [Int: (String, String?)],
-                       fallbackLabel: String? = nil, dismissable: Bool = true) -> [PumpNotification] {
+    static func decode(
+        _ bitmap: UInt64, kind: NotificationKind, names: [Int: (String, String?)],
+        fallbackLabel: String? = nil, dismissable: Bool = true
+    ) -> [PumpNotification] {
         var out: [PumpNotification] = []
         for bit in 0..<64 where (bitmap >> UInt64(bit)) & 1 == 1 {
             let info = names[bit]
-            let label = fallbackLabel ?? (kind == .alarm ? "Alarm" : (kind == .cgmAlert ? "CGM alert" : (kind == .reminder ? "Reminder" : "Alert")))
-            out.append(PumpNotification(id: bit, kind: kind,
-                                        title: info?.0 ?? "\(label) \(bit)", detail: info?.1, dismissable: dismissable))
+            let label =
+                fallbackLabel
+                ?? (kind == .alarm
+                    ? "Alarm" : (kind == .cgmAlert ? "CGM alert" : (kind == .reminder ? "Reminder" : "Alert")))
+            out.append(
+                PumpNotification(
+                    id: bit, kind: kind,
+                    title: info?.0 ?? "\(label) \(bit)", detail: info?.1, dismissable: dismissable))
         }
         return out
     }
@@ -92,7 +103,7 @@ public struct AlertStatusResponse: ResponseMessage {
         40: ("CGM error", "CGM error reported."),
         44: ("Transmitter expiring", "The CGM transmitter is expiring soon."),
         48: ("CGM unavailable", "The CGM is unavailable due to a problem with the sensor."),
-        51: ("Control-IQ low", "Control-IQ has reduced basal insulin due to a low or predicted low."),
+        51: ("Control-IQ low", "Control-IQ has reduced basal insulin due to a low or predicted low.")
     ]
 }
 
@@ -130,7 +141,7 @@ public struct AlarmStatusResponse: ResponseMessage {
         22: ("Stuck button", "A pump button appears stuck."),
         24: ("Pressure out of range", "Atmospheric pressure is out of range."),
         25: ("Cartridge removed", "The cartridge was removed."),
-        26: ("Occlusion", "A blockage was detected; insulin delivery has stopped."),
+        26: ("Occlusion", "A blockage was detected; insulin delivery has stopped.")
     ]
 }
 
@@ -178,14 +189,15 @@ public struct CGMAlertStatusResponse: ResponseMessage {
         25: ("Sensor reuse", "Sensor reuse detected."),
         26: ("Temperature", "CGM temperature out of range."),
         27: ("Failed connection", "The CGM connection failed."),
-        39: ("Transmitter expired", "The CGM transmitter has expired."),
+        39: ("Transmitter expired", "The CGM transmitter has expired.")
     ]
 }
 
 /// CGM alert status request (opcode 74) — empty-cargo read paired with CGMAlertStatusResponse.
 public struct CGMAlertStatusRequest: EmptyCurrentStatusRequest {
-    public static let props = MessageProps(opCode: 74, size: 0, type: .request,
-                                           characteristic: .currentStatus, responseOpCode: 75)
+    public static let props = MessageProps(
+        opCode: 74, size: 0, type: .request,
+        characteristic: .currentStatus, responseOpCode: 75)
     public var cargo: [UInt8] = []
     public init(emptyCargo: Void = ()) { self.cargo = [] }
 }
@@ -211,8 +223,9 @@ public struct ReminderStatusResponse: ResponseMessage {
 
 /// Reminder status request (opcode 72).
 public struct ReminderStatusRequest: EmptyCurrentStatusRequest {
-    public static let props = MessageProps(opCode: 72, size: 0, type: .request,
-                                           characteristic: .currentStatus, responseOpCode: 73)
+    public static let props = MessageProps(
+        opCode: 72, size: 0, type: .request,
+        characteristic: .currentStatus, responseOpCode: 73)
     public var cargo: [UInt8] = []
     public init(emptyCargo: Void = ()) { self.cargo = [] }
 }
@@ -240,8 +253,9 @@ public struct MalfunctionBitmaskStatusResponse: ResponseMessage {
 /// notificationTypeId (byte) + executeExtraAction (byte). The id/kind come from the matching
 /// status response. Signed like a bolus, but it does not modify insulin delivery.
 public struct DismissNotificationRequest: Message {
-    public static let props = MessageProps(opCode: 184, size: 6, signed: true, type: .request,
-                                           characteristic: .control, risk: .benign, responseOpCode: 185)   // clears an alert — no therapy effect (P-01)
+    public static let props = MessageProps(
+        opCode: 184, size: 6, signed: true, type: .request,
+        characteristic: .control, risk: .benign, responseOpCode: 185)  // clears an alert — no therapy effect (P-01)
     public var cargo: [UInt8]
     public private(set) var notificationId: Int = 0
     public private(set) var kind: NotificationKind = .alert
@@ -249,9 +263,10 @@ public struct DismissNotificationRequest: Message {
     public init(kind: NotificationKind, notificationId: Int, executeExtraAction: Bool = false) {
         self.kind = kind
         self.notificationId = notificationId
-        self.cargo = Bytes.combine(Bytes.toUint32(UInt32(truncatingIfNeeded: notificationId)),
-                                   [UInt8(kind.rawValue & 0xFF)],
-                                   [executeExtraAction ? 1 : 0])
+        self.cargo = Bytes.combine(
+            Bytes.toUint32(UInt32(truncatingIfNeeded: notificationId)),
+            [UInt8(kind.rawValue & 0xFF)],
+            [executeExtraAction ? 1 : 0])
     }
     public mutating func parse(_ raw: [UInt8]) {
         let body = removeSignedRequestHmacBytes(raw)
@@ -266,10 +281,14 @@ public struct DismissNotificationRequest: Message {
 /// The pump sends this as a *signed* CONTROL response (24-byte HMAC trailer), so it must be marked
 /// `signed` or the parser rejects it and the ack never arrives ("no pump response").
 public struct DismissNotificationResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 185, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 185, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status: Int = -1
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if !raw.isEmpty { status = Int(raw[0]) } }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        if !raw.isEmpty { status = Int(raw[0]) }
+    }
     public mutating func parse(_ raw: [UInt8]) { self = DismissNotificationResponse(cargo: raw) }
 }

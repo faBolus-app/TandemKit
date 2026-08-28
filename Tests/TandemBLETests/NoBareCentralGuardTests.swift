@@ -35,7 +35,9 @@ import Foundation
                 }
             }
         }
-        #expect(violations.isEmpty, """
+        #expect(
+            violations.isEmpty,
+            """
             BLE unit tests must not construct a real CBCentralManager (TCC-aborts the swift-test host — \
             see InertCentral). Use PumpBLEClient.forUnitTest() or PumpBLEClient(central:) instead. \
             Found at: \(violations.joined(separator: ", "))

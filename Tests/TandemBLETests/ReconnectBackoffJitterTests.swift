@@ -11,8 +11,8 @@ import Foundation
         for base in [5.0, 10.0, 20.0, 30.0] as [TimeInterval] {
             for _ in 0..<1000 {
                 let d = PumpBLEClient.jitteredDelay(base: base)
-                #expect(d >= base)            // never shorter than the ladder step
-                #expect(d <= base * 1.5)      // never more than +50%
+                #expect(d >= base)  // never shorter than the ladder step
+                #expect(d <= base * 1.5)  // never more than +50%
             }
         }
     }

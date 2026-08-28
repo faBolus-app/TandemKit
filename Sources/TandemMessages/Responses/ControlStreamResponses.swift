@@ -15,11 +15,15 @@ import Foundation
 /// reachable and Mobi is rejected at the delivery boundary, so implementing fail-safe now carries no
 /// delivery risk.
 public struct EnterChangeCartridgeModeStateStreamResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xE1, size: 1, stream: true, signed: true, type: .response, characteristic: .controlStream)
+    public static let props = MessageProps(
+        opCode: 0xE1, size: 1, stream: true, signed: true, type: .response, characteristic: .controlStream)
     public var cargo: [UInt8]
     public private(set) var stateId = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if !raw.isEmpty { stateId = Int(raw[0]) } }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        if !raw.isEmpty { stateId = Int(raw[0]) }
+    }
     public mutating func parse(_ raw: [UInt8]) { self = EnterChangeCartridgeModeStateStreamResponse(cargo: raw) }
 }
 
@@ -27,33 +31,45 @@ public struct EnterChangeCartridgeModeStateStreamResponse: ResponseMessage {
 /// percentComplete = short@0.
 /// signed+stream (see EnterChangeCartridgeModeStateStreamResponse doc for rationale).
 public struct DetectingCartridgeStateStreamResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xE3, size: 2, stream: true, signed: true, type: .response, characteristic: .controlStream)
+    public static let props = MessageProps(
+        opCode: 0xE3, size: 2, stream: true, signed: true, type: .response, characteristic: .controlStream)
     public var cargo: [UInt8]
     public private(set) var percentComplete = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if raw.count >= 2 { percentComplete = Bytes.readShort(raw, 0) } }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        if raw.count >= 2 { percentComplete = Bytes.readShort(raw, 0) }
+    }
     public mutating func parse(_ raw: [UInt8]) { self = DetectingCartridgeStateStreamResponse(cargo: raw) }
 }
 
 /// Fill-tubing state (op 0xE5). buttonState@0.
 /// signed+stream (see EnterChangeCartridgeModeStateStreamResponse doc for rationale).
 public struct FillTubingStateStreamResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xE5, size: 1, stream: true, signed: true, type: .response, characteristic: .controlStream)
+    public static let props = MessageProps(
+        opCode: 0xE5, size: 1, stream: true, signed: true, type: .response, characteristic: .controlStream)
     public var cargo: [UInt8]
     public private(set) var buttonState = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if !raw.isEmpty { buttonState = Int(raw[0]) } }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        if !raw.isEmpty { buttonState = Int(raw[0]) }
+    }
     public mutating func parse(_ raw: [UInt8]) { self = FillTubingStateStreamResponse(cargo: raw) }
 }
 
 /// Fill-cannula state (op 0xE7). stateId@0.
 /// signed+stream (see EnterChangeCartridgeModeStateStreamResponse doc for rationale).
 public struct FillCannulaStateStreamResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xE7, size: 1, stream: true, signed: true, type: .response, characteristic: .controlStream)
+    public static let props = MessageProps(
+        opCode: 0xE7, size: 1, stream: true, signed: true, type: .response, characteristic: .controlStream)
     public var cargo: [UInt8]
     public private(set) var stateId = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if !raw.isEmpty { stateId = Int(raw[0]) } }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        if !raw.isEmpty { stateId = Int(raw[0]) }
+    }
     public mutating func parse(_ raw: [UInt8]) { self = FillCannulaStateStreamResponse(cargo: raw) }
 }
 
@@ -61,10 +77,14 @@ public struct FillCannulaStateStreamResponse: ResponseMessage {
 /// stateId@0.
 /// signed+stream (see EnterChangeCartridgeModeStateStreamResponse doc for rationale).
 public struct ExitFillTubingModeStateStreamResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xE9, size: 1, stream: true, signed: true, type: .response, characteristic: .controlStream)
+    public static let props = MessageProps(
+        opCode: 0xE9, size: 1, stream: true, signed: true, type: .response, characteristic: .controlStream)
     public var cargo: [UInt8]
     public private(set) var stateId = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; if !raw.isEmpty { stateId = Int(raw[0]) } }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        if !raw.isEmpty { stateId = Int(raw[0]) }
+    }
     public mutating func parse(_ raw: [UInt8]) { self = ExitFillTubingModeStateStreamResponse(cargo: raw) }
 }

@@ -32,7 +32,7 @@ enum BenchCases {
         requiresCGM: false,
         preconditions: [.salineCartridge, .idle, .minRemaining(units: 2.0)],
         command: { s in
-            let requestedMilliunits: UInt32 = 1000            // 1.00 U saline
+            let requestedMilliunits: UInt32 = 1000  // 1.00 U saline
             try await s.refreshSigningTime()
             // Signed permission (pump mints a bolusId). Elevates to `.allowNonDelivery`, then restores.
             let permission = try await s.request(BolusPermissionRequest(), expect: BolusPermissionResponse.self)
@@ -40,29 +40,34 @@ enum BenchCases {
 
             // Units-only manual bolus → no carbs → FOOD2 (shared helper is the single source of truth).
             let mask = InitiateBolusRequest.typeBitmask(hasCarbs: false, hasCorrection: false, isExtended: false)
-            let req = try InitiateBolusRequest(validating: requestedMilliunits,
-                                               bolusID: permission.bolusId, bolusTypeBitmask: mask)
+            let req = try InitiateBolusRequest(
+                validating: requestedMilliunits,
+                bolusID: permission.bolusId, bolusTypeBitmask: mask)
             // Initiate (signed, delivery). Both walls: `.allowDelivery` (scoped) + `allowInsulinDelivery`.
             let initiate = try await s.request(req, expect: InitiateBolusResponse.self, deliver: true)
-            try #require(initiate.accepted && initiate.bolusId == permission.bolusId,
-                         "initiate not accepted / id mismatch (status \(initiate.status))")
+            try #require(
+                initiate.accepted && initiate.bolusId == permission.bolusId,
+                "initiate not accepted / id mismatch (status \(initiate.status))")
             return permission.bolusId
         },
         verify: { s, bolusId, baseline in
             let requestedUnits = 1.0
             // AUTHORITATIVE: the pump's own completed-bolus history record (C4).
-            let completed = try #require(await s.bolusCompleted(bolusId: bolusId, since: baseline),
-                                         "no BolusCompletedHistoryLog for id \(bolusId)")
+            let completed = try #require(
+                await s.bolusCompleted(bolusId: bolusId, since: baseline),
+                "no BolusCompletedHistoryLog for id \(bolusId)")
             // No named completion enum in Swift — compare the raw int (3 == normal completion in the
             // upstream wire vector) and compare delivered vs requested ourselves.
             #expect(completed.completionStatusId == 3, "unexpected completion status \(completed.completionStatusId)")
-            #expect(abs(Double(completed.insulinDelivered) - requestedUnits) <= 0.05,
-                    "delivered \(completed.insulinDelivered) != requested \(requestedUnits)")
+            #expect(
+                abs(Double(completed.insulinDelivered) - requestedUnits) <= 0.05,
+                "delivered \(completed.insulinDelivered) != requested \(requestedUnits)")
             // Cross-check the live last-bolus mirror agrees with history.
             let last = try await s.request(LastBolusStatusV2Request(), expect: LastBolusStatusV2Response.self)
             #expect(last.bolusId == bolusId)
-            #expect(abs(last.deliveredUnits - Double(completed.insulinDelivered)) <= 0.001,
-                    "LastBolusStatusV2 and history disagree on delivered units")
+            #expect(
+                abs(last.deliveredUnits - Double(completed.insulinDelivered)) <= 0.001,
+                "LastBolusStatusV2 and history disagree on delivered units")
         })
 
     // ─────────────────────────────────────────────────────────────────────────────────────────
@@ -87,18 +92,21 @@ enum BenchCases {
 
             let minutes = 30, percent = 80
             // Range-check in-harness (init does NOT — TempRateRequests.swift:14-18).
-            try #require((SetTempRateRequest.minMinutes...SetTempRateRequest.maxMinutes).contains(minutes),
-                         "temp-rate minutes out of range")
-            try #require((SetTempRateRequest.minPercent...SetTempRateRequest.maxPercent).contains(percent),
-                         "temp-rate percent out of range")
+            try #require(
+                (SetTempRateRequest.minMinutes...SetTempRateRequest.maxMinutes).contains(minutes),
+                "temp-rate minutes out of range")
+            try #require(
+                (SetTempRateRequest.minPercent...SetTempRateRequest.maxPercent).contains(percent),
+                "temp-rate percent out of range")
             try await s.refreshSigningTime()
-            let resp = try await s.request(try SetTempRateRequest(minutes: minutes, percent: percent),
-                                           expect: SetTempRateResponse.self, deliver: true)
+            let resp = try await s.request(
+                try SetTempRateRequest(minutes: minutes, percent: percent),
+                expect: SetTempRateResponse.self, deliver: true)
             try #require(resp.accepted, "temp rate not accepted (status \(resp.status))")
             return resp.tempRateId
         },
         verify: { s, tempRateId, baseline in
-            if tempRateId == HardwareCase.mobiSkipSentinel { return }   // correct Mobi-only SKIP — nothing to verify
+            if tempRateId == HardwareCase.mobiSkipSentinel { return }  // correct Mobi-only SKIP — nothing to verify
             let basal = try await s.request(CurrentBasalStatusRequest(), expect: CurrentBasalStatusResponse.self)
             #expect(basal.basalModifiedBitmask != 0, "current basal not marked modified after temp rate")
             let activated = try #require(
@@ -132,12 +140,12 @@ enum BenchCases {
         requiresCGM: false,
         preconditions: [],
         command: { s in
-            let profile = try await s.readFirmwareProfile()   // tags results by pump version + auth scheme
+            let profile = try await s.readFirmwareProfile()  // tags results by pump version + auth scheme
             print("ℹ️ [hardware] pump firmware profile — \(profile)")
-            _ = try await s.request(InsulinStatusRequest(), expect: InsulinStatusResponse.self)   // baseline read parses
+            _ = try await s.request(InsulinStatusRequest(), expect: InsulinStatusResponse.self)  // baseline read parses
             let t0 = Date()
             s.simulateLinkDrop()
-            try await s.waitUntilReady(timeout: 45)   // rediscover → reconnect → JPAKE resume / V1 re-challenge
+            try await s.waitUntilReady(timeout: 45)  // rediscover → reconnect → JPAKE resume / V1 re-challenge
             let elapsed = Date().timeIntervalSince(t0)
             #expect(elapsed <= 45, "reconnect + re-auth exceeded the budget (\(elapsed)s)")
             return Int(elapsed)
@@ -145,7 +153,7 @@ enum BenchCases {
         verify: { s, _, _ in
             #expect(!s.authKey.isEmpty, "signing key not derived after re-auth (scheme=\(s.pairingScheme.rawValue))")
             #expect(s.client.writePolicy == .readOnly, "policy must stay read-only for a monitor cycle")
-            _ = try await s.request(InsulinStatusRequest(), expect: InsulinStatusResponse.self)   // parses post-reconnect
+            _ = try await s.request(InsulinStatusRequest(), expect: InsulinStatusResponse.self)  // parses post-reconnect
         })
 
     // ─────────────────────────────────────────────────────────────────────────────────────────
@@ -169,11 +177,14 @@ enum BenchCases {
             // derived-bit invariant when the pump answers; a nil answer is acceptable ONLY on a legacy
             // (V1) pump — a missing bitmask on a modern pump is itself a finding, not a pass.
             if let features = try? await s.request(PumpFeaturesV1Request(), expect: PumpFeaturesV1Response.self) {
-                #expect(features.controlIQSupported == ((features.featureBitmask & 1024) != 0),
-                        "derived controlIQSupported must match the feature bitmask bit")
+                #expect(
+                    features.controlIQSupported == ((features.featureBitmask & 1024) != 0),
+                    "derived controlIQSupported must match the feature bitmask bit")
             } else {
-                #expect(s.pairingScheme == .long16Char,
-                        "PumpFeaturesV1 unsupported on a non-legacy pump (API \(api.majorVersion).\(api.minorVersion)) — investigate")
+                #expect(
+                    s.pairingScheme == .long16Char,
+                    "PumpFeaturesV1 unsupported on a non-legacy pump (API \(api.majorVersion).\(api.minorVersion)) — investigate"
+                )
             }
             _ = try await s.request(GlobalMaxBolusSettingsRequest(), expect: GlobalMaxBolusSettingsResponse.self)
             _ = try await s.request(BasalLimitSettingsRequest(), expect: BasalLimitSettingsResponse.self)
@@ -184,7 +195,7 @@ enum BenchCases {
             _ = try await s.request(CurrentBasalStatusRequest(), expect: CurrentBasalStatusResponse.self)
             _ = try await s.request(ControlIQIOBRequest(), expect: ControlIQIOBResponse.self)
             _ = try await s.request(ControlIQInfoV2Request(), expect: ControlIQInfoV2Response.self)
-            _ = try await s.request(CurrentEgvGuiDataV2Request(), expect: CurrentEgvGuiDataV2Response.self) // parse only
+            _ = try await s.request(CurrentEgvGuiDataV2Request(), expect: CurrentEgvGuiDataV2Response.self)  // parse only
             _ = try await s.request(HomeScreenMirrorRequest(), expect: HomeScreenMirrorResponse.self)
         })
 
@@ -217,8 +228,9 @@ enum BenchCases {
         verify: { s, _, _ in
             // (a) ECHO — necessary but not sufficient.
             let echo = try await s.exchangeCapturingTxId(InsulinStatusRequest())
-            #expect(echo.echoed,
-                    "txId ECHO: response frame[1]=\(echo.responseTxId) != request frame[1]=\(echo.requestTxId)")
+            #expect(
+                echo.echoed,
+                "txId ECHO: response frame[1]=\(echo.responseTxId) != request frame[1]=\(echo.requestTxId)")
 
             // (b) DISTINCT-ID PRESERVATION — successive commands get distinct txIds, each echoed.
             let b1 = try await s.exchangeCapturingTxId(InsulinStatusRequest())
@@ -235,8 +247,10 @@ enum BenchCases {
             let requestTxIds: Set<UInt8> = [first.requestTxId, second.requestTxId]
             let responseTxIds: Set<UInt8> = [first.responseTxId, second.responseTxId]
             #expect(requestTxIds.count == 2, "the two pipelined requests must have distinct txIds")
-            #expect(responseTxIds == requestTxIds,
-                    "concurrent same-opcode disambiguation: the two responses must carry the two distinct request txIds by echo — responses \(responseTxIds) vs requests \(requestTxIds)")
+            #expect(
+                responseTxIds == requestTxIds,
+                "concurrent same-opcode disambiguation: the two responses must carry the two distinct request txIds by echo — responses \(responseTxIds) vs requests \(requestTxIds)"
+            )
             // Informational (NOT an assertion): whether opcode-FIFO happened to attribute in issue order this
             // run. Both echoing in order ⇒ FIFO is currently safe; a swap ⇒ the reorder hazard txId-match fixes.
             let fifoMatchedIssueOrder = first.echoed && second.echoed
@@ -278,10 +292,13 @@ enum BenchCases {
             let cgmEvents = events.filter {
                 $0 is DexcomG6CGMHistoryLog || $0 is DexcomG7CGMHistoryLog || $0 is CgmDataGxHistoryLog
             }
-            #expect(!s.historyCgmReadings.isEmpty || !cgmEvents.isEmpty,
-                    "no CGM records in recent history despite PUMP_CGM_PRESENT")
+            #expect(
+                !s.historyCgmReadings.isEmpty || !cgmEvents.isEmpty,
+                "no CGM records in recent history despite PUMP_CGM_PRESENT")
             for reading in s.historyCgmReadings {
-                #expect((20...600).contains(reading.glucoseMgdl), "implausible CGM history value \(reading.glucoseMgdl) mg/dL")
+                #expect(
+                    (20...600).contains(reading.glucoseMgdl),
+                    "implausible CGM history value \(reading.glucoseMgdl) mg/dL")
             }
         })
 }

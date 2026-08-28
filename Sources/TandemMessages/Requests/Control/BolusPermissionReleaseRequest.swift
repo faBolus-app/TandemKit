@@ -4,13 +4,13 @@ import Foundation
 /// Port of `request/control/BolusPermissionReleaseRequest` (opcode 0xF0 / -16, size 4 + HMAC).
 public struct BolusPermissionReleaseRequest: Message {
     public static let props = MessageProps(
-        opCode: 0xF0,               // -16 as unsigned
+        opCode: 0xF0,  // -16 as unsigned
         size: 4,
         signed: true,
         type: .request,
         characteristic: .control,
-        responseOpCode: 0xF1,       // BolusPermissionReleaseResponse
-        minApi: .v2_5               // upstream API_V2_5 (D-08)
+        responseOpCode: 0xF1,  // BolusPermissionReleaseResponse
+        minApi: .v2_5  // upstream API_V2_5 (D-08)
     )
 
     public var cargo: [UInt8]

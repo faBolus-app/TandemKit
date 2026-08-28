@@ -5,13 +5,13 @@ import Foundation
 /// (opcode 0xA2 / -94).
 public struct BolusPermissionRequest: Message {
     public static let props = MessageProps(
-        opCode: 0xA2,               // -94 as unsigned
+        opCode: 0xA2,  // -94 as unsigned
         size: 0,
         signed: true,
         type: .request,
         characteristic: .control,
-        responseOpCode: 0xA3,       // BolusPermissionResponse
-        minApi: .v2_5               // upstream API_V2_5 (D-08)
+        responseOpCode: 0xA3,  // BolusPermissionResponse
+        minApi: .v2_5  // upstream API_V2_5 (D-08)
     )
 
     public var cargo: [UInt8]

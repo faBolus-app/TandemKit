@@ -5,11 +5,11 @@ import Foundation
 public struct ApiVersionRequest: Message {
     public static let props = MessageProps(
         opCode: 32,
-        size: 2,                    // or 0
+        size: 2,  // or 0
         variableSize: true,
         type: .request,
         characteristic: .currentStatus,
-        responseOpCode: 33          // ApiVersionResponse
+        responseOpCode: 33  // ApiVersionResponse
     )
 
     public var cargo: [UInt8]

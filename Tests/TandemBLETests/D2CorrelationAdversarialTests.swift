@@ -28,7 +28,7 @@ import TandemMessages
         let task = Task { @MainActor in
             try await coord.perform(expectedResponseOn: ch, opCode: opCode, deadline: deadline) { txId }
         }
-        while coord.inFlightCount == before { await Task.yield() }   // wait until THIS transaction registers
+        while coord.inFlightCount == before { await Task.yield() }  // wait until THIS transaction registers
         return task
     }
 
@@ -69,7 +69,7 @@ import TandemMessages
         #expect(coord.ingest(frame: [77, 2, 1, 0x20], on: .control))
         let bFrame = try await b.value
         #expect(bFrame.first == 77 && bFrame[1] == 2)
-        #expect(coord.inFlightCount == 2)   // a and c both still in flight
+        #expect(coord.inFlightCount == 2)  // a and c both still in flight
 
         // a and c resolve independently on their own real replies — proving the NACK didn't touch them.
         #expect(coord.ingest(frame: [0x10, 1, 0], on: .control))
@@ -101,7 +101,7 @@ import TandemMessages
         let coord = PumpTransactionCoordinator()
         coord.correlationMode = .txIdMatch
         let task = await launchAndRegister(coord, on: .control, opCode: 0x03, txId: 4)
-        #expect(coord.ingest(frame: [0x03, 4, 0xAA], on: .control))   // first ingest resolves it
+        #expect(coord.ingest(frame: [0x03, 4, 0xAA], on: .control))  // first ingest resolves it
         #expect(try await task.value == [0x03, 4, 0xAA])
         #expect(coord.inFlightCount == 0)
         // An identical duplicate/stale frame arrives again — must be a no-op.
@@ -133,7 +133,7 @@ import TandemMessages
         #expect(coord.ingest(frame: [0x03, 6, 0xAA], on: .control))
         let olderFrame = try await older.value
         #expect(olderFrame == [0x03, 6, 0xAA])
-        #expect(coord.inFlightCount == 1)   // the newer one is still in flight, not double-resolved
+        #expect(coord.inFlightCount == 1)  // the newer one is still in flight, not double-resolved
 
         // The still-pending sibling resolves on a subsequent frame of its own.
         #expect(coord.ingest(frame: [0x03, 6, 0xBB], on: .control))
@@ -161,7 +161,7 @@ import TandemMessages
         if case .failure(let error) = aResult {
             #expect(error as? PumpTransactionCoordinator.TxError == .cancelled)
         }
-        #expect(coord.inFlightCount == 1)   // only a was resolved
+        #expect(coord.inFlightCount == 1)  // only a was resolved
 
         // b is unaffected — its own reply still resolves it normally.
         #expect(coord.ingest(frame: [0x05, 2, 0], on: .control))

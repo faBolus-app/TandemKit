@@ -96,20 +96,25 @@ import TandemMessages
             return
         }
         // The two branches are distinct switch cases (default path is separated from txId correlation).
-        #expect(source.contains("case .opcodeFIFO:"),
-                "the .opcodeFIFO switch case must exist as the default correlation path")
-        #expect(source.contains("case .txIdMatch:"),
-                "the .txIdMatch branch must be a SEPARATE case, never merged into the default path")
+        #expect(
+            source.contains("case .opcodeFIFO:"),
+            "the .opcodeFIFO switch case must exist as the default correlation path")
+        #expect(
+            source.contains("case .txIdMatch:"),
+            "the .txIdMatch branch must be a SEPARATE case, never merged into the default path")
         // The EXACT pre-D2 FIFO predicate (byte-for-byte from d128eed's parent 0816a12).
         let fifoPredicate = "$0.expectedCharacteristic == characteristic && $0.expectedOpCode == opCode"
-        #expect(source.contains(fifoPredicate),
-                "the .opcodeFIFO predicate diverged from the pre-D2 FIFO match — REVERT-TRIGGER (D-03)")
+        #expect(
+            source.contains(fifoPredicate),
+            "the .opcodeFIFO predicate diverged from the pre-D2 FIFO match — REVERT-TRIGGER (D-03)")
         // The predicate must sit inside the .opcodeFIFO case region, ahead of the .txIdMatch case.
         if let fifoCaseStart = source.range(of: "case .opcodeFIFO:"),
-           let txCaseStart = source.range(of: "case .txIdMatch:") {
+            let txCaseStart = source.range(of: "case .txIdMatch:")
+        {
             let fifoRegion = source[fifoCaseStart.upperBound..<txCaseStart.lowerBound]
-            #expect(fifoRegion.contains(fifoPredicate),
-                    "the FIFO predicate must live in the .opcodeFIFO case region, not the txId branch")
+            #expect(
+                fifoRegion.contains(fifoPredicate),
+                "the FIFO predicate must live in the .opcodeFIFO case region, not the txId branch")
         } else {
             Issue.record("could not bound the .opcodeFIFO case region between the two switch cases")
         }
@@ -125,15 +130,18 @@ import TandemMessages
             return
         }
         // The untouched currentStatus variant (ErrorResponse.props default characteristic is .currentStatus).
-        #expect(source.contains("add(ErrorResponse.self)"),
-                "the pre-existing .currentStatus op-77 registration must remain untouched (D-08)")
+        #expect(
+            source.contains("add(ErrorResponse.self)"),
+            "the pre-existing .currentStatus op-77 registration must remain untouched (D-08)")
         // The additive control-variant key.
-        #expect(source.contains("add(ErrorResponse.self, on: .control)"),
-                "the additive op-77-on-.control registration must be present (D-08)")
+        #expect(
+            source.contains("add(ErrorResponse.self, on: .control)"),
+            "the additive op-77-on-.control registration must be present (D-08)")
         // Exactly one .control override for ErrorResponse — no shadowing / no duplicate key.
         let controlKeyCount = source.components(separatedBy: "add(ErrorResponse.self, on: .control)").count - 1
-        #expect(controlKeyCount == 1,
-                "expected exactly one op-77-on-.control key; a second would shadow it (found \(controlKeyCount))")
+        #expect(
+            controlKeyCount == 1,
+            "expected exactly one op-77-on-.control key; a second would shadow it (found \(controlKeyCount))")
     }
 
     // MARK: - Task 3: fail-closed reset + 6-call-site routing guard (D-04 #2 + PLUS, D-05)
@@ -148,8 +156,9 @@ import TandemMessages
         var i = openBrace
         while i < source.endIndex {
             let ch = source[i]
-            if ch == "{" { depth += 1 }
-            else if ch == "}" {
+            if ch == "{" {
+                depth += 1
+            } else if ch == "}" {
                 depth -= 1
                 if depth == 0 {
                     let bodyStart = source.index(after: openBrace)
@@ -187,15 +196,18 @@ import TandemMessages
             Issue.record("could not extract the failClosed(resumePending:) function body by balanced braces")
             return
         }
-        #expect(body.contains("transactions.correlationMode = .opcodeFIFO"),
-                "failClosed must reset correlationMode to the FIFO reference mode on every link change (D-04 #2)")
+        #expect(
+            body.contains("transactions.correlationMode = .opcodeFIFO"),
+            "failClosed must reset correlationMode to the FIFO reference mode on every link change (D-04 #2)")
         // (b) Exactly eight CALL SITES (true/false variants; the definition uses `Bool` and is not counted).
         // The seventh is R2-11's establishment-timeout edge (`establishmentTimedOut()`); the eighth is
         // CX-T-05's `handleWriteResult` (phase 14 delivery-safety hardening).
         let trueCalls = source.components(separatedBy: "failClosed(resumePending: true)").count - 1
         let falseCalls = source.components(separatedBy: "failClosed(resumePending: false)").count - 1
         let callSites = trueCalls + falseCalls
-        #expect(callSites == 8,
-                "expected exactly eight disconnect/restore/error/establishment-timeout/write-error edges routing through failClosed (found \(callSites))")
+        #expect(
+            callSites == 8,
+            "expected exactly eight disconnect/restore/error/establishment-timeout/write-error edges routing through failClosed (found \(callSites))"
+        )
     }
 }

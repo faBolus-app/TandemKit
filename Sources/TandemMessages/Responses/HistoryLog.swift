@@ -97,9 +97,10 @@ public enum HistoryLog {
         let mgdl = Bytes.readShort(raw, 16)
         // Guard against sentinel/invalid values (special-high/low or "do not show").
         guard mgdl > 0 && mgdl < 1000 else { return nil }
-        return CgmHistoryReading(pumpTimeSec: Bytes.readUint32(raw, 2),
-                                 sequenceNum: Bytes.readUint32(raw, 6),
-                                 glucoseMgdl: mgdl)
+        return CgmHistoryReading(
+            pumpTimeSec: Bytes.readUint32(raw, 2),
+            sequenceNum: Bytes.readUint32(raw, 6),
+            glucoseMgdl: mgdl)
     }
 
     /// Parses one 26-byte record, returning a completed bolus if it's a `LID_BOLUS_COMPLETED`
@@ -116,21 +117,23 @@ public enum HistoryLog {
         let typeId = Bytes.readShort(raw, 0) & 0x0FFF
         guard typeId == bolusCompletedTypeId else { return nil }
         let delivered = Double(Bytes.readFloat(raw, 18))
-        guard delivered >= 0, delivered < 100 else { return nil }   // guard sentinel/garbage (accept 0U)
-        return BolusHistoryRecord(pumpTimeSec: Bytes.readUint32(raw, 2),
-                                  sequenceNum: Bytes.readUint32(raw, 6),
-                                  bolusId: Bytes.readShort(raw, 12),
-                                  deliveredUnits: delivered,
-                                  iobUnits: Double(Bytes.readFloat(raw, 14)),
-                                  completionStatusId: Bytes.readShort(raw, 10))
+        guard delivered >= 0, delivered < 100 else { return nil }  // guard sentinel/garbage (accept 0U)
+        return BolusHistoryRecord(
+            pumpTimeSec: Bytes.readUint32(raw, 2),
+            sequenceNum: Bytes.readUint32(raw, 6),
+            bolusId: Bytes.readShort(raw, 12),
+            deliveredUnits: delivered,
+            iobUnits: Double(Bytes.readFloat(raw, 14)),
+            completionStatusId: Bytes.readShort(raw, 10))
     }
 }
 
 /// A stream frame of history-log records (opcode 129 / -127, variable size) on the HISTORY_LOG
 /// characteristic. Cargo: `[numberOfHistoryLogs, streamId, record0(26)…recordN(26)]`.
 public struct HistoryLogStreamResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 129, size: 28, variableSize: true, stream: true,
-                                           type: .response, characteristic: .historyLog)
+    public static let props = MessageProps(
+        opCode: 129, size: 28, variableSize: true, stream: true,
+        type: .response, characteristic: .historyLog)
     public var cargo: [UInt8]
     public private(set) var numberOfHistoryLogs: Int = 0
     public private(set) var streamId: Int = 0
@@ -151,7 +154,8 @@ public struct HistoryLogStreamResponse: ResponseMessage {
         // overflow or wrap the length comparison below. In practice numberOfHistoryLogs is decoded from a
         // single byte (0...255), so this can't fire today, but the multiply must never run unguarded.
         guard numberOfHistoryLogs >= 0,
-              numberOfHistoryLogs <= (Int.max - 2) / HistoryLog.recordSize else { return }
+            numberOfHistoryLogs <= (Int.max - 2) / HistoryLog.recordSize
+        else { return }
         let expectedLength = numberOfHistoryLogs * HistoryLog.recordSize + 2
         // Fail CLOSED on any length mismatch (short OR long) — never greedily slice a partial/oversized
         // buffer. Only an EXACT match is trusted enough to slice records and flip isValid.

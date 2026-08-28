@@ -38,8 +38,10 @@ import TandemMessages
     ) async -> Task<[UInt8], Error> {
         let before = coord.inFlightCount
         let task = Task { @MainActor in
-            try await coord.perform(expectedResponseOn: ch, opCode: opCode, deadline: deadline,
-                                    serialized: serialized) { txId }
+            try await coord.perform(
+                expectedResponseOn: ch, opCode: opCode, deadline: deadline,
+                serialized: serialized
+            ) { txId }
         }
         while coord.inFlightCount == before { await Task.yield() }
         return task
@@ -53,8 +55,9 @@ import TandemMessages
         let bolus = InitiateBolusRequest(totalVolume: 1000, bolusID: 1, bolusTypeBitmask: 1)
         #expect(bolus.props.modifiesInsulinDelivery, "sanity: InitiateBolusRequest IS delivery-class")
 
-        let occupying = await launchAndRegister(client.transactions, on: .control, opCode: 0x03,
-                                                 serialized: true)
+        let occupying = await launchAndRegister(
+            client.transactions, on: .control, opCode: 0x03,
+            serialized: true)
         await #expect(throws: PumpTransactionCoordinator.TxError.busy) {
             try await client.sendAwaitingResponse(bolus, deadline: 1, serialized: false)
         }
@@ -71,8 +74,9 @@ import TandemMessages
         let read = ControlIQIOBRequest()
         #expect(!read.props.modifiesInsulinDelivery, "sanity: a read is NOT delivery-class")
 
-        let occupying = await launchAndRegister(client.transactions, on: .control, opCode: 0x03,
-                                                 serialized: true)
+        let occupying = await launchAndRegister(
+            client.transactions, on: .control, opCode: 0x03,
+            serialized: true)
         await #expect(throws: PumpBLEClient.ClientError.notReady) {
             try await client.sendAwaitingResponse(read, deadline: 1, serialized: false)
         }
@@ -87,8 +91,9 @@ import TandemMessages
         let client = PumpBLEClient(central: FakeCentral())
         let read = ControlIQIOBRequest()
 
-        let occupying = await launchAndRegister(client.transactions, on: .control, opCode: 0x03,
-                                                 serialized: true)
+        let occupying = await launchAndRegister(
+            client.transactions, on: .control, opCode: 0x03,
+            serialized: true)
         await #expect(throws: PumpTransactionCoordinator.TxError.busy) {
             try await client.sendAwaitingResponse(read, deadline: 1, serialized: true)
         }

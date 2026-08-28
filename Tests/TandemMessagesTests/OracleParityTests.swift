@@ -24,8 +24,9 @@ struct OracleParityTests {
     @Test func apiVersionRequestCharacteristic() throws {
         let result = try OracleRunner.encode(txId: 0, messageName: "ApiVersionRequest")
         #expect(result.characteristicName == ApiVersionRequest.props.characteristic.name)
-        #expect(result.characteristic.lowercased()
-            == ApiVersionRequest.props.characteristic.uuidString.lowercased())
+        #expect(
+            result.characteristic.lowercased()
+                == ApiVersionRequest.props.characteristic.uuidString.lowercased())
     }
 
     // MARK: - Empty-cargo status reads
@@ -85,7 +86,7 @@ struct OracleParityTests {
         ("ExtendedBolusStatusV2Request", ExtendedBolusStatusV2Request()),
         ("CGMStatusRequest", CGMStatusRequest()),
         ("CgmStatusV2Request", CgmStatusV2Request()),
-        ("CGMHardwareInfoRequest", CGMHardwareInfoRequest()),
+        ("CGMHardwareInfoRequest", CGMHardwareInfoRequest())
     ]
 
     @Test(arguments: statusReads)
@@ -99,7 +100,8 @@ struct OracleParityTests {
     /// HistoryLogRequest carries a 5-byte cargo (startLog uint32 + numberOfLogs byte).
     @Test func historyLogRequestMatchesOracle() throws {
         let oracle = try OracleRunner.encode(
-            txId: 8, messageName: "HistoryLogRequest", json: "[1000, 10]").packets
+            txId: 8, messageName: "HistoryLogRequest", json: "[1000, 10]"
+        ).packets
         let swift = try swiftPackets(HistoryLogRequest(startLog: 1000, numberOfLogs: 10), txId: 8)
         #expect(swift == oracle, "swift=\(swift) oracle=\(oracle)")
     }
@@ -121,7 +123,7 @@ struct OracleParityTests {
     // MARK: - Authentication messages
 
     @Test func centralChallengeRequestMatchesOracle() throws {
-        let challenge = try Hex.decode("00112233445566778899") // 10 bytes; first 8 used
+        let challenge = try Hex.decode("00112233445566778899")  // 10 bytes; first 8 used
         let msg = CentralChallengeRequest(appInstanceId: 0, centralChallenge: challenge)
         let oracle = try OracleRunner.encode(
             txId: 1, messageName: "CentralChallengeRequest",
@@ -132,13 +134,13 @@ struct OracleParityTests {
 
     /// PumpChallengeRequest's 22-byte cargo spans two BLE packets — exercises chunking.
     @Test func pumpChallengeRequestMatchesOracleMultiPacket() throws {
-        let hash = try Hex.decode("0102030405060708090a0b0c0d0e0f1011121314") // 20 bytes
+        let hash = try Hex.decode("0102030405060708090a0b0c0d0e0f1011121314")  // 20 bytes
         let msg = PumpChallengeRequest(appInstanceId: 0, pumpChallengeHash: hash)
         let oracle = try OracleRunner.encode(
             txId: 2, messageName: "PumpChallengeRequest",
             json: "{\"appInstanceId\":0,\"pumpChallengeHash\":\"0102030405060708090a0b0c0d0e0f1011121314\"}"
         ).packets
-        #expect(oracle.count == 2)          // sanity: really multi-packet
+        #expect(oracle.count == 2)  // sanity: really multi-packet
         #expect(try swiftPackets(msg, txId: 2) == oracle)
     }
 
@@ -150,7 +152,8 @@ struct OracleParityTests {
         let msg = Jpake1aRequest(appInstanceId: 0, centralChallenge: challenge)
         let oracle = try OracleRunner.encode(
             txId: 0, messageName: "Jpake1aRequest",
-            json: "{\"appInstanceId\":0,\"centralChallenge\":\"\(hex)\"}").packets
+            json: "{\"appInstanceId\":0,\"centralChallenge\":\"\(hex)\"}"
+        ).packets
         #expect(try swiftPackets(msg, txId: 0) == oracle)
     }
 
@@ -165,8 +168,10 @@ struct OracleParityTests {
         let nonce = (0..<8).map { UInt8($0) }
         let reserved = [UInt8](repeating: 0, count: 8)
         let hashDigest = (0..<32).map { UInt8($0 + 100) }
-        let msg = Jpake4KeyConfirmationRequest(appInstanceId: 0, nonce: nonce, reserved: reserved, hashDigest: hashDigest)
-        let json = "{\"appInstanceId\":0,\"nonce\":\"\(Hex.encode(nonce))\",\"reserved\":\"\(Hex.encode(reserved))\",\"hashDigest\":\"\(Hex.encode(hashDigest))\"}"
+        let msg = Jpake4KeyConfirmationRequest(
+            appInstanceId: 0, nonce: nonce, reserved: reserved, hashDigest: hashDigest)
+        let json =
+            "{\"appInstanceId\":0,\"nonce\":\"\(Hex.encode(nonce))\",\"reserved\":\"\(Hex.encode(reserved))\",\"hashDigest\":\"\(Hex.encode(hashDigest))\"}"
         let oracle = try OracleRunner.encode(txId: 6, messageName: "Jpake4KeyConfirmationRequest", json: json).packets
         #expect(try swiftPackets(msg, txId: 6) == oracle)
     }
@@ -267,16 +272,19 @@ struct OracleParityTests {
         // positional: carbs, unknown, pumpTimeSecondsSinceBoot, bolusId
         let oracle = try oracleSignedPackets("RemoteCarbEntryRequest", txId: 13, json: "[45, 0, 461500000, 10650]")
         let swift = try swiftSignedPackets(
-            RemoteCarbEntryRequest(carbs: 45, unknown: 0, pumpTimeSecondsSinceBoot: 461_500_000, bolusId: 10650), txId: 13)
+            RemoteCarbEntryRequest(carbs: 45, unknown: 0, pumpTimeSecondsSinceBoot: 461_500_000, bolusId: 10650),
+            txId: 13)
         #expect(swift == oracle, "swift=\(swift) oracle=\(oracle)")
     }
 
     @Test func remoteBgEntryRequestMatchesOracle() throws {
         // positional: bg, useForCgmCalibration, isAutopopBg, pumpTimeSecondsSinceBoot, bolusId
-        let oracle = try oracleSignedPackets("RemoteBgEntryRequest", txId: 14, json: "[120, false, false, 461500000, 10650]")
+        let oracle = try oracleSignedPackets(
+            "RemoteBgEntryRequest", txId: 14, json: "[120, false, false, 461500000, 10650]")
         let swift = try swiftSignedPackets(
-            RemoteBgEntryRequest(bg: 120, useForCgmCalibration: false, isAutopopBg: false,
-                                 pumpTimeSecondsSinceBoot: 461_500_000, bolusId: 10650), txId: 14)
+            RemoteBgEntryRequest(
+                bg: 120, useForCgmCalibration: false, isAutopopBg: false,
+                pumpTimeSecondsSinceBoot: 461_500_000, bolusId: 10650), txId: 14)
         #expect(swift == oracle, "swift=\(swift) oracle=\(oracle)")
     }
 
@@ -290,9 +298,10 @@ struct OracleParityTests {
         // 8-arg: quickBolus, general, reminder, alert, alarm, cgmA, cgmB, changeBitmask
         let oracle = try oracleSignedPackets("SetPumpSoundsRequest", txId: 16, json: "[0, 1, 2, 3, 0, 1, 2, 4]")
         let swift = try swiftSignedPackets(
-            SetPumpSoundsRequest(quickBolusAnnunRaw: 0, generalAnnunRaw: 1, reminderAnnunRaw: 2,
-                                 alertAnnunRaw: 3, alarmAnnunRaw: 0, cgmAlertAnnunA: 1,
-                                 cgmAlertAnnunB: 2, changeBitmaskRaw: 4), txId: 16)
+            SetPumpSoundsRequest(
+                quickBolusAnnunRaw: 0, generalAnnunRaw: 1, reminderAnnunRaw: 2,
+                alertAnnunRaw: 3, alarmAnnunRaw: 0, cgmAlertAnnunA: 1,
+                cgmAlertAnnunB: 2, changeBitmaskRaw: 4), txId: 16)
         #expect(swift == oracle, "swift=\(swift) oracle=\(oracle)")
     }
 
@@ -358,7 +367,7 @@ struct OracleParityTests {
         ("ExitChangeCartridgeModeRequest", ExitChangeCartridgeModeRequest()),
         ("EnterFillTubingModeRequest", EnterFillTubingModeRequest()),
         ("ExitFillTubingModeRequest", ExitFillTubingModeRequest()),
-        ("PrimeTubingSuspendRequest", PrimeTubingSuspendRequest()),
+        ("PrimeTubingSuspendRequest", PrimeTubingSuspendRequest())
     ]
     @Test(arguments: cartridgeFillEmpty)
     func cartridgeFillEmptyRequestMatchesOracle(name: String, message: Message) throws {
@@ -377,19 +386,22 @@ struct OracleParityTests {
 
     @Test func cgmOutOfRangeAlertRequestMatchesOracle() throws {
         let oracle = try oracleSignedPackets("CgmOutOfRangeAlertRequest", txId: 26, json: "[true, 20, 0]")
-        let swift = try swiftSignedPackets(CgmOutOfRangeAlertRequest(enable: true, alertDelay: 20, bitmask: 0), txId: 26)
+        let swift = try swiftSignedPackets(
+            CgmOutOfRangeAlertRequest(enable: true, alertDelay: 20, bitmask: 0), txId: 26)
         #expect(swift == oracle, "swift=\(swift) oracle=\(oracle)")
     }
 
     @Test func cgmRiseFallAlertRequestMatchesOracle() throws {
         let oracle = try oracleSignedPackets("CgmRiseFallAlertRequest", txId: 27, json: "[1, true, 3, 0]")
-        let swift = try swiftSignedPackets(CgmRiseFallAlertRequest(alertType: 1, enable: true, mgPerDl: 3, bitmask: 0), txId: 27)
+        let swift = try swiftSignedPackets(
+            CgmRiseFallAlertRequest(alertType: 1, enable: true, mgPerDl: 3, bitmask: 0), txId: 27)
         #expect(swift == oracle, "swift=\(swift) oracle=\(oracle)")
     }
 
     @Test func changeControlIQSettingsRequestMatchesOracle() throws {
         let oracle = try oracleSignedPackets("ChangeControlIQSettingsRequest", txId: 28, json: "[true, 150, 40]")
-        let swift = try swiftSignedPackets(ChangeControlIQSettingsRequest(enabled: true, weightLbs: 150, totalDailyInsulinUnits: 40), txId: 28)
+        let swift = try swiftSignedPackets(
+            ChangeControlIQSettingsRequest(enabled: true, weightLbs: 150, totalDailyInsulinUnits: 40), txId: 28)
         #expect(swift == oracle, "swift=\(swift) oracle=\(oracle)")
     }
 
@@ -401,13 +413,15 @@ struct OracleParityTests {
 
     @Test func setSiteChangeReminderRequestMatchesOracle() throws {
         let oracle = try oracleSignedPackets("SetSiteChangeReminderRequest", txId: 30, json: "[true, 3, 480, 0]")
-        let swift = try swiftSignedPackets(SetSiteChangeReminderRequest(enable: true, dayCount: 3, timeOfDayMinutes: 480, bitmask: 0), txId: 30)
+        let swift = try swiftSignedPackets(
+            SetSiteChangeReminderRequest(enable: true, dayCount: 3, timeOfDayMinutes: 480, bitmask: 0), txId: 30)
         #expect(swift == oracle, "swift=\(swift) oracle=\(oracle)")
     }
 
     @Test func setPumpAlertSnoozeRequestMatchesOracle() throws {
         let oracle = try oracleSignedPackets("SetPumpAlertSnoozeRequest", txId: 31, json: "[true, 30]")
-        let swift = try swiftSignedPackets(SetPumpAlertSnoozeRequest(snoozeEnabled: true, snoozeDurationMins: 30), txId: 31)
+        let swift = try swiftSignedPackets(
+            SetPumpAlertSnoozeRequest(snoozeEnabled: true, snoozeDurationMins: 30), txId: 31)
         #expect(swift == oracle, "swift=\(swift) oracle=\(oracle)")
     }
 
@@ -419,7 +433,8 @@ struct OracleParityTests {
 
     @Test func renameIDPRequestMatchesOracle() throws {
         let oracle = try oracleSignedPackets("RenameIDPRequest", txId: 33, json: "[4, 0, \"Weekend\"]")
-        let swift = try swiftSignedPackets(RenameIDPRequest(idpId: 4, profileIndex: 0, profileName: "Weekend"), txId: 33)
+        let swift = try swiftSignedPackets(
+            RenameIDPRequest(idpId: 4, profileIndex: 0, profileName: "Weekend"), txId: 33)
         #expect(swift == oracle, "swift=\(swift) oracle=\(oracle)")
     }
 
@@ -438,8 +453,9 @@ struct OracleParityTests {
         // ctor: alertType, threshold, repeatDurationMinutes, enableAlert, bitmask
         let oracle = try oracleSignedPackets("CgmHighLowAlertRequest", txId: 40, json: "[1, 200, 30, true, 0]")
         let swift = try swiftSignedPackets(
-            CgmHighLowAlertRequest(alertType: 1, threshold: 200, repeatDurationMinutes: 30,
-                                   enableAlert: true, bitmask: 0), txId: 40)
+            CgmHighLowAlertRequest(
+                alertType: 1, threshold: 200, repeatDurationMinutes: 30,
+                enableAlert: true, bitmask: 0), txId: 40)
         #expect(swift == oracle, "swift=\(swift) oracle=\(oracle)")
     }
 
@@ -447,30 +463,35 @@ struct OracleParityTests {
     // UInt32 carb ratio); the oracle's reflection ctor is nondeterministic for them, so assert the
     // built cargo's shape + key fields + props instead (locks the byte layout as a change-detector).
     @Test func createIDPRequestShape() {
-        let m = CreateIDPRequest(name: "Test", firstSegmentProfileCarbRatio: 12000,
-                                 firstSegmentProfileBasalRate: 100, firstSegmentProfileTargetBG: 110,
-                                 firstSegmentProfileISF: 50, profileInsulinDuration: 300,
-                                 timeSegmentBitmask: 1, bolusSettingsBitmask: 0, carbEntry: 1, idpSourceId: 0)
-        #expect(m.cargo.count == 35)                                  // matches props.size
-        #expect(Array(m.cargo.prefix(4)) == Array("Test".utf8))       // name in the first 17 bytes
+        let m = CreateIDPRequest(
+            name: "Test", firstSegmentProfileCarbRatio: 12000,
+            firstSegmentProfileBasalRate: 100, firstSegmentProfileTargetBG: 110,
+            firstSegmentProfileISF: 50, profileInsulinDuration: 300,
+            timeSegmentBitmask: 1, bolusSettingsBitmask: 0, carbEntry: 1, idpSourceId: 0)
+        #expect(m.cargo.count == 35)  // matches props.size
+        #expect(Array(m.cargo.prefix(4)) == Array("Test".utf8))  // name in the first 17 bytes
         #expect(CreateIDPRequest.props.opCode == 0xE6)
         #expect(CreateIDPRequest.props.signed && CreateIDPRequest.props.modifiesInsulinDelivery)
     }
 
     @Test func setIDPSegmentRequestShape() {
-        let m = SetIDPSegmentRequest(idpId: 4, profileIndex: 0, segmentIndex: 1, operationId: 2,
-                                     profileStartTime: 0, profileBasalRate: 100, profileCarbRatio: 12000,
-                                     profileTargetBG: 110, profileISF: 50, idpStatusId: 0)
-        #expect(m.cargo.count == 17)                                  // matches props.size
-        #expect(Array(m.cargo.prefix(4)) == [4, 0, 1, 2])             // idpId, profileIndex, segIdx, opId
+        let m = SetIDPSegmentRequest(
+            idpId: 4, profileIndex: 0, segmentIndex: 1, operationId: 2,
+            profileStartTime: 0, profileBasalRate: 100, profileCarbRatio: 12000,
+            profileTargetBG: 110, profileISF: 50, idpStatusId: 0)
+        #expect(m.cargo.count == 17)  // matches props.size
+        #expect(Array(m.cargo.prefix(4)) == [4, 0, 1, 2])  // idpId, profileIndex, segIdx, opId
         #expect(SetIDPSegmentRequest.props.opCode == 0xAA && SetIDPSegmentRequest.props.signed)
     }
 
     // SetIDPSettingsRequest's upstream ctor takes a ChangeType enum → oracle can't build it from an
     // int; assert cargo directly. [idpId, profileIndex] + LE u16 duration + [carbEntry, changeTypeId].
     @Test func setIDPSettingsRequestCargo() {
-        #expect(SetIDPSettingsRequest(idpId: 4, profileIndex: 0, profileInsulinDuration: 300,
-                                      profileCarbEntry: 1, changeTypeId: 0).cargo == [4, 0, 44, 1, 1, 0])
+        #expect(
+            SetIDPSettingsRequest(
+                idpId: 4, profileIndex: 0, profileInsulinDuration: 300,
+                profileCarbEntry: 1, changeTypeId: 0
+            ).cargo == [4, 0, 44, 1, 1, 0])
     }
 
     @Test func factoryResetRequestMatchesOracle() throws {
@@ -481,14 +502,15 @@ struct OracleParityTests {
 
     @Test func factoryResetBRequestMatchesOracle() throws {
         let oracle = try oracleSignedPackets("FactoryResetBRequest", txId: 36, json: "[12345, 67890, false]")
-        let swift = try swiftSignedPackets(FactoryResetBRequest(key: 12345, serialNumber: 67890, enableShelfMode: false), txId: 36)
+        let swift = try swiftSignedPackets(
+            FactoryResetBRequest(key: 12345, serialNumber: 67890, enableShelfMode: false), txId: 36)
         #expect(swift == oracle, "swift=\(swift) oracle=\(oracle)")
     }
 
     static let emptyDangerous: [(String, Message)] = [
         ("ActivateShelfModeRequest", ActivateShelfModeRequest()),
         ("DisconnectPumpRequest", DisconnectPumpRequest()),
-        ("UserInteractionRequest", UserInteractionRequest()),
+        ("UserInteractionRequest", UserInteractionRequest())
     ]
     @Test(arguments: emptyDangerous)
     func emptyDangerousRequestMatchesOracle(name: String, message: Message) throws {
@@ -499,7 +521,9 @@ struct OracleParityTests {
 
     @Test func sendTipsControlGenericTestRequestMatchesOracle() throws {
         let oracle = try oracleSignedPackets("SendTipsControlGenericTestRequest", txId: 38, json: "[1, 2, 3, 4, 5, 6]")
-        let swift = try swiftSignedPackets(SendTipsControlGenericTestRequest(param1: 1, param2: 2, param3: 3, param4: 4, param5: 5, param6: 6), txId: 38)
+        let swift = try swiftSignedPackets(
+            SendTipsControlGenericTestRequest(param1: 1, param2: 2, param3: 3, param4: 4, param5: 5, param6: 6),
+            txId: 38)
         #expect(swift == oracle, "swift=\(swift) oracle=\(oracle)")
     }
 
@@ -507,7 +531,7 @@ struct OracleParityTests {
     // (DeviceType, mcuType, SupportedFeatureIndex) that make the oracle's reflection encoder
     // nondeterministically ClassCast-fail; the packetize framing is covered by the signed/empty tests.
     @Test func paramStatusReadCargos() {
-        #expect(BolusPermissionChangeReasonRequest(bolusId: 10650).cargo == [154, 41])   // LE 0x299A
+        #expect(BolusPermissionChangeReasonRequest(bolusId: 10650).cargo == [154, 41])  // LE 0x299A
         #expect(CommonSoftwareInfoRequest(mcuType: 0).cargo == [0])
         #expect(CreateHistoryLogRequest(numberOfLogs: 100).cargo == [100, 0, 0, 0])
         #expect(StreamDataReadinessRequest(streamDataType: 1).cargo == [1])
@@ -516,8 +540,12 @@ struct OracleParityTests {
 
     /// byte[]-param requests are cargo-asserted directly (oracle reflection can't take opaque arrays).
     @Test func opaqueArrayRequestCargos() {
-        #expect(SetQuickBolusSettingsRequest(enabled: true, modeRaw: 1, magic: [1, 2, 3, 4, 5]).cargo == [1, 1, 1, 2, 3, 4, 5])
-        #expect(SetSleepScheduleRequest(slot: 0, schedule: [1, 2, 3, 4, 5, 6], flag: 1).cargo == [0, 1, 2, 3, 4, 5, 6, 1])
+        #expect(
+            SetQuickBolusSettingsRequest(enabled: true, modeRaw: 1, magic: [1, 2, 3, 4, 5]).cargo == [
+                1, 1, 1, 2, 3, 4, 5
+            ])
+        #expect(
+            SetSleepScheduleRequest(slot: 0, schedule: [1, 2, 3, 4, 5, 6], flag: 1).cargo == [0, 1, 2, 3, 4, 5, 6, 1])
         #expect(StreamDataPreflightRequest(streamType: 2, length: 16, hmac: [9, 9]).cargo == [2, 16, 0, 9, 9])
     }
 

@@ -10,16 +10,24 @@ import Testing
     @Test func bolusCalcSnapshotOffsets() {
         var cargo = [UInt8](repeating: 0, count: 46)
         // targetBg (short @9) = 110
-        let tb = Bytes.firstTwoBytesLittleEndian(110); cargo[9] = tb[0]; cargo[10] = tb[1]
+        let tb = Bytes.firstTwoBytesLittleEndian(110)
+        cargo[9] = tb[0]
+        cargo[10] = tb[1]
         // isf (short @11) = 40
-        let isf = Bytes.firstTwoBytesLittleEndian(40); cargo[11] = isf[0]; cargo[12] = isf[1]
+        let isf = Bytes.firstTwoBytesLittleEndian(40)
+        cargo[11] = isf[0]
+        cargo[12] = isf[1]
         cargo[13] = 1  // carbEntryEnabled
         // carbRatio (uint32 @14) = 10000  (10 g/u ×1000)
-        let cr = Bytes.toUint32(10000); for i in 0..<4 { cargo[14 + i] = cr[i] }
+        let cr = Bytes.toUint32(10000)
+        for i in 0..<4 { cargo[14 + i] = cr[i] }
         // maxBolusAmount (short @18) = 25000 milliunits
-        let mb = Bytes.firstTwoBytesLittleEndian(25000); cargo[18] = mb[0]; cargo[19] = mb[1]
+        let mb = Bytes.firstTwoBytesLittleEndian(25000)
+        cargo[18] = mb[0]
+        cargo[19] = mb[1]
         // maxBolusHourlyTotal (uint32 @20) = 15000 milliunits (Candidate #4)
-        let mbht = Bytes.toUint32(15000); for i in 0..<4 { cargo[20 + i] = mbht[i] }
+        let mbht = Bytes.toUint32(15000)
+        for i in 0..<4 { cargo[20 + i] = mbht[i] }
 
         let m = BolusCalcDataSnapshotResponse(cargo: cargo)
         #expect(m.targetBg == 110)
@@ -50,7 +58,8 @@ import Testing
     @Test func bolusCalcSnapshotCeilingFlagsKnownFalse() {
         var cargo = [UInt8](repeating: 0, count: 46)
         // maxBolusHourlyTotal (uint32 @20) = 20000 milliunits, ceiling configured but not hit
-        let mbht = Bytes.toUint32(20000); for i in 0..<4 { cargo[20 + i] = mbht[i] }
+        let mbht = Bytes.toUint32(20000)
+        for i in 0..<4 { cargo[20 + i] = mbht[i] }
         cargo[24] = 0  // maxBolusEventsExceeded — known-false fixture
         cargo[25] = 0  // maxIobEventsExceeded — known-false fixture
 
@@ -66,8 +75,11 @@ import Testing
     @Test func tempRateStatusOffsets() {
         var cargo = [UInt8](repeating: 0, count: 16)
         cargo[0] = 1  // active
-        let id = Bytes.firstTwoBytesLittleEndian(7); cargo[1] = id[0]; cargo[2] = id[1]
-        let dur = Bytes.toUint32(1800); for i in 0..<4 { cargo[12 + i] = dur[i] }
+        let id = Bytes.firstTwoBytesLittleEndian(7)
+        cargo[1] = id[0]
+        cargo[2] = id[1]
+        let dur = Bytes.toUint32(1800)
+        for i in 0..<4 { cargo[12 + i] = dur[i] }
         let m = TempRateStatusResponse(cargo: cargo)
         #expect(m.active)
         #expect(m.tempRateId == 7)
@@ -77,9 +89,12 @@ import Testing
     /// HistoryLogStatusResponse: count + first/last sequence numbers (uint32 LE @0/4/8).
     @Test func historyLogStatusOffsets() {
         var cargo = [UInt8](repeating: 0, count: 12)
-        let n = Bytes.toUint32(50_000);  for i in 0..<4 { cargo[0 + i] = n[i] }
-        let f = Bytes.toUint32(1_000);   for i in 0..<4 { cargo[4 + i] = f[i] }
-        let l = Bytes.toUint32(50_999);  for i in 0..<4 { cargo[8 + i] = l[i] }
+        let n = Bytes.toUint32(50_000)
+        for i in 0..<4 { cargo[0 + i] = n[i] }
+        let f = Bytes.toUint32(1_000)
+        for i in 0..<4 { cargo[4 + i] = f[i] }
+        let l = Bytes.toUint32(50_999)
+        for i in 0..<4 { cargo[8 + i] = l[i] }
         let m = HistoryLogStatusResponse(cargo: cargo)
         #expect(m.numEntries == 50_000)
         #expect(m.firstSequenceNum == 1_000)
@@ -91,15 +106,21 @@ import Testing
     @Test func historyLogStreamCgmParsing() {
         func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, mgdl: Int) -> [UInt8] {
             var r = [UInt8](repeating: 0, count: 26)
-            let t = Bytes.firstTwoBytesLittleEndian(typeId); r[0] = t[0]; r[1] = t[1]
-            let pt = Bytes.toUint32(pumpTimeSec); for i in 0..<4 { r[2 + i] = pt[i] }
-            let sq = Bytes.toUint32(seq);         for i in 0..<4 { r[6 + i] = sq[i] }
-            let g = Bytes.firstTwoBytesLittleEndian(mgdl); r[16] = g[0]; r[17] = g[1]
+            let t = Bytes.firstTwoBytesLittleEndian(typeId)
+            r[0] = t[0]
+            r[1] = t[1]
+            let pt = Bytes.toUint32(pumpTimeSec)
+            for i in 0..<4 { r[2 + i] = pt[i] }
+            let sq = Bytes.toUint32(seq)
+            for i in 0..<4 { r[6 + i] = sq[i] }
+            let g = Bytes.firstTwoBytesLittleEndian(mgdl)
+            r[16] = g[0]
+            r[17] = g[1]
             return r
         }
         let cgm = record(typeId: 256, pumpTimeSec: 555_000, seq: 42, mgdl: 142)
         let other = record(typeId: 1, pumpTimeSec: 555_060, seq: 43, mgdl: 0)
-        let cargo: [UInt8] = [2, 7] + cgm + other   // numberOfHistoryLogs=2, streamId=7
+        let cargo: [UInt8] = [2, 7] + cgm + other  // numberOfHistoryLogs=2, streamId=7
 
         let m = HistoryLogStreamResponse(cargo: cargo)
         #expect(m.numberOfHistoryLogs == 2)
@@ -117,14 +138,18 @@ import Testing
     /// iob 3.652852) to verify the record offsets byte-for-byte.
     @Test func historyLogStreamBolusParsing() {
         func hex(_ s: String) -> [UInt8] {
-            var out: [UInt8] = []; var i = s.startIndex
-            while i < s.endIndex { let j = s.index(i, offsetBy: 2)
-                out.append(UInt8(s[i..<j], radix: 16)!); i = j }
+            var out: [UInt8] = []
+            var i = s.startIndex
+            while i < s.endIndex {
+                let j = s.index(i, offsetBy: 2)
+                out.append(UInt8(s[i..<j], radix: 16)!)
+                i = j
+            }
             return out
         }
         let rec = hex("14009ed7971a70d802000300210454c86940f2bae43ff2bae43f")
         #expect(rec.count == 26)
-        let cargo: [UInt8] = [1, 3] + rec   // numberOfHistoryLogs=1, streamId=3
+        let cargo: [UInt8] = [1, 3] + rec  // numberOfHistoryLogs=1, streamId=3
         let m = HistoryLogStreamResponse(cargo: cargo)
         let boluses = m.bolusRecords
         #expect(boluses.count == 1)
@@ -133,7 +158,7 @@ import Testing
         #expect(boluses.first?.completionStatusId == 3)
         #expect(abs((boluses.first?.deliveredUnits ?? 0) - 1.7869551) < 0.0001)
         #expect(abs((boluses.first?.iobUnits ?? 0) - 3.652852) < 0.0001)
-        #expect(m.cgmReadings.isEmpty)   // a bolus record is not a CGM reading
+        #expect(m.cgmReadings.isEmpty)  // a bolus record is not a CGM reading
     }
 
     /// Alert/alarm bitmaps decode to the right notifications. Bit 0 (Low insulin) + bit 11
@@ -158,7 +183,7 @@ import Testing
     /// DismissNotificationRequest cargo: notificationId (uint32) + typeId + executeExtraAction.
     @Test func dismissNotificationCargo() {
         let m = DismissNotificationRequest(kind: .alert, notificationId: 21)
-        #expect(m.cargo == [21, 0, 0, 0, 1, 0])   // id=21, type=alert(1), flag=0
+        #expect(m.cargo == [21, 0, 0, 0, 1, 0])  // id=21, type=alert(1), flag=0
         #expect(DismissNotificationRequest.props.signed)
         #expect(DismissNotificationRequest.props.characteristic == .control)
         let alarm = DismissNotificationRequest(kind: .alarm, notificationId: 2, executeExtraAction: true)
@@ -193,8 +218,11 @@ import Testing
     /// oracle can't deterministically construct it (two ambiguous 3-arg constructors upstream).
     @Test func lastBGResponseOffsets() {
         var cargo = [UInt8](repeating: 0, count: 7)
-        let ts = Bytes.toUint32(461_589_432); for i in 0..<4 { cargo[i] = ts[i] }
-        let bg = Bytes.firstTwoBytesLittleEndian(142); cargo[4] = bg[0]; cargo[5] = bg[1]
+        let ts = Bytes.toUint32(461_589_432)
+        for i in 0..<4 { cargo[i] = ts[i] }
+        let bg = Bytes.firstTwoBytesLittleEndian(142)
+        cargo[4] = bg[0]
+        cargo[5] = bg[1]
         cargo[6] = 0  // MANUAL
         let m = LastBGResponse(cargo: cargo)
         #expect(m.bgValue == 142)
@@ -220,8 +248,9 @@ import Testing
         }
         // Control variant: failing opcode 0x1C, errorCodeId 3 (INVALID_PARAMETER), plus trailing control
         // context the tolerant size check ignores.
-        let ctl = try ResponseParser.parse(frame: frame(77, [0x1C, 3] + [UInt8](repeating: 0, count: 24)),
-                                           characteristic: .control)
+        let ctl = try ResponseParser.parse(
+            frame: frame(77, [0x1C, 3] + [UInt8](repeating: 0, count: 24)),
+            characteristic: .control)
         #expect((ctl.message as? ErrorResponse)?.requestCodeId == 0x1C)
         #expect((ctl.message as? ErrorResponse)?.isInvalidParameter == true)
         // Pre-existing currentStatus variant unchanged.
@@ -244,23 +273,26 @@ import Testing
             return body + Bytes.calculateCRC16(body)
         }
         // Detecting cartridge (0xE3): percentComplete short@0
-        let det = try ResponseParser.parse(frame: frame(0xE3, [50, 0]), characteristic: .controlStream,
-                                           verifySignature: false)
+        let det = try ResponseParser.parse(
+            frame: frame(0xE3, [50, 0]), characteristic: .controlStream,
+            verifySignature: false)
         #expect((det.message as? DetectingCartridgeStateStreamResponse)?.percentComplete == 50)
         // Fill cannula (0xE7): stateId@0
-        let fc = try ResponseParser.parse(frame: frame(0xE7, [3]), characteristic: .controlStream,
-                                          verifySignature: false)
+        let fc = try ResponseParser.parse(
+            frame: frame(0xE7, [3]), characteristic: .controlStream,
+            verifySignature: false)
         #expect((fc.message as? FillCannulaStateStreamResponse)?.stateId == 3)
         // Exit-fill-tubing (0xE9): representative for the -23 group
-        let ex = try ResponseParser.parse(frame: frame(0xE9, [1]), characteristic: .controlStream,
-                                          verifySignature: false)
+        let ex = try ResponseParser.parse(
+            frame: frame(0xE9, [1]), characteristic: .controlStream,
+            verifySignature: false)
         #expect(ex.message is ExitFillTubingModeStateStreamResponse)
     }
 
     /// A2 control-ack responses: multi-field decode offsets (status@0 + extras), and dispatch of a
     /// representative one through the characteristic-aware ResponseParser on .control.
     @Test func a2ControlResponseOffsets() throws {
-        #expect(AdditionalBolusResponse(cargo: [0, 0x9A, 0x29, 0, 0]).status == 0)      // bolusId short@1
+        #expect(AdditionalBolusResponse(cargo: [0, 0x9A, 0x29, 0, 0]).status == 0)  // bolusId short@1
         #expect(AdditionalBolusResponse(cargo: [0, 0x9A, 0x29, 0, 0]).bolusId == 10650)
         #expect(CreateIDPResponse(cargo: [0, 5]).newIdpId == 5)
         #expect(DeleteIDPResponse(cargo: [0, 4]).deletedIdpId == 4)
@@ -275,7 +307,9 @@ import Testing
         let body: [UInt8] = [0xFB, 0x01, UInt8(payload.count)] + payload
         let frame = body + Bytes.calculateCRC16(body)
         // Dispatch/routing test with a placeholder (zero) HMAC → skip VA-04 signature verification.
-        #expect(try ResponseParser.parse(frame: frame, characteristic: .control, verifySignature: false).message is AdditionalBolusResponse)
+        #expect(
+            try ResponseParser.parse(frame: frame, characteristic: .control, verifySignature: false).message
+                is AdditionalBolusResponse)
     }
 
     /// PrimeTubingSuspendResponse: statusCode@0, reserve@2. Direct test — oracle can't build it.
@@ -345,18 +379,22 @@ import Testing
     /// Against the pre-fix `Int(raw[5])` read this FAILS (targetBg decodes as 0).
     @Test func currentActiveIdpValuesCaptureTargetBgAtByte4() {
         func hex(_ s: String) -> [UInt8] {
-            var out: [UInt8] = []; var i = s.startIndex
-            while i < s.endIndex { let j = s.index(i, offsetBy: 2)
-                out.append(UInt8(s[i..<j], radix: 16)!); i = j }
+            var out: [UInt8] = []
+            var i = s.startIndex
+            while i < s.endIndex {
+                let j = s.index(i, offsetBy: 2)
+                out.append(UInt8(s[i..<j], radix: 16)!)
+                i = j
+            }
             return out
         }
         let cargo = hex("7017000073002c012800")
         #expect(cargo.count == 10)
         let m = CurrentActiveIdpValuesResponse(cargo: cargo)
-        #expect(m.currentTargetBg == 115)          // byte-4 fix; pre-fix Int(raw[5]) == 0 (RED)
-        #expect(m.currentInsulinDuration == 300)    // regression guard (byte 6-7, unaffected)
-        #expect(m.currentIsf == 40)                 // regression guard (byte 8-9, unaffected)
-        #expect(m.currentCarbRatio == 6000)         // regression guard (byte 0-3, unaffected)
+        #expect(m.currentTargetBg == 115)  // byte-4 fix; pre-fix Int(raw[5]) == 0 (RED)
+        #expect(m.currentInsulinDuration == 300)  // regression guard (byte 6-7, unaffected)
+        #expect(m.currentIsf == 40)  // regression guard (byte 8-9, unaffected)
+        #expect(m.currentCarbRatio == 6000)  // regression guard (byte 0-3, unaffected)
     }
 
     /// EGV V2 parses a 9-byte cargo (Control-IQ+ firmware appends a trailing byte); a VALID
@@ -366,7 +404,7 @@ import Testing
         let cargo: [UInt8] = [0xc5, 0x67, 0xe2, 0x22, 0x9e, 0x00, 0x01, 0x04, 0x00]
         let m = CurrentEgvGuiDataV2Response(cargo: cargo)
         #expect(m.cgmReading == 158)
-        #expect(m.egvStatusId == 1)   // VALID
+        #expect(m.egvStatusId == 1)  // VALID
         #expect(m.trendRate == 4)
         #expect(m.hasValidReading)
     }
@@ -382,7 +420,7 @@ import Testing
         // HistoryLogStatusResponse needs 12 bytes; feed 4.
         let hl = HistoryLogStatusResponse(cargo: [1, 2, 3, 4])
         #expect(hl.numEntries == 0 && hl.firstSequenceNum == 0 && hl.lastSequenceNum == 0)
-        #expect(hl.cargo == [1, 2, 3, 4])   // raw retained
+        #expect(hl.cargo == [1, 2, 3, 4])  // raw retained
 
         // ControlIQIOBResponse needs 17 bytes; feed 3 (would trap on raw[16] without the guard).
         let iob = ControlIQIOBResponse(cargo: [9, 9, 9])

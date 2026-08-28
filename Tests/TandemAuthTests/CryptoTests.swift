@@ -10,8 +10,9 @@ import TandemMessages
     }
 
     @Test func hkdfKnownAnswer() throws {
-        let out = Crypto.hkdf(nonce: try Hex.decode("0011223344556677"),
-                              keyMaterial: try Hex.decode("aabbccddeeff"))
+        let out = Crypto.hkdf(
+            nonce: try Hex.decode("0011223344556677"),
+            keyMaterial: try Hex.decode("aabbccddeeff"))
         #expect(Hex.encode(out) == "23babb413e58519c975ff4c28f980d11a2051341ca3a67a7ea4394e5c88c1250")
     }
 
@@ -19,15 +20,18 @@ import TandemMessages
     @Test func hmacSha1KnownAnswer() {
         let key = Array("key".utf8)
         let data = Array("The quick brown fox jumps over the lazy dog".utf8)
-        #expect(Hex.encode(Crypto.hmacSha1(data: data, key: key))
-            == "de7c9b85b8b78aa6bc8a7a36f70a90701c9db4d9")
+        #expect(
+            Hex.encode(Crypto.hmacSha1(data: data, key: key))
+                == "de7c9b85b8b78aa6bc8a7a36f70a90701c9db4d9")
     }
 }
 
 @Suite struct PairingAuthTests {
     @Test func validLongCodes() throws {
-        for code in ["abcdefghijklmnop", "abcd-efgh-ijkl-mnop", "abcd-1234-ijkl-5678",
-                     "abcd1234ijkl5678", "abcd-1234-ijkl 5678"] {
+        for code in [
+            "abcdefghijklmnop", "abcd-efgh-ijkl-mnop", "abcd-1234-ijkl-5678",
+            "abcd1234ijkl5678", "abcd-1234-ijkl 5678"
+        ] {
             #expect(throws: Never.self) { try PairingAuth.processPairingCode(code) }
         }
     }

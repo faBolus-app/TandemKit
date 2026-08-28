@@ -18,7 +18,9 @@ import Testing
 
     /// Reassemble + parse on a given characteristic (defaults to CURRENT_STATUS, where most reads
     /// arrive). Dispatch is now (characteristic, opcode)-keyed, so control responses pass `.control`.
-    private func parse(_ packets: [String], on characteristic: Characteristic = .currentStatus) throws -> ResponseParser.Parsed {
+    private func parse(_ packets: [String], on characteristic: Characteristic = .currentStatus) throws
+        -> ResponseParser.Parsed
+    {
         // VA-04: these are DECODE-parity fixtures — oracle-encoded WITHOUT a pairing key, so their signed
         // trailers won't verify under any real key. Byte-decode parity is the concern here; signed-response
         // HMAC authenticity is covered separately by SignedResponseHmacVerifyTests.
@@ -38,7 +40,8 @@ import Testing
 
     @Test func nonControlIQIOBResponseParses() throws {
         let packets = try OracleRunner.encode(
-            txId: 8, messageName: "NonControlIQIOBResponse", json: "[240, 17940, 240]").packets
+            txId: 8, messageName: "NonControlIQIOBResponse", json: "[240, 17940, 240]"
+        ).packets
         let msg = try #require(try parse(packets).message as? NonControlIQIOBResponse)
         #expect(msg.iob == 240)
         #expect(msg.timeRemainingSeconds == 17940)
@@ -48,7 +51,8 @@ import Testing
     @Test func controlIQInfoV2ResponseParses() throws {
         // [closedLoop, weight, weightUnit, TDI, userMode, b6, b7, b8, controlState, exChoice, exDur, exRem]
         let packets = try OracleRunner.encode(
-            txId: 9, messageName: "ControlIQInfoV2Response", json: "[true, 70, 0, 40, 2, 0, 0, 0, 1, 0, 0, 0]").packets
+            txId: 9, messageName: "ControlIQInfoV2Response", json: "[true, 70, 0, 40, 2, 0, 0, 0, 1, 0, 0, 0]"
+        ).packets
         let msg = try #require(try parse(packets).message as? ControlIQInfoV2Response)
         #expect(msg.closedLoopEnabled)
         #expect(msg.currentUserModeType == 2)
@@ -63,7 +67,8 @@ import Testing
         // [armSwVer, mspSwVer, configA, configB, serialNum, partNum, pumpRev, pcbaSN, pcbaRev, modelNum]
         let packets = try OracleRunner.encode(
             txId: 11, messageName: "PumpVersionResponse",
-            json: "[1, 2, 0, 0, 123456, 7890, \"abc\", 111, \"def\", 1001]").packets
+            json: "[1, 2, 0, 0, 123456, 7890, \"abc\", 111, \"def\", 1001]"
+        ).packets
         let msg = try #require(try parse(packets).message as? PumpVersionResponse)
         #expect(msg.serialNum == 123456)
         #expect(msg.partNum == 7890)
@@ -74,7 +79,8 @@ import Testing
     @Test func homeScreenMirrorResponseParses() throws {
         // [cgmTrend, cgmAlert, statusIcon0, statusIcon1, bolusStatus, basalStatus, apControlState, remInsulinPlus, cgmDisplay]
         let packets = try OracleRunner.encode(
-            txId: 12, messageName: "HomeScreenMirrorResponse", json: "[1, 2, 3, 4, 5, 6, 7, true, false]").packets
+            txId: 12, messageName: "HomeScreenMirrorResponse", json: "[1, 2, 3, 4, 5, 6, 7, true, false]"
+        ).packets
         let msg = try #require(try parse(packets).message as? HomeScreenMirrorResponse)
         #expect(msg.cgmTrendIconId == 1)
         #expect(msg.cgmAlertIconId == 2)
@@ -88,7 +94,8 @@ import Testing
         // [lowInsulinThreshold, cannulaPrimeSize, autoShutdownEnabled, autoShutdownDuration,
         //  featureLock, oledTimeout, status]
         let packets = try OracleRunner.encode(
-            txId: 19, messageName: "PumpSettingsResponse", json: "[20, 30, 1, 720, 0, 30, 0]").packets
+            txId: 19, messageName: "PumpSettingsResponse", json: "[20, 30, 1, 720, 0, 30, 0]"
+        ).packets
         let msg = try #require(try parse(packets).message as? PumpSettingsResponse)
         #expect(msg.lowInsulinThreshold == 20)
         #expect(msg.cannulaPrimeSize == 30)
@@ -101,7 +108,8 @@ import Testing
         // [quickBolusEnabled, incUnits, incCarbs, entryType, status, buttonAnnun, quickBolusAnnun,
         //  bolusAnnun, reminderAnnun, alertAnnun, alarmAnnun, fillTubingAnnun]
         let packets = try OracleRunner.encode(
-            txId: 20, messageName: "PumpGlobalsResponse", json: "[1, 1000, 0, 0, 0, 0, 1, 2, 3, 0, 1, 2]").packets
+            txId: 20, messageName: "PumpGlobalsResponse", json: "[1, 1000, 0, 0, 0, 0, 1, 2, 3, 0, 1, 2]"
+        ).packets
         let msg = try #require(try parse(packets).message as? PumpGlobalsResponse)
         #expect(msg.quickBolusEnabled)
         #expect(msg.quickBolusIncrementUnits == 1000)
@@ -112,20 +120,23 @@ import Testing
 
     @Test func cancelBolusResponseParses() throws {
         let packets = try OracleRunner.encode(
-            txId: 21, messageName: "CancelBolusResponse", json: "[0, 10650, 0]").packets
+            txId: 21, messageName: "CancelBolusResponse", json: "[0, 10650, 0]"
+        ).packets
         let msg = try #require(try parse(packets, on: .control).message as? CancelBolusResponse)
         #expect(msg.bolusId == 10650)
         #expect(msg.wasCancelled)
         // A non-zero reason marks a failed cancel (e.g. already delivered).
         let failed = try OracleRunner.encode(
-            txId: 22, messageName: "CancelBolusResponse", json: "[1, 10650, 2]").packets
+            txId: 22, messageName: "CancelBolusResponse", json: "[1, 10650, 2]"
+        ).packets
         let fm = try #require(try parse(failed, on: .control).message as? CancelBolusResponse)
         #expect(!fm.wasCancelled)
     }
 
     @Test func bolusPermissionReleaseResponseParses() throws {
         let packets = try OracleRunner.encode(
-            txId: 23, messageName: "BolusPermissionReleaseResponse", json: "[0]").packets
+            txId: 23, messageName: "BolusPermissionReleaseResponse", json: "[0]"
+        ).packets
         let msg = try #require(try parse(packets, on: .control).message as? BolusPermissionReleaseResponse)
         #expect(msg.released)
     }
@@ -133,7 +144,8 @@ import Testing
     @Test func profileStatusResponseParses() throws {
         // [numberOfProfiles, slot0, slot1, slot2, slot3, slot4, slot5, activeSegmentIndex]
         let packets = try OracleRunner.encode(
-            txId: 24, messageName: "ProfileStatusResponse", json: "[2, 4, 7, -1, -1, -1, -1, 1]").packets
+            txId: 24, messageName: "ProfileStatusResponse", json: "[2, 4, 7, -1, -1, -1, -1, 1]"
+        ).packets
         let msg = try #require(try parse(packets).message as? ProfileStatusResponse)
         #expect(msg.numberOfProfiles == 2)
         #expect(msg.activeIdpId == 4)
@@ -150,7 +162,8 @@ import Testing
     @Test func currentActiveIdpValuesResponseParses() throws {
         // [carbRatio(1000-inc), targetBg, insulinDuration(min), isf]
         let packets = try OracleRunner.encode(
-            txId: 25, messageName: "CurrentActiveIdpValuesResponse", json: "[10000, 110, 300, 30]").packets
+            txId: 25, messageName: "CurrentActiveIdpValuesResponse", json: "[10000, 110, 300, 30]"
+        ).packets
         let msg = try #require(try parse(packets).message as? CurrentActiveIdpValuesResponse)
         #expect(msg.currentCarbRatio == 10000)
         #expect(msg.carbRatioGramsPerUnit == 10.0)
@@ -179,7 +192,8 @@ import Testing
     /// unaffected by the offset fix — insulinDuration@6 crosses the byte-6 boundary as before).
     @Test func currentActiveIdpValuesResponseParsesAcrossDurationByteBoundary() throws {
         let packets = try OracleRunner.encode(
-            txId: 25, messageName: "CurrentActiveIdpValuesResponse", json: "[6000, 200, 400, 45]").packets
+            txId: 25, messageName: "CurrentActiveIdpValuesResponse", json: "[6000, 200, 400, 45]"
+        ).packets
         let msg = try #require(try parse(packets).message as? CurrentActiveIdpValuesResponse)
         #expect(msg.currentCarbRatio == 6000)
         // targetBg NOT asserted here — defective oracle encoding; see ResponseDirectTests capture test.
@@ -189,7 +203,8 @@ import Testing
 
     @Test func globalMaxBolusSettingsResponseParses() throws {
         let packets = try OracleRunner.encode(
-            txId: 26, messageName: "GlobalMaxBolusSettingsResponse", json: "[25000, 25000]").packets
+            txId: 26, messageName: "GlobalMaxBolusSettingsResponse", json: "[25000, 25000]"
+        ).packets
         let msg = try #require(try parse(packets).message as? GlobalMaxBolusSettingsResponse)
         #expect(msg.maxBolus == 25000)
         #expect(msg.maxBolusUnits == 25.0)
@@ -197,7 +212,8 @@ import Testing
 
     @Test func basalLimitSettingsResponseParses() throws {
         let packets = try OracleRunner.encode(
-            txId: 27, messageName: "BasalLimitSettingsResponse", json: "[15000, 15000]").packets
+            txId: 27, messageName: "BasalLimitSettingsResponse", json: "[15000, 15000]"
+        ).packets
         let msg = try #require(try parse(packets).message as? BasalLimitSettingsResponse)
         #expect(msg.basalLimit == 15000)
         #expect(msg.basalLimitUnitsPerHour == 15.0)
@@ -206,7 +222,8 @@ import Testing
     @Test func idpSettingsResponseParses() throws {
         // [idpId, name, numberOfProfileSegments, insulinDuration, maxBolus, carbEntry]
         let packets = try OracleRunner.encode(
-            txId: 29, messageName: "IDPSettingsResponse", json: "[4, \"Default\", 3, 300, 25000, true]").packets
+            txId: 29, messageName: "IDPSettingsResponse", json: "[4, \"Default\", 3, 300, 25000, true]"
+        ).packets
         let msg = try #require(try parse(packets).message as? IDPSettingsResponse)
         #expect(msg.idpId == 4)
         #expect(msg.name == "Default")
@@ -219,7 +236,8 @@ import Testing
     @Test func idpSegmentResponseParses() throws {
         // [idpId, segmentIndex, startTime, basalRate, carbRatio, targetBG, isf, statusId]
         let packets = try OracleRunner.encode(
-            txId: 30, messageName: "IDPSegmentResponse", json: "[4, 0, 0, 850, 10000, 110, 30, 1]").packets
+            txId: 30, messageName: "IDPSegmentResponse", json: "[4, 0, 0, 850, 10000, 110, 30, 1]"
+        ).packets
         let msg = try #require(try parse(packets).message as? IDPSegmentResponse)
         #expect(msg.idpId == 4)
         #expect(msg.profileBasalRate == 850)
@@ -233,7 +251,8 @@ import Testing
         // [bolusStatus, bolusId, timestamp, requestedVolume, duration, bolusSource, secsSinceReset]
         let packets = try OracleRunner.encode(
             txId: 31, messageName: "ExtendedBolusStatusV2Response",
-            json: "[1, 10650, 461510714, 2000, 3600, 8, 461500000]").packets
+            json: "[1, 10650, 461510714, 2000, 3600, 8, 461500000]"
+        ).packets
         let msg = try #require(try parse(packets).message as? ExtendedBolusStatusV2Response)
         #expect(msg.bolusId == 10650)
         #expect(msg.requestedVolume == 2000)
@@ -244,7 +263,8 @@ import Testing
     @Test func cgmStatusResponseParses() throws {
         // [sessionStateId, lastCalibrationTimestamp, sensorStartedTimestamp, transmitterBatteryStatusId]
         let packets = try OracleRunner.encode(
-            txId: 32, messageName: "CGMStatusResponse", json: "[1, 461500000, 461400000, 2]").packets
+            txId: 32, messageName: "CGMStatusResponse", json: "[1, 461500000, 461400000, 2]"
+        ).packets
         let msg = try #require(try parse(packets).message as? CGMStatusResponse)
         #expect(msg.sessionStateId == 1)
         #expect(msg.sessionActive)
@@ -255,7 +275,8 @@ import Testing
         // [sessionState, lastCal, sensorStarted, batteryStatus, duration, timeRemaining, sensorType, gracePeriod]
         let packets = try OracleRunner.encode(
             txId: 33, messageName: "CgmStatusV2Response",
-            json: "[1, 461500000, 461400000, 2, 864000, 432000, 1, true]").packets
+            json: "[1, 461500000, 461400000, 2, 864000, 432000, 1, true]"
+        ).packets
         let msg = try #require(try parse(packets).message as? CgmStatusV2Response)
         #expect(msg.sessionActive)
         #expect(msg.sessionDurationSeconds == 864000)
@@ -265,7 +286,8 @@ import Testing
 
     @Test func cgmHardwareInfoResponseParses() throws {
         let packets = try OracleRunner.encode(
-            txId: 34, messageName: "CGMHardwareInfoResponse", json: "[\"G6ABC123\", 0]").packets
+            txId: 34, messageName: "CGMHardwareInfoResponse", json: "[\"G6ABC123\", 0]"
+        ).packets
         let msg = try #require(try parse(packets).message as? CGMHardwareInfoResponse)
         #expect(msg.hardwareInfoString == "G6ABC123")
     }
@@ -273,7 +295,8 @@ import Testing
     @Test func controlIQInfoV1ResponseParses() throws {
         // [closedLoop, weight, weightUnit, TDI, userMode, b6, b7, b8, controlState]
         let packets = try OracleRunner.encode(
-            txId: 28, messageName: "ControlIQInfoV1Response", json: "[true, 70, 0, 40, 2, 0, 0, 0, 1]").packets
+            txId: 28, messageName: "ControlIQInfoV1Response", json: "[true, 70, 0, 40, 2, 0, 0, 0, 1]"
+        ).packets
         let msg = try #require(try parse(packets).message as? ControlIQInfoV1Response)
         #expect(msg.closedLoopEnabled)
         #expect(msg.weight == 70)
@@ -284,9 +307,11 @@ import Testing
 
     @Test func cartridgeFillControlResponsesParse() throws {
         // status-ack responses (oracle-constructable via int status ctor)
-        for (name, tid) in [("EnterChangeCartridgeModeResponse", 52), ("ExitChangeCartridgeModeResponse", 53),
-                            ("EnterFillTubingModeResponse", 54), ("ExitFillTubingModeResponse", 55),
-                            ("FillCannulaResponse", 56)] {
+        for (name, tid) in [
+            ("EnterChangeCartridgeModeResponse", 52), ("ExitChangeCartridgeModeResponse", 53),
+            ("EnterFillTubingModeResponse", 54), ("ExitFillTubingModeResponse", 55),
+            ("FillCannulaResponse", 56)
+        ] {
             let p = try OracleRunner.encode(txId: UInt8(tid), messageName: name, json: "[0]").packets
             #expect(try parse(p, on: .control).opCode != 0, "\(name) parsed")
         }
@@ -329,9 +354,11 @@ import Testing
     }
 
     @Test func cgmSessionControlResponsesParse() throws {
-        let start = try OracleRunner.encode(txId: 35, messageName: "StartDexcomG6SensorSessionResponse", json: "[0]").packets
+        let start = try OracleRunner.encode(txId: 35, messageName: "StartDexcomG6SensorSessionResponse", json: "[0]")
+            .packets
         #expect(try #require(try parse(start, on: .control).message as? StartDexcomG6SensorSessionResponse).accepted)
-        let stop = try OracleRunner.encode(txId: 36, messageName: "StopDexcomCGMSensorSessionResponse", json: "[0]").packets
+        let stop = try OracleRunner.encode(txId: 36, messageName: "StopDexcomCGMSensorSessionResponse", json: "[0]")
+            .packets
         #expect(try #require(try parse(stop, on: .control).message as? StopDexcomCGMSensorSessionResponse).accepted)
         let sensor = try OracleRunner.encode(txId: 37, messageName: "SetSensorTypeResponse", json: "[0, 1]").packets
         let sm = try #require(try parse(sensor, on: .control).message as? SetSensorTypeResponse)
@@ -342,7 +369,8 @@ import Testing
 
     @Test func currentBatteryV1ResponseParses() throws {
         let packets = try OracleRunner.encode(
-            txId: 13, messageName: "CurrentBatteryV1Response", json: "[50, 78]").packets
+            txId: 13, messageName: "CurrentBatteryV1Response", json: "[50, 78]"
+        ).packets
         let msg = try #require(try parse(packets).message as? CurrentBatteryV1Response)
         #expect(msg.currentBatteryAbc == 50)
         #expect(msg.batteryPercent == 78)
@@ -359,7 +387,8 @@ import Testing
 
     @Test func controlIQIOBResponseParses() throws {
         let packets = try OracleRunner.encode(
-            txId: 1, messageName: "ControlIQIOBResponse", json: "[240, 17940, 240, 240, 0]").packets
+            txId: 1, messageName: "ControlIQIOBResponse", json: "[240, 17940, 240, 240, 0]"
+        ).packets
         let parsed = try parse(packets)
         let msg = try #require(parsed.message as? ControlIQIOBResponse)
         #expect(msg.mudaliarIOB == 240)
@@ -370,21 +399,24 @@ import Testing
 
     @Test func insulinStatusResponseParses() throws {
         let packets = try OracleRunner.encode(
-            txId: 2, messageName: "InsulinStatusResponse", json: "[142, 0, 0]").packets
+            txId: 2, messageName: "InsulinStatusResponse", json: "[142, 0, 0]"
+        ).packets
         let msg = try #require(try parse(packets).message as? InsulinStatusResponse)
         #expect(msg.currentInsulinAmount == 142)
     }
 
     @Test func currentBatteryV2ResponseParses() throws {
         let packets = try OracleRunner.encode(
-            txId: 3, messageName: "CurrentBatteryV2Response", json: "[75, 78, 0, 0, 0, 0, 0]").packets
+            txId: 3, messageName: "CurrentBatteryV2Response", json: "[75, 78, 0, 0, 0, 0, 0]"
+        ).packets
         let msg = try #require(try parse(packets).message as? CurrentBatteryV2Response)
         #expect(msg.batteryPercent == 78)
     }
 
     @Test func bolusPermissionResponseParses() throws {
         let packets = try OracleRunner.encode(
-            txId: 4, messageName: "BolusPermissionResponse", json: "[0, 10650, 0]").packets
+            txId: 4, messageName: "BolusPermissionResponse", json: "[0, 10650, 0]"
+        ).packets
         let msg = try #require(try parse(packets, on: .control).message as? BolusPermissionResponse)
         #expect(msg.granted)
         #expect(msg.bolusId == 10650)
@@ -392,7 +424,8 @@ import Testing
 
     @Test func initiateBolusResponseParses() throws {
         let packets = try OracleRunner.encode(
-            txId: 5, messageName: "InitiateBolusResponse", json: "[0, 10650, 0]").packets
+            txId: 5, messageName: "InitiateBolusResponse", json: "[0, 10650, 0]"
+        ).packets
         let msg = try #require(try parse(packets, on: .control).message as? InitiateBolusResponse)
         #expect(msg.accepted)
         #expect(msg.bolusId == 10650)
@@ -420,7 +453,8 @@ import Testing
         // [bgReadingTimestampSeconds, cgmReading, egvStatusId, trendRate]
         // egvStatusId 1 = VALID
         let packets = try OracleRunner.encode(
-            txId: 7, messageName: "CurrentEgvGuiDataV2Response", json: "[461589432, 142, 1, 12]").packets
+            txId: 7, messageName: "CurrentEgvGuiDataV2Response", json: "[461589432, 142, 1, 12]"
+        ).packets
         let msg = try #require(try parse(packets).message as? CurrentEgvGuiDataV2Response)
         #expect(msg.cgmReading == 142)
         #expect(msg.trendRate == 12)
@@ -431,7 +465,8 @@ import Testing
     @Test func basalStatusResponseParses() throws {
         // [profileBasalRate, currentBasalRate, basalModifiedBitmask] — milliunits/hr
         let packets = try OracleRunner.encode(
-            txId: 8, messageName: "CurrentBasalStatusResponse", json: "[850, 850, 0]").packets
+            txId: 8, messageName: "CurrentBasalStatusResponse", json: "[850, 850, 0]"
+        ).packets
         let msg = try #require(try parse(packets).message as? CurrentBasalStatusResponse)
         #expect(msg.currentBasalRate == 850)
         #expect(msg.currentBasalUnitsPerHour == 0.85)
@@ -442,7 +477,8 @@ import Testing
         //  bolusTypeBitmask, extendedBolusDuration, requestedVolume]
         let packets = try OracleRunner.encode(
             txId: 9, messageName: "LastBolusStatusV2Response",
-            json: "[1, 10650, 461510714, 1000, 3, 8, 8, 0, 1000]").packets
+            json: "[1, 10650, 461510714, 1000, 3, 8, 8, 0, 1000]"
+        ).packets
         let msg = try #require(try parse(packets).message as? LastBolusStatusV2Response)
         #expect(msg.bolusId == 10650)
         #expect(msg.deliveredVolume == 1000)
@@ -452,9 +488,10 @@ import Testing
     /// A corrupted CRC must be rejected.
     @Test func crcMismatchRejected() throws {
         let packets = try OracleRunner.encode(
-            txId: 6, messageName: "InsulinStatusResponse", json: "[142, 0, 0]").packets
+            txId: 6, messageName: "InsulinStatusResponse", json: "[142, 0, 0]"
+        ).packets
         var f = try frame(packets)
-        f[f.count - 1] ^= 0xFF   // corrupt CRC
+        f[f.count - 1] ^= 0xFF  // corrupt CRC
         #expect(throws: ResponseParser.ParseError.self) {
             try ResponseParser.parse(frame: f, characteristic: .currentStatus)
         }

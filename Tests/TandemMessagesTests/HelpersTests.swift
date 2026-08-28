@@ -9,7 +9,7 @@ import Testing
 
     @Test func decode() throws {
         #expect(try Hex.decode("000fffa5") == [0x00, 0x0f, 0xff, 0xa5])
-        #expect(try Hex.decode("ABCDEF") == [0xab, 0xcd, 0xef]) // case-insensitive
+        #expect(try Hex.decode("ABCDEF") == [0xab, 0xcd, 0xef])  // case-insensitive
     }
 
     @Test func roundTrip() throws {
@@ -86,8 +86,8 @@ import Testing
     @Test func writeStringExactFitBoundaryAndPad() {
         #expect(Bytes.writeString("é", 4) == [0xc3, 0xa9, 0, 0])
         #expect(Bytes.writeString("é", 4).count == 4)
-        #expect(Bytes.writeString("abc", 3).count == 3)   // exact-fit ASCII, no padding
-        #expect(Bytes.writeString("Mobi", 10).count == 10) // short-input NUL-pad
+        #expect(Bytes.writeString("abc", 3).count == 3)  // exact-fit ASCII, no padding
+        #expect(Bytes.writeString("Mobi", 10).count == 10)  // short-input NUL-pad
     }
 
     @Test func combineAndSlices() {

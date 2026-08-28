@@ -13,7 +13,9 @@ import Foundation
     @Test func catalogEnumeratesEveryRequestWithoutDuplicates() {
         let names = BenchCommandCatalog.all.map { $0.name }
         #expect(names.count == BenchCommandCatalog.messageTypes.count)
-        #expect(Set(names).count == names.count, "duplicate command names in the catalog: \(names.count) vs \(Set(names).count)")
+        #expect(
+            Set(names).count == names.count,
+            "duplicate command names in the catalog: \(names.count) vs \(Set(names).count)")
         // The full request surface under Sources/TandemMessages/Requests is 125 types.
         #expect(names.count == 125, "catalog drifted from the 125-request surface (got \(names.count))")
     }
@@ -24,8 +26,9 @@ import Foundation
         #expect(delivery.count == 14, "expected 14 modifiesInsulinDelivery commands, got \(delivery.count)")
 
         let universal = Set(BenchCommandCatalog.universalDeliveryCommands.map { $0.name })
-        #expect(universal == ["InitiateBolusRequest", "AdditionalBolusRequest", "EnterChangeCartridgeModeRequest"],
-                "universal delivery set drifted: \(universal.sorted())")
+        #expect(
+            universal == ["InitiateBolusRequest", "AdditionalBolusRequest", "EnterChangeCartridgeModeRequest"],
+            "universal delivery set drifted: \(universal.sorted())")
 
         let mobiOnly = Set(BenchCommandCatalog.mobiOnlyDeliveryCommands.map { $0.name })
         // Ground truth from the messages' own props (NOT hand-guessed): the delivery IDP op is
@@ -34,7 +37,7 @@ import Foundation
         let expectedMobi: Set<String> = [
             "SetModesRequest", "SetActiveIDPRequest", "FillCannulaRequest", "EnterFillTubingModeRequest",
             "SetTempRateRequest", "StopTempRateRequest", "SuspendPumpingRequest", "ResumePumpingRequest",
-            "CreateIDPRequest", "DeleteIDPRequest", "RenameIDPRequest",
+            "CreateIDPRequest", "DeleteIDPRequest", "RenameIDPRequest"
         ]
         #expect(mobiOnly == expectedMobi, "Mobi-only delivery set drifted: \(mobiOnly.sorted())")
         #expect(mobiOnly.count == 11)
@@ -50,13 +53,17 @@ import Foundation
 
     /// `requiresCGM` is a name-driven, self-maintaining predicate covering the CGM/glucose family.
     @Test func requiresCGMPredicateClassifiesTheCgmFamily() {
-        for name in ["CurrentEgvGuiDataV2Request", "CGMStatusRequest", "StartDexcomG6SensorSessionRequest",
-                     "SetG6TransmitterIdRequest", "GetSavedG7PairingCodeRequest", "SetSensorTypeRequest",
-                     "CgmHighLowAlertRequest"] {
+        for name in [
+            "CurrentEgvGuiDataV2Request", "CGMStatusRequest", "StartDexcomG6SensorSessionRequest",
+            "SetG6TransmitterIdRequest", "GetSavedG7PairingCodeRequest", "SetSensorTypeRequest",
+            "CgmHighLowAlertRequest"
+        ] {
             #expect(BenchCommandCatalog.requiresCGM(name: name), "\(name) should be CGM-dependent")
         }
-        for name in ["InsulinStatusRequest", "InitiateBolusRequest", "CurrentBatteryV2Request",
-                     "ApiVersionRequest", "SetMaxBolusLimitRequest", "LastBGRequest"] {
+        for name in [
+            "InsulinStatusRequest", "InitiateBolusRequest", "CurrentBatteryV2Request",
+            "ApiVersionRequest", "SetMaxBolusLimitRequest", "LastBGRequest"
+        ] {
             #expect(!BenchCommandCatalog.requiresCGM(name: name), "\(name) should NOT be CGM-dependent")
         }
     }
@@ -120,8 +127,11 @@ import Foundation
 
     /// A CGM-dependent read (with a satisfiable API floor) is deferred without a sensor, exercised with one.
     @Test func cgmReadGatedOnCgmPresent() {
-        if case .deferred(let r) = plan("CGMStatusRequest", Self.mobiSaline) { #expect(r.contains("CGM")) }
-        else { Issue.record("expected deferred without CGM") }
+        if case .deferred(let r) = plan("CGMStatusRequest", Self.mobiSaline) {
+            #expect(r.contains("CGM"))
+        } else {
+            Issue.record("expected deferred without CGM")
+        }
         #expect(plan("CGMStatusRequest", Self.mobiSalineCgm) == .exercise(.read))
     }
 
@@ -130,30 +140,45 @@ import Foundation
     @Test func futureApiFlooredReadDefersOnAllKnownFirmware() {
         let egvV2 = cmd("CurrentEgvGuiDataV2Request")
         #expect(egvV2.minApi == .future)
-        if case .deferred = plan("CurrentEgvGuiDataV2Request", Self.mobiSalineCgm) {} else {
+        if case .deferred = plan("CurrentEgvGuiDataV2Request", Self.mobiSalineCgm) {
+        } else {
             Issue.record("an API_FUTURE-floored read must defer even on the fullest config")
         }
     }
 
     /// A universal delivery command: deferred without a cartridge, deferred without saline attest, then exercised.
     @Test func universalDeliveryGating() {
-        let noCart = BenchSessionConfig(model: .tslim, apiVersion: .v3_4, firmwareLabel: "SW7.8", pairingScheme: .jpake,
-                                        cartridgePresent: false, cgmPresent: false, salineAttested: false, deliveryEnabled: false)
-        if case .deferred(let r) = plan("InitiateBolusRequest", noCart) { #expect(r.contains("cartridge")) }
-        else { Issue.record("expected deferred (no cartridge)") }
+        let noCart = BenchSessionConfig(
+            model: .tslim, apiVersion: .v3_4, firmwareLabel: "SW7.8", pairingScheme: .jpake,
+            cartridgePresent: false, cgmPresent: false, salineAttested: false, deliveryEnabled: false)
+        if case .deferred(let r) = plan("InitiateBolusRequest", noCart) {
+            #expect(r.contains("cartridge"))
+        } else {
+            Issue.record("expected deferred (no cartridge)")
+        }
 
-        let cartNoSaline = BenchSessionConfig(model: .tslim, apiVersion: .v3_4, firmwareLabel: "SW7.8", pairingScheme: .jpake,
-                                              cartridgePresent: true, cgmPresent: false, salineAttested: false, deliveryEnabled: false)
-        if case .deferred(let r) = plan("InitiateBolusRequest", cartNoSaline) { #expect(r.contains("saline")) }
-        else { Issue.record("expected deferred (no saline attest)") }
+        let cartNoSaline = BenchSessionConfig(
+            model: .tslim, apiVersion: .v3_4, firmwareLabel: "SW7.8", pairingScheme: .jpake,
+            cartridgePresent: true, cgmPresent: false, salineAttested: false, deliveryEnabled: false)
+        if case .deferred(let r) = plan("InitiateBolusRequest", cartNoSaline) {
+            #expect(r.contains("saline"))
+        } else {
+            Issue.record("expected deferred (no saline attest)")
+        }
 
         #expect(plan("InitiateBolusRequest", Self.oldTslimSaline) == .exercise(.delivery))
     }
 
     /// A Mobi-only delivery command is N/A on t:slim (any firmware), and exercisable on a saline Mobi.
     @Test func mobiOnlyDeliveryIsNotApplicableOnTslim() {
-        if case .notApplicable = plan("SetTempRateRequest", Self.oldTslimSaline) {} else { Issue.record("expected N/A on t:slim") }
-        if case .notApplicable = plan("SetTempRateRequest", Self.newTslim) {} else { Issue.record("expected N/A on new t:slim") }
+        if case .notApplicable = plan("SetTempRateRequest", Self.oldTslimSaline) {
+        } else {
+            Issue.record("expected N/A on t:slim")
+        }
+        if case .notApplicable = plan("SetTempRateRequest", Self.newTslim) {
+        } else {
+            Issue.record("expected N/A on new t:slim")
+        }
         #expect(plan("SetTempRateRequest", Self.mobiSaline) == .exercise(.delivery))
     }
 
@@ -161,39 +186,66 @@ import Foundation
     /// MANUAL gap; reversible-but-not-yet-wired → pending gap; a wired reversible affordance → exercise.
     @Test func signedWriteDispositionFollowsAffordanceCatalog() {
         // Destructive → MANUAL gap (never auto-fired).
-        if case .gap(let r) = plan("FactoryResetRequest", Self.oldTslim) { #expect(r.contains("MANUAL")) }
-        else { Issue.record("expected MANUAL gap for FactoryReset") }
-        if case .gap(let r) = plan("ActivateShelfModeRequest", Self.oldTslim) { #expect(r.contains("MANUAL")) }
-        else { Issue.record("expected MANUAL gap for ActivateShelfMode") }
+        if case .gap(let r) = plan("FactoryResetRequest", Self.oldTslim) {
+            #expect(r.contains("MANUAL"))
+        } else {
+            Issue.record("expected MANUAL gap for FactoryReset")
+        }
+        if case .gap(let r) = plan("ActivateShelfModeRequest", Self.oldTslim) {
+            #expect(r.contains("MANUAL"))
+        } else {
+            Issue.record("expected MANUAL gap for ActivateShelfMode")
+        }
         // Reversible-but-unwired → pending gap.
-        if case .gap(let r) = plan("SetBgReminderRequest", Self.oldTslim) { #expect(r.contains("pending")) }
-        else { Issue.record("expected pending gap for SetBgReminder") }
+        if case .gap(let r) = plan("SetBgReminderRequest", Self.oldTslim) {
+            #expect(r.contains("pending"))
+        } else {
+            Issue.record("expected pending gap for SetBgReminder")
+        }
         // Wired reversible affordances → exercise (no PUMPX2_DELIVER_SALINE needed).
         // SetMaxBolusLimit / ChangeTimeDate / PlaySound now carry the conservative minApi floor
         // (.benchConservativeUnverifiedFloor = 3.4, ported from experimental@245b531 — C4-01/CX-T-03),
         // which the classifier checks BEFORE the affordance logic, so the API-2.5 oldTslim session
         // correctly DEFERS them instead of exercising (fail-safe: never send to a firmware that op-77s).
-        if case .deferred(let r) = plan("SetMaxBolusLimitRequest", Self.oldTslim) { #expect(r.contains("3.4")) }
-        else { Issue.record("SetMaxBolusLimit should defer on the API-2.5 t:slim (conservative minApi floor)") }
-        if case .deferred(let r) = plan("ChangeTimeDateRequest", Self.oldTslim) { #expect(r.contains("3.4")) }
-        else { Issue.record("ChangeTimeDate should defer on the API-2.5 t:slim (conservative minApi floor)") }
-        #expect(plan("BolusPermissionRequest", Self.oldTslim) == .exercise(.signedWrite))    // benignProbe (minApi .v2_5)
-        if case .deferred(let r) = plan("PlaySoundRequest", Self.oldTslim) { #expect(r.contains("3.4")) }
-        else { Issue.record("PlaySound should defer on the API-2.5 t:slim (conservative minApi floor)") }
-        #expect(plan("CancelBolusRequest", Self.oldTslim) == .exercise(.signedWrite))        // benignProbe
+        if case .deferred(let r) = plan("SetMaxBolusLimitRequest", Self.oldTslim) {
+            #expect(r.contains("3.4"))
+        } else {
+            Issue.record("SetMaxBolusLimit should defer on the API-2.5 t:slim (conservative minApi floor)")
+        }
+        if case .deferred(let r) = plan("ChangeTimeDateRequest", Self.oldTslim) {
+            #expect(r.contains("3.4"))
+        } else {
+            Issue.record("ChangeTimeDate should defer on the API-2.5 t:slim (conservative minApi floor)")
+        }
+        #expect(plan("BolusPermissionRequest", Self.oldTslim) == .exercise(.signedWrite))  // benignProbe (minApi .v2_5)
+        if case .deferred(let r) = plan("PlaySoundRequest", Self.oldTslim) {
+            #expect(r.contains("3.4"))
+        } else {
+            Issue.record("PlaySound should defer on the API-2.5 t:slim (conservative minApi floor)")
+        }
+        #expect(plan("CancelBolusRequest", Self.oldTslim) == .exercise(.signedWrite))  // benignProbe
         // Restore-half of a delivery pair → GAP (recorded when the primary pair runs behind the saline gate).
-        if case .gap(let r) = plan("ExitChangeCartridgeModeRequest", Self.oldTslim) { #expect(r.contains("restore-half")) }
-        else { Issue.record("expected restore-half gap for ExitChangeCartridgeMode") }
+        if case .gap(let r) = plan("ExitChangeCartridgeModeRequest", Self.oldTslim) {
+            #expect(r.contains("restore-half"))
+        } else {
+            Issue.record("expected restore-half gap for ExitChangeCartridgeMode")
+        }
     }
 
     /// Pairing coverage is attributed by scheme + API floor.
     @Test func pairingGatedBySchemeAndApi() {
         // JPAKE needs API >= 3.2 → deferred on the old (2.5) t:slim, exercised on a JPAKE session.
-        if case .deferred = plan("Jpake1aRequest", Self.oldTslim) {} else { Issue.record("JPAKE should defer on API 2.5") }
+        if case .deferred = plan("Jpake1aRequest", Self.oldTslim) {
+        } else {
+            Issue.record("JPAKE should defer on API 2.5")
+        }
         #expect(plan("Jpake1aRequest", Self.newTslim) == .exercise(.pairing))
         // Legacy V1 is exercised on the legacy session, deferred on a JPAKE session.
         #expect(plan("CentralChallengeRequest", Self.oldTslim) == .exercise(.pairing))
-        if case .deferred = plan("CentralChallengeRequest", Self.newTslim) {} else { Issue.record("legacy V1 should defer on a JPAKE session") }
+        if case .deferred = plan("CentralChallengeRequest", Self.newTslim) {
+        } else {
+            Issue.record("legacy V1 should defer on a JPAKE session")
+        }
     }
 
     /// planSession classifies EVERY catalog command and never crashes; counts are sane.
@@ -209,11 +261,14 @@ import Foundation
 
 @Suite struct BenchCoverageMatrixTests {
 
-    private func cell(_ command: String, _ state: BenchCellState, model: String = "mobi",
-                      firmware: String = "SW7.7", cartridge: Bool = true, cgm: Bool = false,
-                      ts: String) -> BenchCoverageCell {
-        BenchCoverageCell(model: model, firmware: firmware, cartridge: cartridge, cgm: cgm,
-                          command: command, lane: .delivery, state: state, note: "", session: "s", timestamp: ts)
+    private func cell(
+        _ command: String, _ state: BenchCellState, model: String = "mobi",
+        firmware: String = "SW7.7", cartridge: Bool = true, cgm: Bool = false,
+        ts: String
+    ) -> BenchCoverageCell {
+        BenchCoverageCell(
+            model: model, firmware: firmware, cartridge: cartridge, cgm: cgm,
+            command: command, lane: .delivery, state: state, note: "", session: "s", timestamp: ts)
     }
 
     /// A real result (pass/fail) always beats a "can't-test-here" placeholder, regardless of order.
@@ -247,9 +302,11 @@ import Foundation
         // Session B (t:slim, no cartridge) recorded delivery as deferred and a read as pass.
         var b = BenchCoverageMatrix()
         b.record(cell("InitiateBolusRequest", .deferred, model: "tslim", cartridge: false, ts: "T2"))
-        b.record(BenchCoverageCell(model: "tslim", firmware: "SW7.8", cartridge: false, cgm: false,
-                                   command: "InsulinStatusRequest", lane: .read, state: .pass,
-                                   note: "", session: "s", timestamp: "T2"))
+        b.record(
+            BenchCoverageCell(
+                model: "tslim", firmware: "SW7.8", cartridge: false, cgm: false,
+                command: "InsulinStatusRequest", lane: .read, state: .pass,
+                note: "", session: "s", timestamp: "T2"))
         let merged = a.merging(b)
         // Both sessions' distinct keys survive (different model axis) → 3 cells.
         #expect(merged.cells.count == 3)
@@ -269,12 +326,16 @@ import Foundation
     /// remaining() lists deferred/untested/fail (with the config note) but not N/A or gap.
     @Test func remainingListsOnlyCoverableGaps() {
         var m = BenchCoverageMatrix()
-        m.record(BenchCoverageCell(model: "tslim", firmware: "SW7.8", cartridge: false, cgm: true,
-                                   command: "CurrentEgvGuiDataV2Request", lane: .read, state: .deferred,
-                                   note: "needs a CGM-present session", session: "s", timestamp: "T1"))
-        m.record(BenchCoverageCell(model: "tslim", firmware: "SW7.8", cartridge: false, cgm: false,
-                                   command: "FactoryResetRequest", lane: .signedWrite, state: .gap,
-                                   note: "destructive", session: "s", timestamp: "T1"))
+        m.record(
+            BenchCoverageCell(
+                model: "tslim", firmware: "SW7.8", cartridge: false, cgm: true,
+                command: "CurrentEgvGuiDataV2Request", lane: .read, state: .deferred,
+                note: "needs a CGM-present session", session: "s", timestamp: "T1"))
+        m.record(
+            BenchCoverageCell(
+                model: "tslim", firmware: "SW7.8", cartridge: false, cgm: false,
+                command: "FactoryResetRequest", lane: .signedWrite, state: .gap,
+                note: "destructive", session: "s", timestamp: "T1"))
         let rem = m.remaining()
         #expect(rem.contains { $0.command == "CurrentEgvGuiDataV2Request" })
         #expect(rem.contains { $0.command == "FactoryResetRequest" } == false, "gaps are not 'coverable-but-missing'")
@@ -301,7 +362,7 @@ import Foundation
         #expect(md.contains("## Summary"))
         #expect(md.contains("## Coverage by session config"))
         #expect(md.contains("Still uncovered"))
-        #expect(md.contains("Not auto-fired"))   // the manual/owner-judgment GAP section
+        #expect(md.contains("Not auto-fired"))  // the manual/owner-judgment GAP section
     }
 }
 
@@ -317,8 +378,9 @@ import Foundation
     /// so nothing falls through to an "unclassified" gap. Guards against drift as messages are added.
     @Test func everyStateChangingCommandHasAnAffordance() {
         for c in BenchCommandCatalog.all where c.lane == .delivery || c.lane == .signedWrite {
-            #expect(BenchAffordanceCatalog.affordance(for: c.name) != nil,
-                    "\(c.name) (lane \(c.lane.rawValue)) has no reversible-affordance entry")
+            #expect(
+                BenchAffordanceCatalog.affordance(for: c.name) != nil,
+                "\(c.name) (lane \(c.lane.rawValue)) has no reversible-affordance entry")
         }
         // Reads and pairing are NOT expected to have write affordances.
         #expect(BenchAffordanceCatalog.affordance(for: "InsulinStatusRequest") == nil)
@@ -328,7 +390,8 @@ import Foundation
     @Test func deliveryAffordancesAreFourteenAndGated() {
         let delivery = BenchAffordanceCatalog.deliveryAffordances
         #expect(delivery.count == 14, "expected 14 delivery affordances, got \(delivery.count)")
-        #expect(delivery.allSatisfy { $0.gatedOnSalineDelivery }, "every delivery affordance must require the saline gate")
+        #expect(
+            delivery.allSatisfy { $0.gatedOnSalineDelivery }, "every delivery affordance must require the saline gate")
         #expect(aff("InitiateBolusRequest").kind == .deliverOracle)
         #expect(aff("AdditionalBolusRequest").kind == .deliverOracle)
         #expect(aff("FillCannulaRequest").oracleRead == "LoadStatusRequest")
@@ -353,7 +416,7 @@ import Foundation
             ("EnterChangeCartridgeModeRequest", "ExitChangeCartridgeModeRequest"),
             ("EnterFillTubingModeRequest", "ExitFillTubingModeRequest"),
             ("CreateIDPRequest", "DeleteIDPRequest"),
-            ("BolusPermissionRequest", "BolusPermissionReleaseRequest"),
+            ("BolusPermissionRequest", "BolusPermissionReleaseRequest")
         ]
         for (primary, partner) in pairs {
             #expect(aff(primary).role == .primary, "\(primary) should be the primary")
@@ -368,15 +431,19 @@ import Foundation
         let names = Set(BenchCommandCatalog.all.map { $0.name })
         for a in BenchAffordanceCatalog.all {
             if let p = a.partner { #expect(names.contains(p), "\(a.command) partner \(p) is not a catalog command") }
-            if let o = a.oracleRead { #expect(names.contains(o), "\(a.command) oracleRead \(o) is not a catalog command") }
+            if let o = a.oracleRead {
+                #expect(names.contains(o), "\(a.command) oracleRead \(o) is not a catalog command")
+            }
         }
     }
 
     /// Destructive / irreversible commands are `.manualOnly` and are NEVER in the drivable allowlist.
     @Test func destructiveCommandsAreManualOnly() {
         let manual = Set(BenchAffordanceCatalog.manualOnly.map { $0.command })
-        for n in ["ActivateShelfModeRequest", "DisconnectPumpRequest", "FactoryResetRequest",
-                  "FactoryResetBRequest", "StopDexcomCGMSensorSessionRequest", "SetDexcomG7PairingCodeRequest"] {
+        for n in [
+            "ActivateShelfModeRequest", "DisconnectPumpRequest", "FactoryResetRequest",
+            "FactoryResetBRequest", "StopDexcomCGMSensorSessionRequest", "SetDexcomG7PairingCodeRequest"
+        ] {
             #expect(manual.contains(n), "\(n) must be manual-only")
             #expect(!BenchAffordanceCatalog.isRunnerDrivable(n), "\(n) must never be runner-drivable")
         }
@@ -389,9 +456,11 @@ import Foundation
         #expect(allow == Set(BenchAffordanceCatalog.drivableSignedWrites.map { $0.command }))
         #expect(allow.count > 3, "the allowlist should have grown past the original 3 (got \(allow.count))")
         // Sample of the newly-covered writes.
-        for n in ["ChangeTimeDateRequest", "SetMaxBolusLimitRequest", "SetMaxBasalLimitRequest",
-                  "ChangeControlIQSettingsRequest", "SetLowInsulinAlertRequest", "PlaySoundRequest",
-                  "UserInteractionRequest", "RemoteCarbEntryRequest", "CancelBolusRequest"] {
+        for n in [
+            "ChangeTimeDateRequest", "SetMaxBolusLimitRequest", "SetMaxBasalLimitRequest",
+            "ChangeControlIQSettingsRequest", "SetLowInsulinAlertRequest", "PlaySoundRequest",
+            "UserInteractionRequest", "RemoteCarbEntryRequest", "CancelBolusRequest"
+        ] {
             #expect(allow.contains(n), "\(n) should now be runner-drivable")
         }
         // Delivery writes and destructive writes are NOT in the non-delivery allowlist.
@@ -406,20 +475,29 @@ import Foundation
         for a in BenchAffordanceCatalog.deliveryAffordances {
             let c = cmd(a.command)
             // Mobi + CGM + saline: exercisable regardless of model (all 14 are Mobi-legal or universal).
-            #expect(BenchCoverage.plan(for: c, in: mobiFull) == .exercise(.delivery),
-                    "\(a.command) should be exercisable on a saline Mobi+CGM session")
+            #expect(
+                BenchCoverage.plan(for: c, in: mobiFull) == .exercise(.delivery),
+                "\(a.command) should be exercisable on a saline Mobi+CGM session")
         }
         // No-cartridge t:slim: universal delivery defers on cartridge; Mobi-only delivery is N/A.
-        if case .deferred = BenchCoverage.plan(for: cmd("EnterChangeCartridgeModeRequest"), in: BenchCoveragePlanTests.oldTslim) {} else {
+        if case .deferred = BenchCoverage.plan(
+            for: cmd("EnterChangeCartridgeModeRequest"), in: BenchCoveragePlanTests.oldTslim)
+        {
+        } else {
             Issue.record("universal delivery should defer (no cartridge) on the old t:slim")
         }
-        if case .notApplicable = BenchCoverage.plan(for: cmd("SuspendPumpingRequest"), in: BenchCoveragePlanTests.oldTslim) {} else {
+        if case .notApplicable = BenchCoverage.plan(
+            for: cmd("SuspendPumpingRequest"), in: BenchCoveragePlanTests.oldTslim)
+        {
+        } else {
             Issue.record("Mobi-only delivery should be N/A on a t:slim")
         }
         // Drivable signed writes need no saline gate, but SetMaxBolusLimitRequest now carries the
         // conservative minApi floor (3.4, ported C4-01/CX-T-03) which gates it ahead of the affordance
         // check — it correctly DEFERS on the API-2.5 old t:slim rather than exercising.
-        if case .deferred(let r) = BenchCoverage.plan(for: cmd("SetMaxBolusLimitRequest"), in: BenchCoveragePlanTests.oldTslim) {
+        if case .deferred(let r) = BenchCoverage.plan(
+            for: cmd("SetMaxBolusLimitRequest"), in: BenchCoveragePlanTests.oldTslim)
+        {
             #expect(r.contains("3.4"))
         } else {
             Issue.record("SetMaxBolusLimit should defer on the API-2.5 t:slim (conservative minApi floor)")

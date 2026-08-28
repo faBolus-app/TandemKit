@@ -20,8 +20,9 @@ import Foundation
 /// Cargo layout (matches the oracle `parse()`):
 ///   `appInstanceId` (2, LE) + `centralChallengeHash` (20) + `hmacKey` (8) = 30 bytes.
 public struct CentralChallengeResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 17, size: 30, type: .response,
-                                           characteristic: .authorization)
+    public static let props = MessageProps(
+        opCode: 17, size: 30, type: .response,
+        characteristic: .authorization)
     public var cargo: [UInt8]
     /// App-chosen id the pump echoes back (0 on a fresh pair).
     public private(set) var appInstanceId: Int = 0
@@ -39,8 +40,8 @@ public struct CentralChallengeResponse: ResponseMessage {
         // an unusable response, not a crash). A valid frame is exactly 30 bytes.
         if raw.count >= 30 {
             appInstanceId = Bytes.readShort(raw, 0)
-            centralChallengeHash = Array(raw[2..<22])   // len 20 (raw[2..22])
-            hmacKey = Array(raw[22..<30])               // len 8  (raw[22..30])
+            centralChallengeHash = Array(raw[2..<22])  // len 20 (raw[2..22])
+            hmacKey = Array(raw[22..<30])  // len 8  (raw[22..30])
         }
     }
     public mutating func parse(_ raw: [UInt8]) { self = CentralChallengeResponse(cargo: raw) }
@@ -54,8 +55,9 @@ public struct CentralChallengeResponse: ResponseMessage {
 ///
 /// Cargo layout: `appInstanceId` (2, LE) + `success` (1: `raw[2] == 1`) = 3 bytes.
 public struct PumpChallengeResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 19, size: 3, type: .response,
-                                           characteristic: .authorization)
+    public static let props = MessageProps(
+        opCode: 19, size: 3, type: .response,
+        characteristic: .authorization)
     public var cargo: [UInt8]
     public private(set) var appInstanceId: Int = 0
     /// Pairing accepted. A malformed/short reply parses as `false` (fail-closed — never assume a

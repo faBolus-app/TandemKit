@@ -55,7 +55,7 @@ import TandemMessages
     /// caller hanging or the policy standing elevated (PX-04/PX-08), exactly like the two correct siblings.
     @MainActor @Test func writeErrorFailsClosedAndResumesPendingTransaction() async {
         let client = PumpBLEClient(central: FakeCentral())
-        client.writePolicy = .allowDelivery   // elevate first, so the reset is observable
+        client.writePolicy = .allowDelivery  // elevate first, so the reset is observable
         let pending = await launchAndRegister(client.transactions, on: .currentStatus, opCode: 0x01)
 
         client.handleWriteResult(error: Boom())
@@ -88,8 +88,9 @@ import TandemMessages
 
         client.handleNotificationStateUpdate(mapped: .currentStatus, isNotifying: false, error: nil)
 
-        #expect(client.state != .ready,
-                "a post-ready notification loss must revoke readiness, not be silently absorbed")
+        #expect(
+            client.state != .ready,
+            "a post-ready notification loss must revoke readiness, not be silently absorbed")
     }
 
     /// A notification CONFIRMATION (isNotifying == true) while `.ready` must NOT revoke readiness — the
@@ -131,18 +132,23 @@ import TandemMessages
     @MainActor @Test func postReadyNotificationLossDoesNotResetWritePolicyOrFailPending() async {
         let client = PumpBLEClient(central: FakeCentral())
         client.stateForTesting = .ready
-        client.writePolicy = .allowDelivery              // elevated, so a spurious reset would be observable
+        client.writePolicy = .allowDelivery  // elevated, so a spurious reset would be observable
         let pending = await launchAndRegister(client.transactions, on: .currentStatus, opCode: 0x01)
 
         client.handleNotificationStateUpdate(mapped: .currentStatus, isNotifying: false, error: nil)
 
-        #expect(client.state == .discovering,
-                "a notify-only loss revokes readiness to .discovering (re-declarable), not a full teardown")
-        #expect(client.writePolicy == .allowDelivery,
-                "14-WR-02: a notify-only loss must NOT reset writePolicy — the gate is writePolicy + serialization, not state")
-        #expect(client.transactions.inFlightCount == 1,
-                "14-WR-02: a notify-only loss must NOT fail in-flight transactions (that would be an unbenched reliability change)")
-        pending.cancel()   // cleanup: nothing resolves this pending tx by design, so cancel the awaiting task
+        #expect(
+            client.state == .discovering,
+            "a notify-only loss revokes readiness to .discovering (re-declarable), not a full teardown")
+        #expect(
+            client.writePolicy == .allowDelivery,
+            "14-WR-02: a notify-only loss must NOT reset writePolicy — the gate is writePolicy + serialization, not state"
+        )
+        #expect(
+            client.transactions.inFlightCount == 1,
+            "14-WR-02: a notify-only loss must NOT fail in-flight transactions (that would be an unbenched reliability change)"
+        )
+        pending.cancel()  // cleanup: nothing resolves this pending tx by design, so cancel the awaiting task
     }
 
     // MARK: - debug pump-drop-no-reconnect: revoked .discovering must NOT hang silently until force-quit
@@ -169,15 +175,19 @@ import TandemMessages
         let client = PumpBLEClient(central: FakeCentral())
         client.stateForTesting = .ready
 
-        #expect(!client.establishmentWatchdogArmedForTesting,
-                "precondition: no establishment watchdog is armed while `.ready`")
+        #expect(
+            !client.establishmentWatchdogArmedForTesting,
+            "precondition: no establishment watchdog is armed while `.ready`")
 
         client.handleNotificationStateUpdate(mapped: .currentStatus, isNotifying: false, error: nil)
 
-        #expect(client.state == .discovering,
-                "a notify loss revokes to the re-declarable `.discovering` (unchanged contract)")
-        #expect(client.establishmentWatchdogArmedForTesting,
-                "a revoked `.discovering` MUST arm the establishment-watchdog backstop so it can never hang silently until force-quit (debug pump-drop-no-reconnect 2.1)")
+        #expect(
+            client.state == .discovering,
+            "a notify loss revokes to the re-declarable `.discovering` (unchanged contract)")
+        #expect(
+            client.establishmentWatchdogArmedForTesting,
+            "a revoked `.discovering` MUST arm the establishment-watchdog backstop so it can never hang silently until force-quit (debug pump-drop-no-reconnect 2.1)"
+        )
     }
 
     /// Boundary: a notification CONFIRMATION while `.ready` must NOT arm the recovery backstop — the
@@ -189,7 +199,8 @@ import TandemMessages
 
         client.handleNotificationStateUpdate(mapped: .currentStatus, isNotifying: true, error: nil)
 
-        #expect(!client.establishmentWatchdogArmedForTesting,
-                "a notify confirmation on a healthy `.ready` link must not arm the establishment watchdog")
+        #expect(
+            !client.establishmentWatchdogArmedForTesting,
+            "a notify confirmation on a healthy `.ready` link must not arm the establishment watchdog")
     }
 }

@@ -32,7 +32,7 @@ public struct EnterFillTubingModeRequest: Message {
     public static let props = MessageProps(
         opCode: 0x94, size: 0, signed: true, type: .request,
         characteristic: .control, modifiesInsulinDelivery: true, responseOpCode: 0x95,
-        supportedDevices: [.mobi]) // VA-06: upstream MOBI_ONLY — documentation-consistency with sibling FillCannulaRequest (not on the wire → oracle-parity neutral)
+        supportedDevices: [.mobi])  // VA-06: upstream MOBI_ONLY — documentation-consistency with sibling FillCannulaRequest (not on the wire → oracle-parity neutral)
     public var cargo: [UInt8]
     public init() { cargo = [] }
     public mutating func parse(_ raw: [UInt8]) { cargo = [] }
@@ -54,7 +54,7 @@ public struct FillCannulaRequest: Message {
     public static let props = MessageProps(
         opCode: 0x98, size: 2, signed: true, type: .request,
         characteristic: .control, modifiesInsulinDelivery: true, responseOpCode: 0x99,
-        supportedDevices: [.mobi], minApi: .mobi_v3_5) // upstream MOBI_ONLY + MOBI_API_V3_5 (D-08)
+        supportedDevices: [.mobi], minApi: .mobi_v3_5)  // upstream MOBI_ONLY + MOBI_API_V3_5 (D-08)
 
     /// Bounds enforced upstream (`Validate.isTrue`, pumpX2 `FillCannulaRequest`): 0 is invalid (never a
     /// valid "no-op" fill) and > 3000 mU is rejected as a sanity check.
@@ -67,7 +67,8 @@ public struct FillCannulaRequest: Message {
         // Human-readable message for a caller surfacing `error.localizedDescription`.
         public var errorDescription: String? {
             switch self {
-            case .primeSizeOutOfRange(let s): return "Fill-cannula prime size \(s) mU is out of range — must be 1 to 3000 milliunits."
+            case .primeSizeOutOfRange(let s):
+                return "Fill-cannula prime size \(s) mU is out of range — must be 1 to 3000 milliunits."
             }
         }
     }

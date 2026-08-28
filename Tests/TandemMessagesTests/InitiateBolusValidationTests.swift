@@ -14,7 +14,7 @@ import TandemMessages
         let direct = InitiateBolusRequest(
             totalVolume: 2500, bolusID: 42, bolusTypeBitmask: InitiateBolusRequest.bitFood1,
             foodVolume: 2500, correctionVolume: 0, bolusCarbs: 30, bolusBG: 120, bolusIOB: 130)
-        #expect(validated.cargo == direct.cargo)   // validation never changes the bytes
+        #expect(validated.cargo == direct.cargo)  // validation never changes the bytes
     }
 
     @Test func rejectsDoseBelowMinimum() {
@@ -27,19 +27,21 @@ import TandemMessages
         #expect(throws: E.invalidBolusID(0)) {
             _ = try InitiateBolusRequest(validating: 1000, bolusID: 0, bolusTypeBitmask: 1, foodVolume: 1000)
         }
-        #expect(throws: E.invalidBolusID(70000)) {   // > uint16 → would silently truncate on the wire
+        #expect(throws: E.invalidBolusID(70000)) {  // > uint16 → would silently truncate on the wire
             _ = try InitiateBolusRequest(validating: 1000, bolusID: 70000, bolusTypeBitmask: 1, foodVolume: 1000)
         }
     }
 
     @Test func rejectsCarbsAndBgOverWireWidth() {
         #expect(throws: E.carbsOutOfRange(70000)) {
-            _ = try InitiateBolusRequest(validating: 1000, bolusID: 1, bolusTypeBitmask: 1,
-                                         foodVolume: 1000, bolusCarbs: 70000)
+            _ = try InitiateBolusRequest(
+                validating: 1000, bolusID: 1, bolusTypeBitmask: 1,
+                foodVolume: 1000, bolusCarbs: 70000)
         }
         #expect(throws: E.bgOutOfRange(-5)) {
-            _ = try InitiateBolusRequest(validating: 1000, bolusID: 1, bolusTypeBitmask: 1,
-                                         foodVolume: 1000, bolusBG: -5)
+            _ = try InitiateBolusRequest(
+                validating: 1000, bolusID: 1, bolusTypeBitmask: 1,
+                foodVolume: 1000, bolusBG: -5)
         }
     }
 
@@ -47,7 +49,7 @@ import TandemMessages
         #expect(throws: E.invalidTypeBitmask(0)) {
             _ = try InitiateBolusRequest(validating: 1000, bolusID: 1, bolusTypeBitmask: 0, foodVolume: 1000)
         }
-        #expect(throws: E.invalidTypeBitmask(0x10)) {   // unknown bit
+        #expect(throws: E.invalidTypeBitmask(0x10)) {  // unknown bit
             _ = try InitiateBolusRequest(validating: 1000, bolusID: 1, bolusTypeBitmask: 0x10, foodVolume: 1000)
         }
     }
@@ -62,8 +64,9 @@ import TandemMessages
         }
         // Extended fields set without the EXTENDED bit.
         #expect(throws: E.self) {
-            _ = try InitiateBolusRequest(validating: 1000, bolusID: 1, bolusTypeBitmask: 1,
-                                         foodVolume: 1000, extendedVolume: 500, extendedSeconds: 3600)
+            _ = try InitiateBolusRequest(
+                validating: 1000, bolusID: 1, bolusTypeBitmask: 1,
+                foodVolume: 1000, extendedVolume: 500, extendedSeconds: 3600)
         }
     }
 
@@ -90,7 +93,7 @@ import TandemMessages
         #expect(throws: E.foodBitIncoherent("exactly one of FOOD1/FOOD2 required (mask \(R.bitFood1 | R.bitFood2))")) {
             _ = try R(validating: 1000, bolusID: 1, bolusTypeBitmask: R.bitFood1 | R.bitFood2, foodVolume: 1000)
         }
-        #expect(throws: E.self) {   // CORRECTION only, no food bit
+        #expect(throws: E.self) {  // CORRECTION only, no food bit
             _ = try R(validating: 1000, bolusID: 1, bolusTypeBitmask: R.bitCorrection, correctionVolume: 1000)
         }
     }
@@ -107,8 +110,9 @@ import TandemMessages
     @Test func rejectsCorrectionBitWithoutComponent() {
         typealias R = InitiateBolusRequest
         #expect(throws: E.correctionIncoherent("CORRECTION set but correctionVolume is 0")) {
-            _ = try R(validating: 1000, bolusID: 1, bolusTypeBitmask: R.bitFood1 | R.bitCorrection,
-                      foodVolume: 1000, correctionVolume: 0)
+            _ = try R(
+                validating: 1000, bolusID: 1, bolusTypeBitmask: R.bitFood1 | R.bitCorrection,
+                foodVolume: 1000, correctionVolume: 0)
         }
     }
 
@@ -116,8 +120,9 @@ import TandemMessages
     @Test func rejectsComponentSumExceedingTotal() {
         typealias R = InitiateBolusRequest
         #expect(throws: E.self) {
-            _ = try R(validating: 1000, bolusID: 1, bolusTypeBitmask: R.bitFood1 | R.bitCorrection,
-                      foodVolume: 600, correctionVolume: 600)   // 1200 > 1000, but each < 1000
+            _ = try R(
+                validating: 1000, bolusID: 1, bolusTypeBitmask: R.bitFood1 | R.bitCorrection,
+                foodVolume: 600, correctionVolume: 600)  // 1200 > 1000, but each < 1000
         }
     }
 
@@ -125,8 +130,9 @@ import TandemMessages
     @Test func rejectsArithmeticOverflow() {
         typealias R = InitiateBolusRequest
         #expect(throws: E.arithmeticOverflow("totalVolume + extendedVolume overflows UInt32")) {
-            _ = try R(validating: UInt32.max, bolusID: 1, bolusTypeBitmask: R.bitFood1 | R.bitExtended,
-                      foodVolume: 0, correctionVolume: 0, extendedVolume: 100, extendedSeconds: 60)
+            _ = try R(
+                validating: UInt32.max, bolusID: 1, bolusTypeBitmask: R.bitFood1 | R.bitExtended,
+                foodVolume: 0, correctionVolume: 0, extendedVolume: 100, extendedSeconds: 60)
         }
     }
 
@@ -136,9 +142,10 @@ import TandemMessages
         for total: UInt32 in [50, 1000, 12345, 60000, 250000] {
             for carbs in [0, 1, 250, 65535] {
                 let mask = carbs > 0 ? R.bitFood1 : R.bitFood2
-                let req = try R(validating: total, bolusID: 65535, bolusTypeBitmask: mask,
-                                foodVolume: min(total, 40000), correctionVolume: 0,
-                                bolusCarbs: carbs, bolusBG: 400, bolusIOB: 1234)
+                let req = try R(
+                    validating: total, bolusID: 65535, bolusTypeBitmask: mask,
+                    foodVolume: min(total, 40000), correctionVolume: 0,
+                    bolusCarbs: carbs, bolusBG: 400, bolusIOB: 1234)
                 #expect(req.totalVolume == total)
                 #expect(req.bolusCarbs == carbs)
                 #expect(req.bolusBG == 400)
@@ -155,11 +162,11 @@ import TandemMessages
     /// InitiateBolusExtendedTests.
     @Test func typeBitmaskDerivation() {
         typealias R = InitiateBolusRequest
-        #expect(R.typeBitmask(hasCarbs: true,  hasCorrection: false, isExtended: false) == R.bitFood1)     // 1
-        #expect(R.typeBitmask(hasCarbs: false, hasCorrection: false, isExtended: false) == R.bitFood2)     // 8
-        #expect(R.typeBitmask(hasCarbs: true,  hasCorrection: true,  isExtended: false) == R.bitFood1 | R.bitCorrection)      // 3
-        #expect(R.typeBitmask(hasCarbs: true,  hasCorrection: false, isExtended: true)  == R.bitFood1 | R.bitExtended)        // 5
-        #expect(R.typeBitmask(hasCarbs: false, hasCorrection: true,  isExtended: false) == R.bitFood2 | R.bitCorrection)      // 10
+        #expect(R.typeBitmask(hasCarbs: true, hasCorrection: false, isExtended: false) == R.bitFood1)  // 1
+        #expect(R.typeBitmask(hasCarbs: false, hasCorrection: false, isExtended: false) == R.bitFood2)  // 8
+        #expect(R.typeBitmask(hasCarbs: true, hasCorrection: true, isExtended: false) == R.bitFood1 | R.bitCorrection)  // 3
+        #expect(R.typeBitmask(hasCarbs: true, hasCorrection: false, isExtended: true) == R.bitFood1 | R.bitExtended)  // 5
+        #expect(R.typeBitmask(hasCarbs: false, hasCorrection: true, isExtended: false) == R.bitFood2 | R.bitCorrection)  // 10
         // FOOD2 is never OR-ed into a carb bolus.
         #expect(R.typeBitmask(hasCarbs: true, hasCorrection: false, isExtended: false) & R.bitFood2 == 0)
     }
@@ -169,6 +176,6 @@ import TandemMessages
     @Test func carbBolusTypeByteIsFood1() throws {
         let mask = InitiateBolusRequest.typeBitmask(hasCarbs: true, hasCorrection: false, isExtended: false)
         let req = try InitiateBolusRequest(validating: 2500, bolusID: 1, bolusTypeBitmask: mask, foodVolume: 2500)
-        #expect(req.cargo[8] == 1)   // FOOD1
+        #expect(req.cargo[8] == 1)  // FOOD1
     }
 }

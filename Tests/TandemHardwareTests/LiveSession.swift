@@ -49,13 +49,14 @@ struct PumpFirmwareProfile: Sendable, CustomStringConvertible {
     let apiMinor: Int
     let isMobi: Bool
     let pairingScheme: PairingCodeType
-    let pumpSoftwareVersion: String     // PumpVersionResponse.pumpRev; "" if unread
-    let armSoftwareVersion: UInt32      // PumpVersionResponse.armSwVer; 0 if unread
-    let modelNumber: UInt32             // PumpVersionResponse.modelNum; 0 if unread
+    let pumpSoftwareVersion: String  // PumpVersionResponse.pumpRev; "" if unread
+    let armSoftwareVersion: UInt32  // PumpVersionResponse.armSwVer; 0 if unread
+    let modelNumber: UInt32  // PumpVersionResponse.modelNum; 0 if unread
 
     var apiVersionString: String { "\(apiMajor).\(apiMinor)" }
     var description: String {
-        var s = "API \(apiVersionString)\(isMobi ? " (Mobi)" : " (t:slim X2 family)") · pairing=\(pairingScheme.rawValue)"
+        var s =
+            "API \(apiVersionString)\(isMobi ? " (Mobi)" : " (t:slim X2 family)") · pairing=\(pairingScheme.rawValue)"
         if !pumpSoftwareVersion.isEmpty { s += " · pumpSW=\(pumpSoftwareVersion)" }
         if armSoftwareVersion != 0 { s += " · armSW=\(armSoftwareVersion)" }
         if modelNumber != 0 { s += " · model=\(modelNumber)" }
@@ -145,9 +146,10 @@ final class LiveSession: NSObject, PumpBLEClientDelegate {
             let coord: any PairingCoordinating
             switch scheme {
             case .short6Char:
-                coord = derivedSecret.isEmpty
-                    ? try PairingCoordinator(pairingCode: pairingCode)          // full 6-digit pair
-                    : PairingCoordinator(resumeDerivedSecret: derivedSecret)    // quick-pair resume
+                coord =
+                    derivedSecret.isEmpty
+                    ? try PairingCoordinator(pairingCode: pairingCode)  // full 6-digit pair
+                    : PairingCoordinator(resumeDerivedSecret: derivedSecret)  // quick-pair resume
             case .long16Char:
                 coord = try LegacyPairingCoordinator(pairingCode: pairingCode)  // full re-challenge, no resume
             }
@@ -173,7 +175,7 @@ final class LiveSession: NSObject, PumpBLEClientDelegate {
     }
 
     private func finishPairing(_ result: Result<Void, Error>) {
-        guard let cont = pairedContinuation else { return }   // reconnect re-pair has no awaiter → no-op
+        guard let cont = pairedContinuation else { return }  // reconnect re-pair has no awaiter → no-op
         pairedContinuation = nil
         cont.resume(with: result)
     }
@@ -187,8 +189,8 @@ final class LiveSession: NSObject, PumpBLEClientDelegate {
     func simulateLinkDrop() {
         isPaired = false
         coordinator = nil
-        client.disconnect()   // fail-closes policy → .readOnly
-        client.startScan()    // rediscover → reconnect → resume-pair
+        client.disconnect()  // fail-closes policy → .readOnly
+        client.startScan()  // rediscover → reconnect → resume-pair
     }
 
     /// Wait until the client is `.ready` AND re-paired (resume complete), or throw a clean skip.
@@ -226,22 +228,25 @@ final class LiveSession: NSObject, PumpBLEClientDelegate {
     /// restored to `.readOnly`). `deliver == true` additionally arms `allowInsulinDelivery` (the second
     /// wall) — required by, and only by, a delivery-class message.
     @discardableResult
-    func send(_ message: Message, awaitReply: Bool = true, deliver: Bool = false,
-              deadline: TimeInterval = 15) async throws -> [UInt8] {
+    func send(
+        _ message: Message, awaitReply: Bool = true, deliver: Bool = false,
+        deadline: TimeInterval = 15
+    ) async throws -> [UInt8] {
         let signed = message.signed
         let key = signed ? authKey : []
         let ts = signed ? signingTimestamp : 0
         recordOutgoing(message, key: key, ts: ts, deliver: deliver)
         let policy = Self.minimumPolicy(for: message.operationRisk)
-        let serialized = (message.operationRisk == .delivery)   // R3-D: at most one delivery in flight
+        let serialized = (message.operationRisk == .delivery)  // R3-D: at most one delivery in flight
         return try await client.withWritePolicy(policy) {
             if awaitReply {
                 return try await self.client.sendAwaitingResponse(
                     message, authenticationKey: key, pumpTimeSinceReset: ts,
                     allowInsulinDelivery: deliver, deadline: deadline, serialized: serialized)
             } else {
-                _ = try self.client.send(message, authenticationKey: key,
-                                         pumpTimeSinceReset: ts, allowInsulinDelivery: deliver)
+                _ = try self.client.send(
+                    message, authenticationKey: key,
+                    pumpTimeSinceReset: ts, allowInsulinDelivery: deliver)
                 return []
             }
         }
@@ -250,8 +255,10 @@ final class LiveSession: NSObject, PumpBLEClientDelegate {
     /// Send `request` and parse its reply as `R` (reply is on the request's characteristic for every
     /// message the harness uses).
     @discardableResult
-    func request<M: Message, R: Message>(_ request: M, expect: R.Type, deliver: Bool = false,
-                                         deadline: TimeInterval = 15) async throws -> R {
+    func request<M: Message, R: Message>(
+        _ request: M, expect: R.Type, deliver: Bool = false,
+        deadline: TimeInterval = 15
+    ) async throws -> R {
         let frame = try await send(request, deliver: deliver, deadline: deadline)
         return try parse(frame, on: request.characteristic, as: R.self)
     }
@@ -271,7 +278,8 @@ final class LiveSession: NSObject, PumpBLEClientDelegate {
     /// response frame's `[1]` byte is the pump's echoed txId. The write policy stays `.readOnly` throughout.
     func exchangeCapturingTxId(_ message: Message, deadline: TimeInterval = 15) async throws -> TxExchange {
         guard message.operationRisk == .read else {
-            throw HarnessError.unexpectedResponse("txId probe is READ-ONLY; refusing \(type(of: message)) (risk \(message.operationRisk))")
+            throw HarnessError.unexpectedResponse(
+                "txId probe is READ-ONLY; refusing \(type(of: message)) (risk \(message.operationRisk))")
         }
         guard let responseOpCode = message.props.responseOpCode else {
             throw HarnessError.unexpectedResponse("no responseOpCode for \(type(of: message))")
@@ -282,7 +290,7 @@ final class LiveSession: NSObject, PumpBLEClientDelegate {
                 expectedResponseOn: message.characteristic, opCode: responseOpCode,
                 deadline: deadline, serialized: false
             ) {
-                let txId = try self.client.send(message)   // unsigned read; returns the wire txId
+                let txId = try self.client.send(message)  // unsigned read; returns the wire txId
                 requestTxId = txId
                 let hex = (try? Packetize.packetize(message, txId: txId).map { Hex.encode($0.build()) }.joined()) ?? ""
                 self.trace.append(TraceFrame(direction: .outbound, characteristic: message.characteristic, hex: hex))
@@ -297,11 +305,11 @@ final class LiveSession: NSObject, PumpBLEClientDelegate {
     /// op needs; `withWritePolicy` restores `.readOnly` immediately after.
     static func minimumPolicy(for risk: OperationRisk) -> PumpBLEClient.WritePolicy {
         switch risk {
-        case .read:        return .readOnly
-        case .benign:      return .allowBenignControl
-        case .settings:    return .allowNonDelivery
+        case .read: return .readOnly
+        case .benign: return .allowBenignControl
+        case .settings: return .allowNonDelivery
         case .destructive: return .allowDestructive
-        case .delivery:    return .allowDelivery
+        case .delivery: return .allowDelivery
         }
     }
 
@@ -325,7 +333,7 @@ final class LiveSession: NSObject, PumpBLEClientDelegate {
         collectingHistory = true
         defer { collectingHistory = false }
         let n = min(max(count, 1), 255)
-        _ = try await send(HistoryLogRequest(startLog: from, numberOfLogs: n))   // awaits the 61 ack
+        _ = try await send(HistoryLogRequest(startLog: from, numberOfLogs: n))  // awaits the 61 ack
         // The stream frames are unsolicited (opcode 129) → collected by the delegate. There may legitimately
         // be fewer than `n` records in the log, so tolerate an incomplete read.
         try await waitFor({ self.historyRecords.count >= n }, timeout: 12, allowIncomplete: true)
@@ -351,8 +359,10 @@ final class LiveSession: NSObject, PumpBLEClientDelegate {
 
     // MARK: - Helpers
 
-    private func waitFor(_ condition: @escaping @MainActor () -> Bool,
-                         timeout: TimeInterval, allowIncomplete: Bool = false) async throws {
+    private func waitFor(
+        _ condition: @escaping @MainActor () -> Bool,
+        timeout: TimeInterval, allowIncomplete: Bool = false
+    ) async throws {
         let deadline = Date().addingTimeInterval(timeout)
         while !condition() {
             if Date() > deadline {
@@ -364,9 +374,12 @@ final class LiveSession: NSObject, PumpBLEClientDelegate {
     }
 
     private func recordOutgoing(_ m: Message, key: [UInt8], ts: UInt32, deliver: Bool) {
-        let hex = (try? Packetize.packetize(m, authenticationKey: key, txId: 0,
-                                            pumpTimeSinceReset: ts,
-                                            actionsAffectingInsulinDeliveryEnabled: deliver)
+        let hex =
+            (try? Packetize.packetize(
+                m, authenticationKey: key, txId: 0,
+                pumpTimeSinceReset: ts,
+                actionsAffectingInsulinDeliveryEnabled: deliver
+            )
             .map { Hex.encode($0.build()) }.joined()) ?? ""
         trace.append(TraceFrame(direction: .outbound, characteristic: m.characteristic, hex: hex))
     }
@@ -393,13 +406,14 @@ final class LiveSession: NSObject, PumpBLEClientDelegate {
             // Validate the frame CRC-16 before the coordinator parses it inline (it bypasses
             // ResponseParser's CRC check) — a corrupted pairing reply must not advance the handshake.
             guard frame.count >= 5,
-                  Bytes.calculateCRC16(Array(frame[0..<(frame.count - 2)])) == Array(frame[(frame.count - 2)...])
+                Bytes.calculateCRC16(Array(frame[0..<(frame.count - 2)])) == Array(frame[(frame.count - 2)...])
             else { return }
             coordinator?.handle(frame: frame)
         case .historyLog:
             guard collectingHistory,
-                  let parsed = try? ResponseParser.parse(frame: frame, characteristic: .historyLog),
-                  let stream = parsed.message as? HistoryLogStreamResponse else { return }
+                let parsed = try? ResponseParser.parse(frame: frame, characteristic: .historyLog),
+                let stream = parsed.message as? HistoryLogStreamResponse
+            else { return }
             historyRecords.append(contentsOf: stream.records)
             historyCgmReadings.append(contentsOf: stream.cgmReadings)
         default:

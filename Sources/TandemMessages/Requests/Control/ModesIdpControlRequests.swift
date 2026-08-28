@@ -12,7 +12,7 @@ public struct SetModesRequest: Message {
     public static let props = MessageProps(
         opCode: 0xCC, size: 1, signed: true, type: .request,
         characteristic: .control, modifiesInsulinDelivery: true, responseOpCode: 0xCD,
-        supportedDevices: [.mobi], minApi: .mobi_v3_5) // upstream MOBI_ONLY + MOBI_API_V3_5 (D-08)
+        supportedDevices: [.mobi], minApi: .mobi_v3_5)  // upstream MOBI_ONLY + MOBI_API_V3_5 (D-08)
 
     /// The mode toggle carried in the 1-byte bitmap. Values match the pump firmware / Tandem Source
     /// event schema — **do not renumber**. 5–7 are defined but unsupported in current firmware.
@@ -53,7 +53,7 @@ public struct SetActiveIDPRequest: Message {
     public static let props = MessageProps(
         opCode: 0xEC, size: 2, signed: true, type: .request,
         characteristic: .control, modifiesInsulinDelivery: true, responseOpCode: 0xED,
-        supportedDevices: [.mobi]) // upstream MOBI_ONLY (D-08)
+        supportedDevices: [.mobi])  // upstream MOBI_ONLY (D-08)
     public var cargo: [UInt8]
     public private(set) var idpId = 0
     public private(set) var profileIndex = 0
@@ -66,6 +66,9 @@ public struct SetActiveIDPRequest: Message {
     public mutating func parse(_ raw: [UInt8]) {
         let body = removeSignedRequestHmacBytes(raw)
         cargo = body
-        if body.count >= 2 { idpId = Int(body[0]); profileIndex = Int(body[1]) }
+        if body.count >= 2 {
+            idpId = Int(body[0])
+            profileIndex = Int(body[1])
+        }
     }
 }

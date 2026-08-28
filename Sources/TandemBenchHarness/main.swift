@@ -30,9 +30,10 @@ func serializationSelfCheck() {
     if let packets = try? Packetize.packetize(ApiVersionRequest(), txId: 0) {
         print("  ApiVersionRequest(txId=0): \(packets.map { Hex.encode($0.build()) })")
     }
-    print("  Bolus opcodes: permission=0x\(String(BolusPermissionRequest.props.opCode, radix: 16)) "
-        + "initiate=0x\(String(InitiateBolusRequest.props.opCode, radix: 16)) "
-        + "cancel=0x\(String(CancelBolusRequest.props.opCode, radix: 16))")
+    print(
+        "  Bolus opcodes: permission=0x\(String(BolusPermissionRequest.props.opCode, radix: 16)) "
+            + "initiate=0x\(String(InitiateBolusRequest.props.opCode, radix: 16)) "
+            + "cancel=0x\(String(CancelBolusRequest.props.opCode, radix: 16))")
 }
 
 /// Read-only pump monitor: connect, pair over JPAKE, and poll status. Never writes a control
@@ -100,20 +101,23 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         super.init()
         switch mode {
         case .permissionTest: client.writePolicy = .allowNonDelivery
-        case .deliverBolus, .carbBolus: client.writePolicy = .allowDelivery   // experimental delivery
+        case .deliverBolus, .carbBolus: client.writePolicy = .allowDelivery  // experimental delivery
         default: client.writePolicy = .readOnly
         }
         client.delegate = self
     }
 
     var isBolusMode: Bool {
-        switch mode { case .deliverBolus, .carbBolus: return true; default: return false }
+        switch mode {
+        case .deliverBolus, .carbBolus: return true
+        default: return false
+        }
     }
     var isCarbMode: Bool { if case .carbBolus = mode { return true } else { return false } }
 
     func pumpClient(_ c: PumpBLEClient, didChange state: PumpBLEClient.State) {
         print("[state] \(state)")
-        if state != .ready { isPaired = false }   // a drop clears paired; the probe waits for re-pair
+        if state != .ready { isPaired = false }  // a drop clears paired; the probe waits for re-pair
         if state == .idle { c.startScan() }
     }
 
@@ -136,31 +140,39 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
             pairingScheme = scheme
             let coord: any PairingCoordinating
             switch scheme {
-            case .short6Char: coord = try PairingCoordinator(pairingCode: pairingCode)       // JPAKE 6-digit
-            case .long16Char: coord = try LegacyPairingCoordinator(pairingCode: pairingCode) // legacy V1 16-char
+            case .short6Char: coord = try PairingCoordinator(pairingCode: pairingCode)  // JPAKE 6-digit
+            case .long16Char: coord = try LegacyPairingCoordinator(pairingCode: pairingCode)  // legacy V1 16-char
             }
-            coord.onSendRequest = { msg in try? c.send(msg) }   // AUTHORIZATION msgs pass the interlock
+            coord.onSendRequest = { msg in try? c.send(msg) }  // AUTHORIZATION msgs pass the interlock
             coord.onError = { print("[pairing] error: \($0)") }
             coord.onPaired = { [weak self] authKey, _ in
                 guard let self else { return }
                 self.authKey = authKey
                 self.isPaired = true
-                print("[paired] \(scheme == .long16Char ? "legacy V1 (16-char)" : "JPAKE (6-digit)") complete; signing key derived (\(authKey.count) bytes).")
+                print(
+                    "[paired] \(scheme == .long16Char ? "legacy V1 (16-char)" : "JPAKE (6-digit)") complete; signing key derived (\(authKey.count) bytes)."
+                )
                 switch self.mode {
                 case .monitor:
-                    self.readFirmwareProfile()   // print API/version/capability profile, then poll status
+                    self.readFirmwareProfile()  // print API/version/capability profile, then poll status
                     self.startPolling()
                 case .probe:
                     self.readFirmwareProfile()
                     // Launch the sequence once; it internally awaits re-pairs across the pump's drops.
-                    if !self.probeStarted { self.probeStarted = true; Task { await self.runProbeSequence() } }
+                    if !self.probeStarted {
+                        self.probeStarted = true
+                        Task { await self.runProbeSequence() }
+                    }
                 case .coverage:
                     self.readFirmwareProfile()
                     // Launch the resumable coverage sweep once; it survives the pump's reconnect cycles.
-                    if !self.coverageStarted { self.coverageStarted = true; Task { await self.runCoverageSequence() } }
+                    if !self.coverageStarted {
+                        self.coverageStarted = true
+                        Task { await self.runCoverageSequence() }
+                    }
                 case .permissionTest, .deliverBolus:
                     print("[write] reading pump time for signing…")
-                    try? c.send(TimeSinceResetRequest())   // read (allowed); triggers the signed flow
+                    try? c.send(TimeSinceResetRequest())  // read (allowed); triggers the signed flow
                 case .carbBolus:
                     print("[carb-bolus] reading pump time + calculator settings (carb ratio/ISF/target) + IOB…")
                     try? c.send(TimeSinceResetRequest())
@@ -170,7 +182,9 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
                 }
             }
             coordinator = coord
-            print("[pairing] starting \(scheme == .long16Char ? "legacy V1 (16-char) CentralChallenge→PumpChallenge" : "JPAKE (6-digit)")…")
+            print(
+                "[pairing] starting \(scheme == .long16Char ? "legacy V1 (16-char) CentralChallenge→PumpChallenge" : "JPAKE (6-digit)")…"
+            )
             coord.start()
         } catch {
             print("[pairing] failed to start: \(error)")
@@ -181,19 +195,22 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     /// pump accepts our HMAC, then release. Delivery is still hard-blocked by writePolicy.
     func sendSignedPermission() {
         permissionSent = true
-        print(isBolusMode
-            ? "[bolus] requesting SIGNED bolus permission…"
-            : "[permission-test] sending SIGNED BolusPermissionRequest (no insulin delivered)…")
+        print(
+            isBolusMode
+                ? "[bolus] requesting SIGNED bolus permission…"
+                : "[permission-test] sending SIGNED BolusPermissionRequest (no insulin delivered)…")
         do {
-            try client.send(BolusPermissionRequest(), authenticationKey: authKey,
-                            pumpTimeSinceReset: signingTimestamp)
+            try client.send(
+                BolusPermissionRequest(), authenticationKey: authKey,
+                pumpTimeSinceReset: signingTimestamp)
         } catch { print("[permission-test] send failed: \(error)") }
     }
 
     func releasePermission(bolusId: Int) {
         print("[permission-test] releasing bolus permission id \(bolusId)…")
-        try? client.send(BolusPermissionReleaseRequest(bolusID: bolusId),
-                         authenticationKey: authKey, pumpTimeSinceReset: signingTimestamp)
+        try? client.send(
+            BolusPermissionReleaseRequest(bolusID: bolusId),
+            authenticationKey: authKey, pumpTimeSinceReset: signingTimestamp)
     }
 
     /// Phase B: initiate a SALINE bolus of `milliunits` for the granted `bolusId`. Signed +
@@ -217,27 +234,37 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         guard isCarbMode, !permissionSent, haveTime, let calc, let iobMU = iobMilliunits else { return }
         // Oracle-faithful planner (round-2 P1): signed BG correction (below target REDUCES the dose),
         // positive-IOB offset, two-decimal HALF_UP per component, zero floor, 0.05 U snap, bench cap.
-        let profile = BenchBolusPlanner.Profile(carbRatioGramsPerUnit: calc.carbRatioGramsPerUnit,
-                                                isfMgdlPerUnit: calc.isf, targetBgMgdl: calc.targetBg,
-                                                iobUnits: Double(iobMU) / 1000.0)
-        let plan = BenchBolusPlanner.plan(carbsGrams: carbGrams, bgMgdl: carbBg, profile: profile,
-                                          benchCapMilliunits: 2000)   // tight 2.0 U saline bound
+        let profile = BenchBolusPlanner.Profile(
+            carbRatioGramsPerUnit: calc.carbRatioGramsPerUnit,
+            isfMgdlPerUnit: calc.isf, targetBgMgdl: calc.targetBg,
+            iobUnits: Double(iobMU) / 1000.0)
+        let plan = BenchBolusPlanner.plan(
+            carbsGrams: carbGrams, bgMgdl: carbBg, profile: profile,
+            benchCapMilliunits: 2000)  // tight 2.0 U saline bound
         carbPlan = plan
         planFoodMU = plan.foodMilliunits
         planCorrectionMU = plan.correctionMilliunits
         planTotalMU = plan.totalMilliunits
         planBits = plan.bitmask
 
-        print(String(format: "[carb-bolus] carbs=%.0fg bg=%@ | carbRatio=%.1f g/u ISF=%d target=%d IOB=%.2fu",
-                     carbGrams, carbBg.map { "\($0)" } ?? "—",
-                     calc.carbRatioGramsPerUnit, calc.isf, calc.targetBg, Double(iobMU) / 1000.0))
-        print(String(format: "[carb-bolus] components: fromCarbs %.2fu  fromBG %+.2fu  fromIOB %+.2fu  → oracle total %.2fu%@",
-                     plan.fromCarbsUnits, plan.fromBGUnits, plan.fromIOBUnits, plan.oracleTotalUnits,
-                     plan.sanityFailed ? "  [SANITY FAILED → 0]" : ""))
+        print(
+            String(
+                format: "[carb-bolus] carbs=%.0fg bg=%@ | carbRatio=%.1f g/u ISF=%d target=%d IOB=%.2fu",
+                carbGrams, carbBg.map { "\($0)" } ?? "—",
+                calc.carbRatioGramsPerUnit, calc.isf, calc.targetBg, Double(iobMU) / 1000.0))
+        print(
+            String(
+                format:
+                    "[carb-bolus] components: fromCarbs %.2fu  fromBG %+.2fu  fromIOB %+.2fu  → oracle total %.2fu%@",
+                plan.fromCarbsUnits, plan.fromBGUnits, plan.fromIOBUnits, plan.oracleTotalUnits,
+                plan.sanityFailed ? "  [SANITY FAILED → 0]" : ""))
         // Snapshot the ENTIRE planned request cargo, not just the type byte, for pump comparison.
-        print(String(format: "[carb-bolus] request: total %.2fu (food %.2fu + correction %.2fu) bits 0x%02X carbs %dg bg %d iob %.2fu",
-                     Double(planTotalMU) / 1000.0, Double(planFoodMU) / 1000.0, Double(planCorrectionMU) / 1000.0,
-                     planBits, plan.carbGrams, plan.bgMgdl, Double(plan.iobMilliunits) / 1000.0))
+        print(
+            String(
+                format:
+                    "[carb-bolus] request: total %.2fu (food %.2fu + correction %.2fu) bits 0x%02X carbs %dg bg %d iob %.2fu",
+                Double(planTotalMU) / 1000.0, Double(planFoodMU) / 1000.0, Double(planCorrectionMU) / 1000.0,
+                planBits, plan.carbGrams, plan.bgMgdl, Double(plan.iobMilliunits) / 1000.0))
         guard planTotalMU >= 50 else {
             print("[carb-bolus] computed dose < 0.05 u — nothing to deliver. Stopping.")
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { exit(0) }
@@ -249,12 +276,18 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     /// Deliver the computed carb bolus with full metadata (food/correction/carbs/bg/iob).
     func initiateCarbBolus(bolusId: Int) {
         currentBolusId = bolusId
-        print(String(format: "[carb-bolus] initiating %.2f u SALINE (bolusId %d)…", Double(planTotalMU) / 1000.0, bolusId))
-        guard let plan = carbPlan else { print("[carb-bolus] no plan computed"); return }
+        print(
+            String(format: "[carb-bolus] initiating %.2f u SALINE (bolusId %d)…", Double(planTotalMU) / 1000.0, bolusId)
+        )
+        guard let plan = carbPlan else {
+            print("[carb-bolus] no plan computed")
+            return
+        }
         do {
             // Build the full, validated request from the SAME plan the snapshot printed.
-            try client.send(try BenchBolusPlanner.request(for: plan, bolusID: bolusId),
-                            authenticationKey: authKey, pumpTimeSinceReset: signingTimestamp, allowInsulinDelivery: true)
+            try client.send(
+                try BenchBolusPlanner.request(for: plan, bolusID: bolusId),
+                authenticationKey: authKey, pumpTimeSinceReset: signingTimestamp, allowInsulinDelivery: true)
         } catch { print("[carb-bolus] initiate failed: \(error)") }
     }
 
@@ -262,8 +295,9 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     func cancelBolus() {
         guard currentBolusId != 0 else { return }
         print("[bolus] CANCELLING bolus id \(currentBolusId)…")
-        try? client.send(CancelBolusRequest(bolusId: currentBolusId),
-                         authenticationKey: authKey, pumpTimeSinceReset: signingTimestamp)
+        try? client.send(
+            CancelBolusRequest(bolusId: currentBolusId),
+            authenticationKey: authKey, pumpTimeSinceReset: signingTimestamp)
     }
 
     /// After initiate, poll last-bolus status to watch delivered volume grow.
@@ -281,7 +315,7 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     func readFirmwareProfile() {
         try? client.send(ApiVersionRequest())
         try? client.send(PumpVersionRequest())
-        try? client.send(PumpFeaturesV1Request())   // op-79 capability bitmask (may be unsupported on legacy)
+        try? client.send(PumpFeaturesV1Request())  // op-79 capability bitmask (may be unsupported on legacy)
     }
 
     func poll() {
@@ -306,7 +340,7 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     }
 
     func startPolling() {
-        pollTimer?.invalidate()   // avoid stacking timers when re-paired after a reconnect
+        pollTimer?.invalidate()  // avoid stacking timers when re-paired after a reconnect
         poll()
         pollTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { _ in
             MainActor.assumeIsolated { self.poll() }
@@ -326,11 +360,11 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
 
     static func minimumPolicy(for risk: OperationRisk) -> PumpBLEClient.WritePolicy {
         switch risk {
-        case .read:        return .readOnly
-        case .benign:      return .allowBenignControl
-        case .settings:    return .allowNonDelivery
+        case .read: return .readOnly
+        case .benign: return .allowBenignControl
+        case .settings: return .allowNonDelivery
         case .destructive: return .allowDestructive
-        case .delivery:    return .allowDelivery
+        case .delivery: return .allowDelivery
         }
     }
 
@@ -356,17 +390,24 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     /// drops the link; surfaces here as a timeout, plus a `⚠️ [error-response]` line from the delegate).
     @discardableResult
     private func probeRead<R: Message>(_ req: Message, as _: R.Type, _ label: String) async -> R? {
-        guard await awaitPaired() else { print("  ⏭️  \(label): not paired"); return nil }
+        guard await awaitPaired() else {
+            print("  ⏭️  \(label): not paired")
+            return nil
+        }
         do {
             let frame = try await client.withWritePolicy(.readOnly) {
                 try await self.client.sendAwaitingResponse(req, deadline: 10)
             }
-            guard let typed = try ResponseParser.parse(frame: frame, characteristic: req.characteristic).message as? R else {
-                print("  ❓ \(label): unexpected response opcode"); return nil
+            guard let typed = try ResponseParser.parse(frame: frame, characteristic: req.characteristic).message as? R
+            else {
+                print("  ❓ \(label): unexpected response opcode")
+                return nil
             }
             return typed
         } catch {
-            print("  ❌ \(label): REJECTED / link dropped"); _ = await awaitPaired(); return nil
+            print("  ❌ \(label): REJECTED / link dropped")
+            _ = await awaitPaired()
+            return nil
         }
     }
 
@@ -374,9 +415,12 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     /// opcode), else nil. A NACK (op-77) or drop returns nil; the delegate prints the `⚠️` detail.
     @discardableResult
     private func probeWrite(_ req: Message, _ label: String) async -> [UInt8]? {
-        guard await awaitPaired() else { print("  ⏭️  \(label): not paired"); return nil }
+        guard await awaitPaired() else {
+            print("  ⏭️  \(label): not paired")
+            return nil
+        }
         let risk = req.operationRisk
-        let deliver = (risk == .delivery)   // arm wall 2 ONLY for a delivery-class msg (scoped, no cartridge)
+        let deliver = (risk == .delivery)  // arm wall 2 ONLY for a delivery-class msg (scoped, no cartridge)
         do {
             let frame = try await client.withWritePolicy(Self.minimumPolicy(for: risk)) {
                 try await self.client.sendAwaitingResponse(
@@ -387,7 +431,8 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
             return frame
         } catch {
             print("  ⛔️ \(label): NOT accepted (NACK/timeout/drop — see ⚠️ above if op-77)")
-            _ = await awaitPaired(); return nil
+            _ = await awaitPaired()
+            return nil
         }
     }
 
@@ -424,7 +469,10 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         print("     AND a JPAKE pump (P2). It GATES NOTHING, does NOT enable txIdMatch, and delivery-class")
         print("     serialization stays in force (all reads here are non-serialized; a bolus is never pipelined).")
 
-        guard let rop = InsulinStatusRequest.props.responseOpCode else { print("  ⏭️  no responseOpCode for InsulinStatus"); return }
+        guard let rop = InsulinStatusRequest.props.responseOpCode else {
+            print("  ⏭️  no responseOpCode for InsulinStatus")
+            return
+        }
 
         // (2a) Sequential echo baseline — ONE read outstanding at a time (proves echo, NOT bijection).
         print("\n  [2a] sequential echo baseline (one read outstanding at a time)")
@@ -435,10 +483,13 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
             let frame: [UInt8]? = try? await client.withWritePolicy(.readOnly) {
                 try await self.client.transactions.perform(
                     expectedResponseOn: .currentStatus, opCode: rop, deadline: 10, serialized: false
-                ) { let tx = try self.client.send(InsulinStatusRequest()); reqTx = tx; return tx }
+                ) {
+                    let tx = try self.client.send(InsulinStatusRequest())
+                    reqTx = tx
+                    return tx
+                }
             }
-            if let f = frame, f.count > 1 { seq.append((reqTx, f[1])) }
-            else { _ = await awaitPaired() }
+            if let f = frame, f.count > 1 { seq.append((reqTx, f[1])) } else { _ = await awaitPaired() }
         }
         let seqEchoed = !seq.isEmpty && seq.allSatisfy { $0.0 == $0.1 }
         print("    exchanges: \(seq.map { "req=\($0.0)→resp=\($0.1)" }.joined(separator: ", "))")
@@ -460,7 +511,11 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         do {
             let frame = try await client.transactions.perform(
                 expectedResponseOn: .currentStatus, opCode: rop, deadline: 10, serialized: false
-            ) { let tx = try self.client.send(InsulinStatusRequest()); sentTx = tx; return tx }
+            ) {
+                let tx = try self.client.send(InsulinStatusRequest())
+                sentTx = tx
+                return tx
+            }
             return (sentTx, frame)
         } catch {
             return (sentTx, nil)
@@ -474,7 +529,10 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     private func probePipelinedTxIdBijection(responseOpCode rop: UInt8) async {
         let depth = Self.pipelineDepth
         print("\n  [2b] PIPELINED bijection: \(depth) concurrent same-opcode reads (all outstanding before any reply)")
-        guard await awaitPaired() else { print("    ⏭️  not paired"); return }
+        guard await awaitPaired() else {
+            print("    ⏭️  not paired")
+            return
+        }
 
         // Launch all `depth` reads as main-actor tasks BEFORE awaiting any. Enqueuing every task before the
         // first suspension guarantees each `send()` (the coordinator's synchronous `write` thunk) runs
@@ -493,7 +551,9 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
             return out
         }
 
-        print("    exchanges: \(samples.map { s in "req=\(s.sent)→\(s.echoed.map { "resp=\($0)" } ?? "no-reply")" }.joined(separator: ", "))")
+        print(
+            "    exchanges: \(samples.map { s in "req=\(s.sent)→\(s.echoed.map { "resp=\($0)" } ?? "no-reply")" }.joined(separator: ", "))"
+        )
 
         // Bijection assertions — all evaluated at the harness level from the sent/echoed txIds:
         let sentTxIds = samples.map { $0.sent }
@@ -502,7 +562,8 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         let sentDistinct = Set(sentTxIds).count == sentTxIds.count
         let echoedDistinct = Set(echoedTxIds).count == echoedTxIds.count
         let noForeign = echoedTxIds.allSatisfy { Set(sentTxIds).contains($0) }
-        let bijection = allReplied && sentDistinct && echoedDistinct && noForeign
+        let bijection =
+            allReplied && sentDistinct && echoedDistinct && noForeign
             && Set(echoedTxIds) == Set(sentTxIds)
         // FIFO-order diagnostic: did each call resolve to the frame echoing ITS OWN sent txId? If not, the
         // replies arrived out of order under `.opcodeFIFO` — the exact case where FIFO mis-attributes but
@@ -511,13 +572,17 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         let inOrder = samples.allSatisfy { $0.echoed == $0.sent }
 
         func line(_ ok: Bool, _ label: String) { print("    \(ok ? "✅ PASS" : "❌ FAIL"): \(label)") }
-        line(allReplied,     "all \(depth) reads received a reply with a txId (\(echoedTxIds.count)/\(depth))")
-        line(sentDistinct,   "sent txIds are distinct")
+        line(allReplied, "all \(depth) reads received a reply with a txId (\(echoedTxIds.count)/\(depth))")
+        line(sentDistinct, "sent txIds are distinct")
         line(echoedDistinct, "echoed txIds are distinct (no reply consumed by two requests)")
-        line(noForeign,      "every echoed txId belongs to an outstanding request (no cross-attribution)")
-        line(bijection,      "STRICT BIJECTION: sent txIds ↔ echoed txIds, one-to-one")
-        print("    ⓘ FIFO in-order arrival: \(inOrder ? "YES (opcodeFIFO happened to be safe on this run)" : "NO (out-of-order → txIdMatch REQUIRED for correct correlation)")")
-        print("    → PIPELINED bijection verdict: \(bijection ? "PASS" : "FAIL")  [UNVALIDATED — bench hardware only; gates nothing]")
+        line(noForeign, "every echoed txId belongs to an outstanding request (no cross-attribution)")
+        line(bijection, "STRICT BIJECTION: sent txIds ↔ echoed txIds, one-to-one")
+        print(
+            "    ⓘ FIFO in-order arrival: \(inOrder ? "YES (opcodeFIFO happened to be safe on this run)" : "NO (out-of-order → txIdMatch REQUIRED for correct correlation)")"
+        )
+        print(
+            "    → PIPELINED bijection verdict: \(bijection ? "PASS" : "FAIL")  [UNVALIDATED — bench hardware only; gates nothing]"
+        )
     }
 
     /// (2c) op-77 NACK txId echo (READ-ONLY, best-effort). Sends a request the pump REJECTS and asserts the
@@ -529,7 +594,10 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     /// normally — in which case no op-77 is observed and step 2b already covered that firmware's bijection.
     private func probeNackTxIdMatch() async {
         print("\n  [2c] op-77 NACK txId echo (best-effort; legacy-firmware specific)")
-        guard await awaitPaired() else { print("    ⏭️  not paired"); return }
+        guard await awaitPaired() else {
+            print("    ⏭️  not paired")
+            return
+        }
         nackProbeActive = true
         nackProbeEchoedTxId = nil
         defer { nackProbeActive = false }
@@ -543,13 +611,17 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         }
         if let s = sent, let e = nackProbeEchoedTxId {
             let ok = (s == e)
-            print("    \(ok ? "✅ PASS" : "❌ FAIL"): op-77 NACK echoed txId \(e) \(ok ? "==" : "!=") failing-request txId \(s)  [UNVALIDATED]")
+            print(
+                "    \(ok ? "✅ PASS" : "❌ FAIL"): op-77 NACK echoed txId \(e) \(ok ? "==" : "!=") failing-request txId \(s)  [UNVALIDATED]"
+            )
         } else if sent != nil {
-            print("    ⓘ no op-77 NACK observed (pump answered normally on this firmware) — NACK-echo not exercised; step 2b applies")
+            print(
+                "    ⓘ no op-77 NACK observed (pump answered normally on this firmware) — NACK-echo not exercised; step 2b applies"
+            )
         } else {
             print("    ⏭️  could not send the NACK-inducing request")
         }
-        _ = await awaitPaired()   // the legacy pump drops the link after op-77 — recover before Phase 3
+        _ = await awaitPaired()  // the legacy pump drops the link after op-77 — recover before Phase 3
     }
 
     /// The full no-cartridge/no-CGM probe: signing time → read sweep → txId-match → signed-write
@@ -558,19 +630,35 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         print("\n========== PROBE — no cartridge / no CGM · reads + signed writes (NO delivery) ==========")
         if let t = await probeRead(TimeSinceResetRequest(), as: TimeSinceResetResponse.self, "time/signing") {
             signingTimestamp = t.currentTime
-            print("  ✅ time: currentTime=\(t.currentTime) signingTs=\(t.signingTimestamp) match=\(t.signingTimestamp == t.currentTime)")
+            print(
+                "  ✅ time: currentTime=\(t.currentTime) signingTs=\(t.signingTimestamp) match=\(t.signingTimestamp == t.currentTime)"
+            )
         }
 
         print("\n--- Phase 1: read-only settings sweep ---")
-        if let r = await probeRead(ProfileStatusRequest(), as: ProfileStatusResponse.self, "profileStatus") { print("  ✅ profileStatus: parsed (\(r.cargo.count) B)") }
-        if let r = await probeRead(GlobalMaxBolusSettingsRequest(), as: GlobalMaxBolusSettingsResponse.self, "globalMaxBolus") { print("  ✅ globalMaxBolus: parsed (\(r.cargo.count) B)") }
-        if let r = await probeRead(BasalLimitSettingsRequest(), as: BasalLimitSettingsResponse.self, "basalLimit") { print("  ✅ basalLimit: parsed (\(r.cargo.count) B)") }
+        if let r = await probeRead(ProfileStatusRequest(), as: ProfileStatusResponse.self, "profileStatus") {
+            print("  ✅ profileStatus: parsed (\(r.cargo.count) B)")
+        }
+        if let r = await probeRead(
+            GlobalMaxBolusSettingsRequest(), as: GlobalMaxBolusSettingsResponse.self, "globalMaxBolus")
+        {
+            print("  ✅ globalMaxBolus: parsed (\(r.cargo.count) B)")
+        }
+        if let r = await probeRead(BasalLimitSettingsRequest(), as: BasalLimitSettingsResponse.self, "basalLimit") {
+            print("  ✅ basalLimit: parsed (\(r.cargo.count) B)")
+        }
         if let r = await probeRead(ControlIQInfoV1Request(), as: ControlIQInfoV1Response.self, "controlIQInfoV1") {
             ciqClosedLoopEnabled = r.closedLoopEnabled
             print("  ✅ controlIQInfoV1: closedLoopEnabled=\(r.closedLoopEnabled)")
         }
-        if let r = await probeRead(HomeScreenMirrorRequest(), as: HomeScreenMirrorResponse.self, "homeScreenMirror") { print("  ✅ homeScreenMirror: parsed (\(r.cargo.count) B)") }
-        if let r = await probeRead(CurrentActiveIdpValuesRequest(), as: CurrentActiveIdpValuesResponse.self, "activeIDP") { print("  ✅ activeIDP: parsed (\(r.cargo.count) B)") }
+        if let r = await probeRead(HomeScreenMirrorRequest(), as: HomeScreenMirrorResponse.self, "homeScreenMirror") {
+            print("  ✅ homeScreenMirror: parsed (\(r.cargo.count) B)")
+        }
+        if let r = await probeRead(
+            CurrentActiveIdpValuesRequest(), as: CurrentActiveIdpValuesResponse.self, "activeIDP")
+        {
+            print("  ✅ activeIDP: parsed (\(r.cargo.count) B)")
+        }
         if let r = await probeRead(HistoryLogStatusRequest(), as: HistoryLogStatusResponse.self, "historyLogStatus") {
             print("  ✅ historyLogStatus: first=\(r.firstSequenceNum) last=\(r.lastSequenceNum)")
         }
@@ -579,18 +667,24 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
 
         print("\n--- Phase 3: signed-write ACCEPTANCE (BolusPermission → release; NO insulin) ---")
         if let f = await probeWrite(BolusPermissionRequest(), "signed BolusPermission"),
-           let resp = try? ResponseParser.parse(frame: f, characteristic: .control).message as? BolusPermissionResponse {
+            let resp = try? ResponseParser.parse(frame: f, characteristic: .control).message as? BolusPermissionResponse
+        {
             print("  → granted=\(resp.granted) bolusId=\(resp.bolusId) — the pump ACCEPTS our V1-signed write")
-            if resp.granted { _ = await probeWrite(BolusPermissionReleaseRequest(bolusID: resp.bolusId), "BolusPermissionRelease") }
+            if resp.granted {
+                _ = await probeWrite(BolusPermissionReleaseRequest(bolusID: resp.bolusId), "BolusPermissionRelease")
+            }
         }
 
         print("\n--- Phase 4: \"Mobi-only\" write probes (state-mutating, NO delivery) ---")
-        if let ciq = ciqClosedLoopEnabled { print("  (Control-IQ closedLoop=\(ciq); temp-basal needs it OFF, SetModes needs it ON)") }
+        if let ciq = ciqClosedLoopEnabled {
+            print("  (Control-IQ closedLoop=\(ciq); temp-basal needs it OFF, SetModes needs it ON)")
+        }
         // time-set: re-set the clock to the value we just read → proves ACCEPT/NACK without shifting it.
         _ = await probeWrite(ChangeTimeDateRequest(tandemEpochTime: signingTimestamp), "ChangeTimeDate (no-op re-set)")
         // temp-basal 80% / 30 min, then stop (cleanup). modifiesInsulinDelivery → arms wall 2; no cartridge → no dose.
         if let tempReq = try? SetTempRateRequest(minutes: 30, percent: 80),
-           await probeWrite(tempReq, "SetTempRate 80%/30m") != nil {
+            await probeWrite(tempReq, "SetTempRate 80%/30m") != nil
+        {
             _ = await probeWrite(StopTempRateRequest(), "StopTempRate (cleanup)")
         }
         // modes: sleep on, then off (cleanup).
@@ -604,8 +698,13 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
             var ciqOff = !ciq0.closedLoopEnabled
             if ciq0.closedLoopEnabled {
                 print("  → disabling Control-IQ (preserving weight=\(ciq0.weight), tdi=\(ciq0.totalDailyInsulin))…")
-                _ = await probeWrite(ChangeControlIQSettingsRequest(enabled: false, weightLbs: ciq0.weight, totalDailyInsulinUnits: ciq0.totalDailyInsulin), "disable Control-IQ")
-                if let chk = await probeRead(ControlIQInfoV1Request(), as: ControlIQInfoV1Response.self, "CIQ read (post-disable)") {
+                _ = await probeWrite(
+                    ChangeControlIQSettingsRequest(
+                        enabled: false, weightLbs: ciq0.weight, totalDailyInsulinUnits: ciq0.totalDailyInsulin),
+                    "disable Control-IQ")
+                if let chk = await probeRead(
+                    ControlIQInfoV1Request(), as: ControlIQInfoV1Response.self, "CIQ read (post-disable)")
+                {
                     ciqOff = !chk.closedLoopEnabled
                     print("  → Control-IQ closedLoop now = \(chk.closedLoopEnabled)")
                 }
@@ -617,22 +716,37 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
             }
             if tempOK { _ = await probeWrite(StopTempRateRequest(), "StopTempRate (cleanup)") }
             if !ciqOff {
-                print("  🔎 INCONCLUSIVE: could not disable Control-IQ (disable write rejected) — temp-basal remains confounded.")
+                print(
+                    "  🔎 INCONCLUSIVE: could not disable Control-IQ (disable write rejected) — temp-basal remains confounded."
+                )
             } else if tempOK {
-                print("  🔎 RESULT: temp-basal ACCEPTED with CIQ OFF → the earlier rejection was the CIQ-ON precondition, NOT Mobi-only exclusivity.")
+                print(
+                    "  🔎 RESULT: temp-basal ACCEPTED with CIQ OFF → the earlier rejection was the CIQ-ON precondition, NOT Mobi-only exclusivity."
+                )
             } else {
-                print("  🔎 RESULT: temp-basal STILL REJECTED with CIQ OFF → genuinely unsupported (Mobi-only) on this t:slim.")
+                print(
+                    "  🔎 RESULT: temp-basal STILL REJECTED with CIQ OFF → genuinely unsupported (Mobi-only) on this t:slim."
+                )
             }
             // ALWAYS restore Control-IQ to its original state, regardless of the retry outcome.
             if ciq0.closedLoopEnabled {
                 print("  → restoring Control-IQ (re-enable, weight=\(ciq0.weight), tdi=\(ciq0.totalDailyInsulin))…")
-                _ = await probeWrite(ChangeControlIQSettingsRequest(enabled: true, weightLbs: ciq0.weight, totalDailyInsulinUnits: ciq0.totalDailyInsulin), "re-enable Control-IQ")
+                _ = await probeWrite(
+                    ChangeControlIQSettingsRequest(
+                        enabled: true, weightLbs: ciq0.weight, totalDailyInsulinUnits: ciq0.totalDailyInsulin),
+                    "re-enable Control-IQ")
             }
-            if let ciqEnd = await probeRead(ControlIQInfoV1Request(), as: ControlIQInfoV1Response.self, "CIQ read (final)") {
+            if let ciqEnd = await probeRead(
+                ControlIQInfoV1Request(), as: ControlIQInfoV1Response.self, "CIQ read (final)")
+            {
                 let restored = ciqEnd.closedLoopEnabled == ciq0.closedLoopEnabled
-                print("  \(restored ? "✅ CIQ restored" : "⚠️ CIQ NOT restored — re-enable Control-IQ via the pump UI"): closedLoop=\(ciqEnd.closedLoopEnabled) (original=\(ciq0.closedLoopEnabled))")
+                print(
+                    "  \(restored ? "✅ CIQ restored" : "⚠️ CIQ NOT restored — re-enable Control-IQ via the pump UI"): closedLoop=\(ciqEnd.closedLoopEnabled) (original=\(ciq0.closedLoopEnabled))"
+                )
             } else {
-                print("  ⚠️ could not confirm final Control-IQ state — verify on the pump (original closedLoop=\(ciq0.closedLoopEnabled)).")
+                print(
+                    "  ⚠️ could not confirm final Control-IQ state — verify on the pump (original closedLoop=\(ciq0.closedLoopEnabled))."
+                )
             }
         } else {
             print("  ⏭️  could not read Control-IQ settings — skipping the CIQ-off retry.")
@@ -667,16 +781,20 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         // Identify the pump → wire the D-08 send gate (affordance b) + build the session config.
         var isMobi = false, apiMajor = 0, apiMinor = 0
         if let api = await probeRead(ApiVersionRequest(), as: ApiVersionResponse.self, "apiVersion") {
-            isMobi = api.isMobi; apiMajor = api.majorVersion; apiMinor = api.minorVersion
+            isMobi = api.isMobi
+            apiMajor = api.majorVersion
+            apiMinor = api.minorVersion
         }
-        wireDeviceContext(isMobi: isMobi, major: apiMajor, minor: apiMinor)   // affordance (b)
+        wireDeviceContext(isMobi: isMobi, major: apiMajor, minor: apiMinor)  // affordance (b)
         let scheme: BenchPairingScheme = (pairingScheme == .long16Char) ? .legacyV1 : .jpake
         let firmwareTag = ProcessInfo.processInfo.environment["PUMP_FIRMWARE_TAG"]
-        let cfg = BenchSessionDetect.config(isMobi: isMobi, apiMajor: apiMajor, apiMinor: apiMinor,
-                                            pairingScheme: scheme, firmwareTag: firmwareTag)
+        let cfg = BenchSessionDetect.config(
+            isMobi: isMobi, apiMajor: apiMajor, apiMinor: apiMinor,
+            pairingScheme: scheme, firmwareTag: firmwareTag)
         print("  session: \(cfg.label)")
-        print("  D-08 gate wired: connectedPumpModel=\(String(describing: client.connectedPumpModel)) "
-            + "negotiatedApi=\(client.negotiatedApiVersion.map { "\($0.major).\($0.minor)" } ?? "nil")")
+        print(
+            "  D-08 gate wired: connectedPumpModel=\(String(describing: client.connectedPumpModel)) "
+                + "negotiatedApi=\(client.negotiatedApiVersion.map { "\($0.major).\($0.minor)" } ?? "nil")")
 
         // Affordance (a): log the RAW CurrentActiveIdpValues cargo + byte-4 vs byte-5 targetBg decode.
         await logCurrentTargetBgRaw()
@@ -694,21 +812,25 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
             switch cmd.lane {
             case .read:
                 if cmd.name == "CurrentActiveIdpValuesRequest" {
-                    updated.state = .pass   // already read (+ raw-logged) above
+                    updated.state = .pass  // already read (+ raw-logged) above
                     updated.note = "read + raw targetBg cargo logged"
                 } else if let inst = BenchCommandCatalog.makeReadInstance(cmd.name) {
                     updated.state = await coverageRead(inst, cmd.name)
                 } else {
-                    updated.state = .gap; updated.note = "no read instance / response opcode to correlate"
+                    updated.state = .gap
+                    updated.note = "no read instance / response opcode to correlate"
                 }
             case .signedWrite:
                 let (st, note) = await coverageSignedWrite(cmd.name)
-                updated.state = st; updated.note = note
+                updated.state = st
+                updated.note = note
             case .delivery:
                 let (st, note) = await coverageDriveDelivery(cmd.name, cfg: cfg)
-                updated.state = st; updated.note = note
+                updated.state = st
+                updated.note = note
             case .pairing:
-                updated.state = .pass; updated.note = "paired via \(scheme.rawValue) this session"
+                updated.state = .pass
+                updated.note = "paired via \(scheme.rawValue) this session"
             }
             updated.timestamp = ts
             matrix.record(updated)
@@ -721,11 +843,13 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         // behind the saline gate we now have a real pass/fail that overwrites the gap placeholder.
         for (name, result) in deliveryPairResults {
             guard let cmd = BenchCommandCatalog.all.first(where: { $0.name == name }), cmd.lane == .signedWrite,
-                  !planned.contains(where: { $0.command == name && $0.state == .untested }) else { continue }
-            matrix.record(BenchCoverageCell(
-                model: cfg.modelName, firmware: cfg.firmwareLabel, cartridge: cfg.cartridgePresent,
-                cgm: cfg.cgmPresent, command: name, lane: .signedWrite, state: result.state,
-                note: result.note, session: cfg.label, timestamp: ts))
+                !planned.contains(where: { $0.command == name && $0.state == .untested })
+            else { continue }
+            matrix.record(
+                BenchCoverageCell(
+                    model: cfg.modelName, firmware: cfg.firmwareLabel, cartridge: cfg.cartridgePresent,
+                    cgm: cfg.cgmPresent, command: name, lane: .signedWrite, state: result.state,
+                    note: result.note, session: cfg.label, timestamp: ts))
             print("  [\(result.state.rawValue)] \(name) (signedWrite · restore-partner)")
         }
 
@@ -754,11 +878,15 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     /// `failClosed()` clears it on any link drop; the pure `plan()` already excludes model-N/A commands, so
     /// this is belt-and-suspenders proof that the wiring is in place, not the sole guard.
     private func wireDeviceContext(isMobi: Bool, major: Int, minor: Int) {
-        guard major > 0 else { print("  ⏭️  device-context not wired (no ApiVersion read)"); return }
+        guard major > 0 else {
+            print("  ⏭️  device-context not wired (no ApiVersion read)")
+            return
+        }
         // trusted: true — the bench operator's own identification of the pump under test is a TRUSTED
         // source (CC-06 / REMED-15.5), distinct from op33's ambiguous API-version heuristic.
-        client.setDeviceContext(model: isMobi ? .mobi : .tslim, apiVersion: ApiVersion(major: major, minor: minor), trusted: true)
-        wiredDeviceContext = (isMobi, major, minor)   // 15.5-WR-03: remember it, so awaitPaired can re-wire after a reconnect
+        client.setDeviceContext(
+            model: isMobi ? .mobi : .tslim, apiVersion: ApiVersion(major: major, minor: minor), trusted: true)
+        wiredDeviceContext = (isMobi, major, minor)  // 15.5-WR-03: remember it, so awaitPaired can re-wire after a reconnect
     }
 
     /// A generic read probe for the coverage sweep: send `req` read-only and await its correlated response.
@@ -772,7 +900,8 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
             }
             return .pass
         } catch {
-            _ = await awaitPaired(); return .fail
+            _ = await awaitPaired()
+            return .fail
         }
     }
 
@@ -784,9 +913,9 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     private func coverageSignedWrite(_ name: String) async -> (BenchCellState, String) {
         guard let aff = BenchAffordanceCatalog.affordance(for: name) else { return (.gap, "no classified affordance") }
         switch aff.kind {
-        case .benignProbe:      return await driveBenignProbe(name)
-        case .captureReapply:   return await driveCaptureReapply(name)
-        default:                return (.gap, aff.note)   // manual/pending/pair — plan() already GAPs these
+        case .benignProbe: return await driveBenignProbe(name)
+        case .captureReapply: return await driveCaptureReapply(name)
+        default: return (.gap, aff.note)  // manual/pending/pair — plan() already GAPs these
         }
     }
 
@@ -803,30 +932,43 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         case "RemoteCarbEntryRequest":
             let req = RemoteCarbEntryRequest(carbs: 0, pumpTimeSecondsSinceBoot: signingTimestamp, bolusId: 0)
             return await probeWrite(req, "coverage RemoteCarbEntry (0 g)") != nil
-                ? (.pass, "benign 0 g carb entry accepted (appends a non-therapy history entry)") : (.fail, "RemoteCarbEntry not accepted")
+                ? (.pass, "benign 0 g carb entry accepted (appends a non-therapy history entry)")
+                : (.fail, "RemoteCarbEntry not accepted")
         case "RemoteBgEntryRequest":
-            let req = RemoteBgEntryRequest(bg: 100, useForCgmCalibration: false, isAutopopBg: false,
-                                           pumpTimeSecondsSinceBoot: signingTimestamp, bolusId: 0)
+            let req = RemoteBgEntryRequest(
+                bg: 100, useForCgmCalibration: false, isAutopopBg: false,
+                pumpTimeSecondsSinceBoot: signingTimestamp, bolusId: 0)
             return await probeWrite(req, "coverage RemoteBgEntry (100, no-calib)") != nil
-                ? (.pass, "benign BG entry accepted (no recalibration; appends a non-therapy entry)") : (.fail, "RemoteBgEntry not accepted")
+                ? (.pass, "benign BG entry accepted (no recalibration; appends a non-therapy entry)")
+                : (.fail, "RemoteBgEntry not accepted")
         case "CancelBolusRequest":
             // Cancel with no active bolus: the pump cleanly reports already-delivered/invalid — proves the
             // signed cancel path with no state change (never cancels a real in-progress bolus here).
             if let f = await probeWrite(CancelBolusRequest(bolusId: 0), "coverage CancelBolus (no active bolus)"),
-               let resp = try? ResponseParser.parse(frame: f, characteristic: .control).message as? CancelBolusResponse {
-                return (.pass, "signed cancel path exercised (statusId=\(resp.statusId), reasonId=\(resp.reasonId); no active bolus)")
+                let resp = try? ResponseParser.parse(frame: f, characteristic: .control).message as? CancelBolusResponse
+            {
+                return (
+                    .pass,
+                    "signed cancel path exercised (statusId=\(resp.statusId), reasonId=\(resp.reasonId); no active bolus)"
+                )
             }
             // A NACK on an invalid cancel still proves the signed write reached the pump and was parsed.
             return (.pass, "signed cancel NACKed as expected (no active bolus)")
         case "BolusPermissionRequest":
             guard let f = await probeWrite(BolusPermissionRequest(), "coverage BolusPermission"),
-                  let resp = try? ResponseParser.parse(frame: f, characteristic: .control).message as? BolusPermissionResponse,
-                  resp.granted else { return (.fail, "permission not granted") }
+                let resp = try? ResponseParser.parse(frame: f, characteristic: .control).message
+                    as? BolusPermissionResponse,
+                resp.granted
+            else { return (.fail, "permission not granted") }
             if await probeWrite(BolusPermissionReleaseRequest(bolusID: resp.bolusId), "coverage release") != nil {
                 coveragePermissionReleasePassed = true
-                deliveryPairResults["BolusPermissionReleaseRequest"] = (.pass, "released bolus permission (restore half of the permission pair)")
+                deliveryPairResults["BolusPermissionReleaseRequest"] = (
+                    .pass, "released bolus permission (restore half of the permission pair)"
+                )
             } else {
-                deliveryPairResults["BolusPermissionReleaseRequest"] = (.fail, "release NACKed — VERIFY no bolus permission is left open")
+                deliveryPairResults["BolusPermissionReleaseRequest"] = (
+                    .fail, "release NACKed — VERIFY no bolus permission is left open"
+                )
             }
             return (.pass, "signed permission granted + released (no insulin)")
         default:
@@ -840,45 +982,89 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     private func driveCaptureReapply(_ name: String) async -> (BenchCellState, String) {
         switch name {
         case "ChangeTimeDateRequest":
-            guard let t = await probeRead(TimeSinceResetRequest(), as: TimeSinceResetResponse.self, "time (pre)") else { return (.fail, "pre-read failed") }
+            guard let t = await probeRead(TimeSinceResetRequest(), as: TimeSinceResetResponse.self, "time (pre)") else {
+                return (.fail, "pre-read failed")
+            }
             let prior = t.currentTime
-            guard await probeWrite(ChangeTimeDateRequest(tandemEpochTime: prior), "ChangeTimeDate (no-op re-set)") != nil else { return (.fail, "write rejected") }
+            guard
+                await probeWrite(ChangeTimeDateRequest(tandemEpochTime: prior), "ChangeTimeDate (no-op re-set)") != nil
+            else { return (.fail, "write rejected") }
             return (.pass, "no-op re-apply: clock re-set to the same currentTime=\(prior)")
         case "SetMaxBolusLimitRequest":
-            guard let r = await probeRead(GlobalMaxBolusSettingsRequest(), as: GlobalMaxBolusSettingsResponse.self, "maxBolus (pre)") else { return (.fail, "pre-read failed") }
+            guard
+                let r = await probeRead(
+                    GlobalMaxBolusSettingsRequest(), as: GlobalMaxBolusSettingsResponse.self, "maxBolus (pre)")
+            else { return (.fail, "pre-read failed") }
             let prior = r.maxBolus
             // `prior` is a REAL on-pump value, not a hardcoded literal — a legacy config below the
             // new 1000 mU floor must not crash the harness; report it as a distinct outcome instead.
             guard let reapplyReq = try? SetMaxBolusLimitRequest(maxBolusMilliunits: prior) else {
-                return (.fail, "on-pump maxBolus \(prior) mU is outside the kit's throwing bounds — cannot no-op re-apply")
+                return (
+                    .fail, "on-pump maxBolus \(prior) mU is outside the kit's throwing bounds — cannot no-op re-apply"
+                )
             }
-            guard await probeWrite(reapplyReq, "SetMaxBolusLimit (no-op re-apply)") != nil else { return (.fail, "write rejected") }
-            guard let chk = await probeRead(GlobalMaxBolusSettingsRequest(), as: GlobalMaxBolusSettingsResponse.self, "maxBolus (post)") else { return (.fail, "post-read failed") }
-            return chk.maxBolus == prior ? (.pass, "no-op re-apply: maxBolus \(prior) mU unchanged (read→write→read verified)")
-                                         : (.fail, "read-back mismatch: \(chk.maxBolus) != \(prior)")
+            guard await probeWrite(reapplyReq, "SetMaxBolusLimit (no-op re-apply)") != nil else {
+                return (.fail, "write rejected")
+            }
+            guard
+                let chk = await probeRead(
+                    GlobalMaxBolusSettingsRequest(), as: GlobalMaxBolusSettingsResponse.self, "maxBolus (post)")
+            else { return (.fail, "post-read failed") }
+            return chk.maxBolus == prior
+                ? (.pass, "no-op re-apply: maxBolus \(prior) mU unchanged (read→write→read verified)")
+                : (.fail, "read-back mismatch: \(chk.maxBolus) != \(prior)")
         case "SetMaxBasalLimitRequest":
-            guard let r = await probeRead(BasalLimitSettingsRequest(), as: BasalLimitSettingsResponse.self, "maxBasal (pre)") else { return (.fail, "pre-read failed") }
+            guard
+                let r = await probeRead(
+                    BasalLimitSettingsRequest(), as: BasalLimitSettingsResponse.self, "maxBasal (pre)")
+            else { return (.fail, "pre-read failed") }
             let prior = UInt32(r.basalLimit)
             guard let reapplyReq = try? SetMaxBasalLimitRequest(maxHourlyBasalMilliunits: prior) else {
-                return (.fail, "on-pump maxBasal \(prior) mU/hr is outside the kit's throwing bounds — cannot no-op re-apply")
+                return (
+                    .fail,
+                    "on-pump maxBasal \(prior) mU/hr is outside the kit's throwing bounds — cannot no-op re-apply"
+                )
             }
-            guard await probeWrite(reapplyReq, "SetMaxBasalLimit (no-op re-apply)") != nil else { return (.fail, "write rejected") }
-            guard let chk = await probeRead(BasalLimitSettingsRequest(), as: BasalLimitSettingsResponse.self, "maxBasal (post)") else { return (.fail, "post-read failed") }
-            return chk.basalLimit == r.basalLimit ? (.pass, "no-op re-apply: maxBasal \(r.basalLimit) mU/hr unchanged (read→write→read verified)")
-                                                  : (.fail, "read-back mismatch: \(chk.basalLimit) != \(r.basalLimit)")
+            guard await probeWrite(reapplyReq, "SetMaxBasalLimit (no-op re-apply)") != nil else {
+                return (.fail, "write rejected")
+            }
+            guard
+                let chk = await probeRead(
+                    BasalLimitSettingsRequest(), as: BasalLimitSettingsResponse.self, "maxBasal (post)")
+            else { return (.fail, "post-read failed") }
+            return chk.basalLimit == r.basalLimit
+                ? (.pass, "no-op re-apply: maxBasal \(r.basalLimit) mU/hr unchanged (read→write→read verified)")
+                : (.fail, "read-back mismatch: \(chk.basalLimit) != \(r.basalLimit)")
         case "ChangeControlIQSettingsRequest":
-            guard let r = await probeRead(ControlIQInfoV1Request(), as: ControlIQInfoV1Response.self, "CIQ (pre)") else { return (.fail, "pre-read failed") }
-            guard await probeWrite(ChangeControlIQSettingsRequest(enabled: r.closedLoopEnabled, weightLbs: r.weight, totalDailyInsulinUnits: r.totalDailyInsulin), "ChangeControlIQSettings (no-op re-apply)") != nil else { return (.fail, "write rejected") }
-            guard let chk = await probeRead(ControlIQInfoV1Request(), as: ControlIQInfoV1Response.self, "CIQ (post)") else { return (.fail, "post-read failed") }
-            return chk.closedLoopEnabled == r.closedLoopEnabled ? (.pass, "no-op re-apply: Control-IQ settings (enabled=\(r.closedLoopEnabled), weight=\(r.weight), tdi=\(r.totalDailyInsulin)) unchanged")
-                                                                : (.fail, "read-back mismatch: closedLoop \(chk.closedLoopEnabled) != \(r.closedLoopEnabled)")
+            guard let r = await probeRead(ControlIQInfoV1Request(), as: ControlIQInfoV1Response.self, "CIQ (pre)")
+            else { return (.fail, "pre-read failed") }
+            guard
+                await probeWrite(
+                    ChangeControlIQSettingsRequest(
+                        enabled: r.closedLoopEnabled, weightLbs: r.weight, totalDailyInsulinUnits: r.totalDailyInsulin),
+                    "ChangeControlIQSettings (no-op re-apply)") != nil
+            else { return (.fail, "write rejected") }
+            guard let chk = await probeRead(ControlIQInfoV1Request(), as: ControlIQInfoV1Response.self, "CIQ (post)")
+            else { return (.fail, "post-read failed") }
+            return chk.closedLoopEnabled == r.closedLoopEnabled
+                ? (
+                    .pass,
+                    "no-op re-apply: Control-IQ settings (enabled=\(r.closedLoopEnabled), weight=\(r.weight), tdi=\(r.totalDailyInsulin)) unchanged"
+                )
+                : (.fail, "read-back mismatch: closedLoop \(chk.closedLoopEnabled) != \(r.closedLoopEnabled)")
         case "SetLowInsulinAlertRequest":
-            guard let r = await probeRead(PumpSettingsRequest(), as: PumpSettingsResponse.self, "pumpSettings (pre)") else { return (.fail, "pre-read failed") }
+            guard let r = await probeRead(PumpSettingsRequest(), as: PumpSettingsResponse.self, "pumpSettings (pre)")
+            else { return (.fail, "pre-read failed") }
             let prior = r.lowInsulinThreshold
-            guard await probeWrite(SetLowInsulinAlertRequest(insulinThreshold: prior), "SetLowInsulinAlert (no-op re-apply)") != nil else { return (.fail, "write rejected") }
-            guard let chk = await probeRead(PumpSettingsRequest(), as: PumpSettingsResponse.self, "pumpSettings (post)") else { return (.fail, "post-read failed") }
-            return chk.lowInsulinThreshold == prior ? (.pass, "no-op re-apply: lowInsulinThreshold \(prior) u unchanged (read→write→read verified)")
-                                                    : (.fail, "read-back mismatch: \(chk.lowInsulinThreshold) != \(prior)")
+            guard
+                await probeWrite(
+                    SetLowInsulinAlertRequest(insulinThreshold: prior), "SetLowInsulinAlert (no-op re-apply)") != nil
+            else { return (.fail, "write rejected") }
+            guard let chk = await probeRead(PumpSettingsRequest(), as: PumpSettingsResponse.self, "pumpSettings (post)")
+            else { return (.fail, "post-read failed") }
+            return chk.lowInsulinThreshold == prior
+                ? (.pass, "no-op re-apply: lowInsulinThreshold \(prior) u unchanged (read→write→read verified)")
+                : (.fail, "read-back mismatch: \(chk.lowInsulinThreshold) != \(prior)")
         default:
             return (.gap, "no capture-reapply driver for \(name)")
         }
@@ -902,21 +1088,24 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         if aff.role == .restorePartner {
             if let r = deliveryPairResults[name] { return r }
             if let primary = aff.partner { _ = await coverageDriveDelivery(primary, cfg: cfg) }
-            return deliveryPairResults[name] ?? (.gap, "restore-partner not exercised (primary \(aff.partner ?? "?") did not run)")
+            return deliveryPairResults[name] ?? (
+                .gap, "restore-partner not exercised (primary \(aff.partner ?? "?") did not run)"
+            )
         }
         switch name {
-        case "InitiateBolusRequest":            return (await coverageDeliverBolusOracle(), "history-log read-back oracle (delivered ≈ requested)")
-        case "AdditionalBolusRequest":          return await driveAdditionalBolus()
-        case "SuspendPumpingRequest":           return await driveSuspendResume()
-        case "SetTempRateRequest":              return await driveTempRatePair()
+        case "InitiateBolusRequest":
+            return (await coverageDeliverBolusOracle(), "history-log read-back oracle (delivered ≈ requested)")
+        case "AdditionalBolusRequest": return await driveAdditionalBolus()
+        case "SuspendPumpingRequest": return await driveSuspendResume()
+        case "SetTempRateRequest": return await driveTempRatePair()
         case "EnterChangeCartridgeModeRequest": return await driveCartridgeModePair()
-        case "EnterFillTubingModeRequest":      return await driveFillTubingPair()
-        case "CreateIDPRequest":                return await driveCreateDeleteIdp()
-        case "SetModesRequest":                 return await driveSetModes()
-        case "SetActiveIDPRequest":             return await driveSetActiveIdp()
-        case "FillCannulaRequest":              return await driveFillCannula()
-        case "RenameIDPRequest":                return await driveRenameIdp()
-        default:                                return (.gap, aff.note)
+        case "EnterFillTubingModeRequest": return await driveFillTubingPair()
+        case "CreateIDPRequest": return await driveCreateDeleteIdp()
+        case "SetModesRequest": return await driveSetModes()
+        case "SetActiveIDPRequest": return await driveSetActiveIdp()
+        case "FillCannulaRequest": return await driveFillCannula()
+        case "RenameIDPRequest": return await driveRenameIdp()
+        default: return (.gap, aff.note)
         }
     }
 
@@ -926,22 +1115,29 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     private func driveAdditionalBolus() async -> (BenchCellState, String) {
         guard await awaitPaired() else { return (.fail, "not paired") }
         guard let permFrame = await probeWrite(BolusPermissionRequest(), "add-bolus permission"),
-              let perm = try? ResponseParser.parse(frame: permFrame, characteristic: .control).message as? BolusPermissionResponse,
-              perm.granted else { return (.fail, "permission not granted") }
+            let perm = try? ResponseParser.parse(frame: permFrame, characteristic: .control).message
+                as? BolusPermissionResponse,
+            perm.granted
+        else { return (.fail, "permission not granted") }
         do {
             // Smallest valid extended bolus: total 0 + 0.40 u extended over 30 min, FOOD2 + EXTENDED.
             let mask = InitiateBolusRequest.bitFood2 | InitiateBolusRequest.bitExtended
-            let req = try InitiateBolusRequest(validating: 0, bolusID: perm.bolusId, bolusTypeBitmask: mask,
-                                               extendedVolume: 400, extendedSeconds: 1800)
+            let req = try InitiateBolusRequest(
+                validating: 0, bolusID: perm.bolusId, bolusTypeBitmask: mask,
+                extendedVolume: 400, extendedSeconds: 1800)
             _ = try await client.withWritePolicy(.allowDelivery) {
-                try await self.client.sendAwaitingResponse(req, authenticationKey: self.authKey,
-                    pumpTimeSinceReset: self.signingTimestamp, allowInsulinDelivery: true, deadline: 10, serialized: true)
+                try await self.client.sendAwaitingResponse(
+                    req, authenticationKey: self.authKey,
+                    pumpTimeSinceReset: self.signingTimestamp, allowInsulinDelivery: true, deadline: 10,
+                    serialized: true)
             }
         } catch { return (.fail, "extended-bolus setup rejected: \(error)") }
         let extended = await probeWrite(AdditionalBolusRequest(bolusID: perm.bolusId), "AdditionalBolus") != nil
         // ALWAYS cancel the extended bolus so nothing keeps delivering.
         _ = await probeWrite(CancelBolusRequest(bolusId: perm.bolusId), "CancelBolus (cleanup extended)")
-        guard extended else { return (.fail, "AdditionalBolus not accepted (extended-bolus context) — cancelled cleanup") }
+        guard extended else {
+            return (.fail, "AdditionalBolus not accepted (extended-bolus context) — cancelled cleanup")
+        }
         return (.pass, "extended saline bolus extended via AdditionalBolus, then cancelled to restore")
     }
 
@@ -949,9 +1145,13 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     private func driveSuspendResume() async -> (BenchCellState, String) {
         guard await awaitPaired() else { return (.fail, "not paired") }
         let suspended = await probeWrite(SuspendPumpingRequest(), "SuspendPumping") != nil
-        let mid = suspended ? await probeRead(CurrentBasalStatusRequest(), as: CurrentBasalStatusResponse.self, "basal (suspended)") : nil
+        let mid =
+            suspended
+            ? await probeRead(CurrentBasalStatusRequest(), as: CurrentBasalStatusResponse.self, "basal (suspended)")
+            : nil
         let resumed = await probeWrite(ResumePumpingRequest(), "ResumePumping (restore)") != nil
-        deliveryPairResults["ResumePumpingRequest"] = resumed
+        deliveryPairResults["ResumePumpingRequest"] =
+            resumed
             ? (.pass, "resumed pumping (restore half of Suspend↔Resume)")
             : (.fail, "resume NACKed — ⚠️ VERIFY pumping is resumed on the pump")
         guard suspended else { return (.fail, "SuspendPumping not accepted") }
@@ -967,40 +1167,54 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         if let tempReq = try? SetTempRateRequest(minutes: 30, percent: 80) {
             setOK = await probeWrite(tempReq, "SetTempRate 80%/30m") != nil
         }
-        let mid = setOK ? await probeRead(TempRateStatusRequest(), as: TempRateStatusResponse.self, "temp-rate (mid)") : nil
+        let mid =
+            setOK ? await probeRead(TempRateStatusRequest(), as: TempRateStatusResponse.self, "temp-rate (mid)") : nil
         let stopped = await probeWrite(StopTempRateRequest(), "StopTempRate (restore)") != nil
-        deliveryPairResults["StopTempRateRequest"] = stopped
+        deliveryPairResults["StopTempRateRequest"] =
+            stopped
             ? (.pass, "stopped temp rate (restore half of SetTempRate↔StopTempRate)")
             : (.fail, "StopTempRate NACKed — ⚠️ VERIFY no temp rate is left active")
         guard setOK else {
-            let hint = (ciq?.closedLoopEnabled == true) ? " — Control-IQ is ON; temp rate needs it OFF (use the `probe` subcommand's CIQ-off path)" : ""
+            let hint =
+                (ciq?.closedLoopEnabled == true)
+                ? " — Control-IQ is ON; temp rate needs it OFF (use the `probe` subcommand's CIQ-off path)" : ""
             return (.fail, "SetTempRate rejected\(hint)")
         }
-        let activeNote = (mid?.active == true) ? "TempRateStatus.active confirmed" : "active not confirmed via read-back"
-        return (.pass, "temp rate 80%/30m accepted (\(activeNote)); stopped to restore\(stopped ? "" : " — ⚠️ stop FAILED")")
+        let activeNote =
+            (mid?.active == true) ? "TempRateStatus.active confirmed" : "active not confirmed via read-back"
+        return (
+            .pass, "temp rate 80%/30m accepted (\(activeNote)); stopped to restore\(stopped ? "" : " — ⚠️ stop FAILED")"
+        )
     }
 
     /// EnterChangeCartridgeMode↔Exit: enter → confirm LoadStatus → ALWAYS exit to restore.
     private func driveCartridgeModePair() async -> (BenchCellState, String) {
         guard await awaitPaired() else { return (.fail, "not paired") }
         let entered = await probeWrite(EnterChangeCartridgeModeRequest(), "EnterChangeCartridgeMode") != nil
-        let mid = entered ? await probeRead(LoadStatusRequest(), as: LoadStatusResponse.self, "loadStatus (in mode)") : nil
+        let mid =
+            entered ? await probeRead(LoadStatusRequest(), as: LoadStatusResponse.self, "loadStatus (in mode)") : nil
         let exited = await probeWrite(ExitChangeCartridgeModeRequest(), "ExitChangeCartridgeMode (restore)") != nil
-        deliveryPairResults["ExitChangeCartridgeModeRequest"] = exited
+        deliveryPairResults["ExitChangeCartridgeModeRequest"] =
+            exited
             ? (.pass, "exited cartridge-change mode (restore half of the pair)")
             : (.fail, "ExitChangeCartridgeMode NACKed — ⚠️ VERIFY the pump left cartridge-change mode")
         guard entered else { return (.fail, "EnterChangeCartridgeMode not accepted") }
         let midNote = mid.map { "loadState=\($0.loadStateId)" } ?? "LoadStatus inconclusive"
-        return (.pass, "entered cartridge-change mode (\(midNote)); exited to restore\(exited ? "" : " — ⚠️ exit FAILED")")
+        return (
+            .pass, "entered cartridge-change mode (\(midNote)); exited to restore\(exited ? "" : " — ⚠️ exit FAILED")"
+        )
     }
 
     /// EnterFillTubingMode↔Exit: enter (primes tubing on saline) → confirm LoadStatus → ALWAYS exit to restore.
     private func driveFillTubingPair() async -> (BenchCellState, String) {
         guard await awaitPaired() else { return (.fail, "not paired") }
         let entered = await probeWrite(EnterFillTubingModeRequest(), "EnterFillTubingMode") != nil
-        let mid = entered ? await probeRead(LoadStatusRequest(), as: LoadStatusResponse.self, "loadStatus (fill-tubing)") : nil
+        let mid =
+            entered
+            ? await probeRead(LoadStatusRequest(), as: LoadStatusResponse.self, "loadStatus (fill-tubing)") : nil
         let exited = await probeWrite(ExitFillTubingModeRequest(), "ExitFillTubingMode (restore)") != nil
-        deliveryPairResults["ExitFillTubingModeRequest"] = exited
+        deliveryPairResults["ExitFillTubingModeRequest"] =
+            exited
             ? (.pass, "exited fill-tubing mode (restore half of the pair)")
             : (.fail, "ExitFillTubingMode NACKed — ⚠️ VERIFY the pump left fill-tubing mode")
         guard entered else { return (.fail, "EnterFillTubingMode not accepted") }
@@ -1014,25 +1228,35 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         guard await awaitPaired() else { return (.fail, "not paired") }
         let before = await probeRead(ProfileStatusRequest(), as: ProfileStatusResponse.self, "profiles (pre)")
         // A conservative throwaway profile (values echo a sane basal profile; deleted immediately).
-        let create = CreateIDPRequest(name: "BENCH_TMP", firstSegmentProfileCarbRatio: 10000,
-                                      firstSegmentProfileStartTime: 0, firstSegmentProfileBasalRate: 500,
-                                      firstSegmentProfileTargetBG: 110, firstSegmentProfileISF: 50,
-                                      profileInsulinDuration: 300, timeSegmentBitmask: 1, bolusSettingsBitmask: 0,
-                                      carbEntry: 1, idpSourceId: 0)
+        let create = CreateIDPRequest(
+            name: "BENCH_TMP", firstSegmentProfileCarbRatio: 10000,
+            firstSegmentProfileStartTime: 0, firstSegmentProfileBasalRate: 500,
+            firstSegmentProfileTargetBG: 110, firstSegmentProfileISF: 50,
+            profileInsulinDuration: 300, timeSegmentBitmask: 1, bolusSettingsBitmask: 0,
+            carbEntry: 1, idpSourceId: 0)
         guard let f = await probeWrite(create, "CreateIDP (throwaway)"),
-              let resp = try? ResponseParser.parse(frame: f, characteristic: .control).message as? CreateIDPResponse else {
+            let resp = try? ResponseParser.parse(frame: f, characteristic: .control).message as? CreateIDPResponse
+        else {
             return (.fail, "CreateIDP not accepted")
         }
         let newId = resp.newIdpId
         let mid = await probeRead(ProfileStatusRequest(), as: ProfileStatusResponse.self, "profiles (post-create)")
         // Delete the throwaway by its new id (slot index = old count).
         let profileIndex = before?.numberOfProfiles ?? 0
-        let deleted = await probeWrite(DeleteIDPRequest(idpId: newId, profileIndex: profileIndex), "DeleteIDP (throwaway restore)") != nil
-        deliveryPairResults["DeleteIDPRequest"] = deleted
+        let deleted =
+            await probeWrite(
+                DeleteIDPRequest(idpId: newId, profileIndex: profileIndex), "DeleteIDP (throwaway restore)") != nil
+        deliveryPairResults["DeleteIDPRequest"] =
+            deleted
             ? (.pass, "deleted the throwaway IDP id \(newId) (restore half of CreateIDP→DeleteIDP)")
             : (.fail, "DeleteIDP NACKed — ⚠️ VERIFY the throwaway IDP id \(newId) is removed on the pump")
-        let grew = (before != nil && mid != nil) ? "count \(before!.numberOfProfiles)→\(mid!.numberOfProfiles)" : "count read inconclusive"
-        return (.pass, "created throwaway IDP id \(newId) (\(grew)); deleted to restore\(deleted ? "" : " — ⚠️ delete FAILED")")
+        let grew =
+            (before != nil && mid != nil)
+            ? "count \(before!.numberOfProfiles)→\(mid!.numberOfProfiles)" : "count read inconclusive"
+        return (
+            .pass,
+            "created throwaway IDP id \(newId) (\(grew)); deleted to restore\(deleted ? "" : " — ⚠️ delete FAILED")"
+        )
     }
 
     /// SetModes: capture the current user mode → set sleepModeOn → confirm changed → RESTORE sleepModeOff.
@@ -1041,42 +1265,60 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         guard await awaitPaired() else { return (.fail, "not paired") }
         let pre = await probeRead(ControlIQInfoV1Request(), as: ControlIQInfoV1Response.self, "modes (pre)")
         let onOK = await probeWrite(SetModesRequest(mode: .sleepModeOn), "SetModes sleepOn") != nil
-        let mid = onOK ? await probeRead(ControlIQInfoV1Request(), as: ControlIQInfoV1Response.self, "modes (mid)") : nil
+        let mid =
+            onOK ? await probeRead(ControlIQInfoV1Request(), as: ControlIQInfoV1Response.self, "modes (mid)") : nil
         // ALWAYS restore sleep OFF (the assumed default; a bench pump is not on a schedule).
         let offOK = await probeWrite(SetModesRequest(mode: .sleepModeOff), "SetModes sleepOff (restore)") != nil
         guard onOK else {
             let hint = (pre?.closedLoopEnabled == false) ? " — Control-IQ is OFF; SetModes needs it ON" : ""
             return (.fail, "SetModes(sleepOn) rejected\(hint)")
         }
-        let changed = (pre != nil && mid != nil && pre!.currentUserModeType != mid!.currentUserModeType) ? "mode changed \(pre!.currentUserModeType)→\(mid!.currentUserModeType)" : "mode-change read inconclusive"
-        return (.pass, "SetModes(sleepOn) accepted (\(changed)); restored sleepOff\(offOK ? "" : " — ⚠️ restore FAILED, VERIFY sleep mode on the pump")")
+        let changed =
+            (pre != nil && mid != nil && pre!.currentUserModeType != mid!.currentUserModeType)
+            ? "mode changed \(pre!.currentUserModeType)→\(mid!.currentUserModeType)" : "mode-change read inconclusive"
+        return (
+            .pass,
+            "SetModes(sleepOn) accepted (\(changed)); restored sleepOff\(offOK ? "" : " — ⚠️ restore FAILED, VERIFY sleep mode on the pump")"
+        )
     }
 
     /// SetActiveIDP: capture the active profile → switch to another present profile → confirm → RESTORE.
     /// Needs ≥2 profiles; records a clear note if only one exists.
     private func driveSetActiveIdp() async -> (BenchCellState, String) {
         guard await awaitPaired() else { return (.fail, "not paired") }
-        guard let pre = await probeRead(ProfileStatusRequest(), as: ProfileStatusResponse.self, "profiles (pre)") else { return (.fail, "profile read failed") }
+        guard let pre = await probeRead(ProfileStatusRequest(), as: ProfileStatusResponse.self, "profiles (pre)") else {
+            return (.fail, "profile read failed")
+        }
         let present = pre.presentIdpIds
         let original = pre.activeIdpId
         guard present.count >= 2, let other = present.first(where: { $0 != original }) else {
             return (.fail, "needs ≥2 IDPs to switch the active profile (present: \(present.count))")
         }
         let switchOK = await probeWrite(SetActiveIDPRequest(idpId: other), "SetActiveIDP → \(other)") != nil
-        let mid = switchOK ? await probeRead(ProfileStatusRequest(), as: ProfileStatusResponse.self, "profiles (mid)") : nil
+        let mid =
+            switchOK ? await probeRead(ProfileStatusRequest(), as: ProfileStatusResponse.self, "profiles (mid)") : nil
         // ALWAYS restore the original active profile.
-        let restoreOK = await probeWrite(SetActiveIDPRequest(idpId: original), "SetActiveIDP → \(original) (restore)") != nil
+        let restoreOK =
+            await probeWrite(SetActiveIDPRequest(idpId: original), "SetActiveIDP → \(original) (restore)") != nil
         guard switchOK else { return (.fail, "SetActiveIDP not accepted") }
-        let confirmed = (mid?.activeIdpId == other) ? "active switched to \(other)" : "switch not confirmed via read-back"
-        return (.pass, "SetActiveIDP accepted (\(confirmed)); restored active IDP \(original)\(restoreOK ? "" : " — ⚠️ restore FAILED")")
+        let confirmed =
+            (mid?.activeIdpId == other) ? "active switched to \(other)" : "switch not confirmed via read-back"
+        return (
+            .pass,
+            "SetActiveIDP accepted (\(confirmed)); restored active IDP \(original)\(restoreOK ? "" : " — ⚠️ restore FAILED")"
+        )
     }
 
     /// FillCannula: dispense a small saline cannula prime, confirm accepted + LoadStatus. One-way (records,
     /// no reverse — a prime cannot be un-dispensed; safe on saline).
     private func driveFillCannula() async -> (BenchCellState, String) {
         guard await awaitPaired() else { return (.fail, "not paired") }
-        guard let fillReq = try? FillCannulaRequest(primeSize: 30) else { return (.fail, "FillCannulaRequest(30) rejected by bounds — should never happen for an in-range literal") }
-        guard await probeWrite(fillReq, "FillCannula (30 mU prime)") != nil else { return (.fail, "FillCannula not accepted") }
+        guard let fillReq = try? FillCannulaRequest(primeSize: 30) else {
+            return (.fail, "FillCannulaRequest(30) rejected by bounds — should never happen for an in-range literal")
+        }
+        guard await probeWrite(fillReq, "FillCannula (30 mU prime)") != nil else {
+            return (.fail, "FillCannula not accepted")
+        }
         let mid = await probeRead(LoadStatusRequest(), as: LoadStatusResponse.self, "loadStatus (post-fill)")
         let midNote = mid.map { "primeStatus=\($0.primeStatusId)" } ?? "LoadStatus inconclusive"
         return (.pass, "cannula prime (30 mU saline) accepted (\(midNote)); one-way — nothing to restore")
@@ -1085,18 +1327,35 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     /// RenameIDP: capture the active profile's name → rename to a temp → confirm → RESTORE the prior name.
     private func driveRenameIdp() async -> (BenchCellState, String) {
         guard await awaitPaired() else { return (.fail, "not paired") }
-        guard let prof = await probeRead(ProfileStatusRequest(), as: ProfileStatusResponse.self, "profiles (pre)") else { return (.fail, "profile read failed") }
+        guard let prof = await probeRead(ProfileStatusRequest(), as: ProfileStatusResponse.self, "profiles (pre)")
+        else { return (.fail, "profile read failed") }
         let idpId = prof.activeIdpId
         guard idpId >= 0 else { return (.fail, "no active IDP to rename") }
-        guard let settings = await probeRead(IDPSettingsRequest(idpId: idpId), as: IDPSettingsResponse.self, "idp settings (pre)") else { return (.fail, "IDP settings read failed") }
+        guard
+            let settings = await probeRead(
+                IDPSettingsRequest(idpId: idpId), as: IDPSettingsResponse.self, "idp settings (pre)")
+        else { return (.fail, "IDP settings read failed") }
         let originalName = settings.name
-        let renameOK = await probeWrite(RenameIDPRequest(idpId: idpId, profileIndex: 0, profileName: "BENCH_TMP"), "RenameIDP → BENCH_TMP") != nil
-        let mid = renameOK ? await probeRead(IDPSettingsRequest(idpId: idpId), as: IDPSettingsResponse.self, "idp settings (mid)") : nil
+        let renameOK =
+            await probeWrite(
+                RenameIDPRequest(idpId: idpId, profileIndex: 0, profileName: "BENCH_TMP"), "RenameIDP → BENCH_TMP")
+            != nil
+        let mid =
+            renameOK
+            ? await probeRead(IDPSettingsRequest(idpId: idpId), as: IDPSettingsResponse.self, "idp settings (mid)")
+            : nil
         // ALWAYS restore the original name.
-        let restoreOK = await probeWrite(RenameIDPRequest(idpId: idpId, profileIndex: 0, profileName: originalName), "RenameIDP → \"\(originalName)\" (restore)") != nil
+        let restoreOK =
+            await probeWrite(
+                RenameIDPRequest(idpId: idpId, profileIndex: 0, profileName: originalName),
+                "RenameIDP → \"\(originalName)\" (restore)") != nil
         guard renameOK else { return (.fail, "RenameIDP not accepted") }
-        let confirmed = (mid?.name == "BENCH_TMP") ? "rename confirmed via read-back" : "rename not confirmed via read-back"
-        return (.pass, "RenameIDP accepted (\(confirmed)); restored name \"\(originalName)\"\(restoreOK ? "" : " — ⚠️ restore FAILED, VERIFY the IDP name on the pump")")
+        let confirmed =
+            (mid?.name == "BENCH_TMP") ? "rename confirmed via read-back" : "rename not confirmed via read-back"
+        return (
+            .pass,
+            "RenameIDP accepted (\(confirmed)); restored name \"\(originalName)\"\(restoreOK ? "" : " — ⚠️ restore FAILED, VERIFY the IDP name on the pump")"
+        )
     }
 
     /// Lane B delivery oracle: deliver a small SALINE bolus (0.10 u) and PASS only when the pump's OWN
@@ -1107,30 +1366,40 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         let requestedUnits = Double(requestedMU) / 1000.0
         guard await awaitPaired() else { return .fail }
         guard let permFrame = await probeWrite(BolusPermissionRequest(), "coverage-deliver BolusPermission"),
-              let perm = try? ResponseParser.parse(frame: permFrame, characteristic: .control).message as? BolusPermissionResponse,
-              perm.granted else { return .fail }
+            let perm = try? ResponseParser.parse(frame: permFrame, characteristic: .control).message
+                as? BolusPermissionResponse,
+            perm.granted
+        else { return .fail }
         do {
             let mask = InitiateBolusRequest.typeBitmask(hasCarbs: false, hasCorrection: false, isExtended: false)
             // BENCH-CONFIRM (dose path, opcode-158): log the EMITTED type mask so the operator can compare it
             // against the pump's own BolusDeliveryHistoryLog bolus-type. Pre-#120 labels FOOD1(1)/CORRECTION(2)/
             // EXTENDED(4)/FOOD2(8); this units-only bolus emits FOOD2. See docs/BENCH-COVERAGE.md → BENCH-CONFIRM.
-            print("  🔬 BENCH-CONFIRM (opcode-158 type bits): units-only bolus emits bolusTypeBitmask=0x"
-                + "\(String(mask, radix: 16)) (FOOD2) — compare vs the pump's recorded BolusDeliveryHistoryLog type")
+            print(
+                "  🔬 BENCH-CONFIRM (opcode-158 type bits): units-only bolus emits bolusTypeBitmask=0x"
+                    + "\(String(mask, radix: 16)) (FOOD2) — compare vs the pump's recorded BolusDeliveryHistoryLog type"
+            )
             let req = try InitiateBolusRequest(validating: requestedMU, bolusID: perm.bolusId, bolusTypeBitmask: mask)
             let frame = try await client.withWritePolicy(.allowDelivery) {
                 try await self.client.sendAwaitingResponse(
                     req, authenticationKey: self.authKey, pumpTimeSinceReset: self.signingTimestamp,
                     allowInsulinDelivery: true, deadline: 10, serialized: true)
             }
-            guard let resp = try? ResponseParser.parse(frame: frame, characteristic: .control).message as? InitiateBolusResponse,
-                  resp.accepted else { return .fail }
+            guard
+                let resp = try? ResponseParser.parse(frame: frame, characteristic: .control).message
+                    as? InitiateBolusResponse,
+                resp.accepted
+            else { return .fail }
         } catch { return .fail }
         // Oracle: poll the pump's own last-bolus record until it reflects the requested units.
         let deadline = Date().addingTimeInterval(30)
         while Date() < deadline {
-            if let f = try? await client.withWritePolicy(.readOnly, { try await self.client.sendAwaitingResponse(LastBolusStatusV2Request(), deadline: 10) }),
-               let last = try? ResponseParser.parse(frame: f, characteristic: .currentStatus).message as? LastBolusStatusV2Response,
-               abs(last.deliveredUnits - requestedUnits) <= 0.05 {
+            if let f = try? await client.withWritePolicy(
+                .readOnly, { try await self.client.sendAwaitingResponse(LastBolusStatusV2Request(), deadline: 10) }),
+                let last = try? ResponseParser.parse(frame: f, characteristic: .currentStatus).message
+                    as? LastBolusStatusV2Response,
+                abs(last.deliveredUnits - requestedUnits) <= 0.05
+            {
                 print("  ✅ delivery oracle: pump recorded \(last.deliveredUnits) u ≈ requested \(requestedUnits) u")
                 return .pass
             }
@@ -1144,15 +1413,20 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     /// targetBg decode (BENCH-SESSION-PLAN Obj 4 / D-07 — confirm byte-4 carries the pump-set target on
     /// THIS pump family + firmware before trusting the typed decode).
     private func logCurrentTargetBgRaw() async {
-        guard let r = await probeRead(CurrentActiveIdpValuesRequest(), as: CurrentActiveIdpValuesResponse.self, "activeIDP raw") else {
-            print("  ⏭️  currentTargetBg raw: activeIDP read rejected on this pump"); return
+        guard
+            let r = await probeRead(
+                CurrentActiveIdpValuesRequest(), as: CurrentActiveIdpValuesResponse.self, "activeIDP raw")
+        else {
+            print("  ⏭️  currentTargetBg raw: activeIDP read rejected on this pump")
+            return
         }
         let raw = r.cargo
         let b4 = raw.count >= 6 ? (Int(raw[4]) | (Int(raw[5]) << 8)) : -1
         let b5 = raw.count >= 7 ? (Int(raw[5]) | (Int(raw[6]) << 8)) : -1
         print("  🔬 currentTargetBg RAW cargo=\(Hex.encode(raw))")
-        print("     decoded targetBg: byte4(LE)=\(b4)  byte5(LE)=\(b5)  typed=\(r.currentTargetBg)  "
-            + "(D-07: byte-4 must equal the pump-set target; capture per pump-family+firmware)")
+        print(
+            "     decoded targetBg: byte4(LE)=\(b4)  byte5(LE)=\(b5)  typed=\(r.currentTargetBg)  "
+                + "(D-07: byte-4 must equal the pump-set target; capture per pump-family+firmware)")
     }
 
     /// Affordance (c): OPT-IN no-cartridge bolus-rejection probe. Drives a 0.10 u bolus through BOTH
@@ -1164,27 +1438,38 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         print("  Driving a 0.10 u bolus through BOTH walls with NO cartridge; recording the REJECTION.")
         var passed = false, note = ""
         if let f = await probeWrite(BolusPermissionRequest(), "no-cart BolusPermission"),
-           let perm = try? ResponseParser.parse(frame: f, characteristic: .control).message as? BolusPermissionResponse {
+            let perm = try? ResponseParser.parse(frame: f, characteristic: .control).message as? BolusPermissionResponse
+        {
             if !perm.granted {
-                passed = true; note = "pump refused permission without a cartridge (expected)"
+                passed = true
+                note = "pump refused permission without a cartridge (expected)"
             } else {
                 do {
-                    let mask = InitiateBolusRequest.typeBitmask(hasCarbs: false, hasCorrection: false, isExtended: false)
+                    let mask = InitiateBolusRequest.typeBitmask(
+                        hasCarbs: false, hasCorrection: false, isExtended: false)
                     let req = try InitiateBolusRequest(validating: 100, bolusID: perm.bolusId, bolusTypeBitmask: mask)
                     let frame = try await client.withWritePolicy(.allowDelivery) {
                         try await self.client.sendAwaitingResponse(
                             req, authenticationKey: self.authKey, pumpTimeSinceReset: self.signingTimestamp,
                             allowInsulinDelivery: true, deadline: 10, serialized: true)
                     }
-                    if let resp = try? ResponseParser.parse(frame: frame, characteristic: .control).message as? InitiateBolusResponse {
+                    if let resp = try? ResponseParser.parse(frame: frame, characteristic: .control).message
+                        as? InitiateBolusResponse
+                    {
                         passed = !resp.accepted
-                        note = resp.accepted
+                        note =
+                            resp.accepted
                             ? "⚠️ pump ACCEPTED a no-cartridge initiate — verify NO delivery recorded on the pump"
                             : "pump rejected the no-cartridge initiate (expected; status \(resp.status))"
                     }
-                } catch { passed = true; note = "no-cartridge initiate threw/failed (expected rejection)" }
+                } catch {
+                    passed = true
+                    note = "no-cartridge initiate threw/failed (expected rejection)"
+                }
             }
-        } else { note = "permission exchange produced no response" }
+        } else {
+            note = "permission exchange produced no response"
+        }
         print("  → no-cartridge probe: \(passed ? "PASS (rejected as expected)" : "REVIEW") — \(note)")
         let cell = BenchCoverageCell(
             model: cfg.modelName, firmware: cfg.firmwareLabel, cartridge: false, cgm: cfg.cgmPresent,
@@ -1197,10 +1482,13 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         let rem = matrix.remaining()
         print("\n--- Coverage remaining: \(rem.count) command(s) not yet PASS in any config ---")
         guard !rem.isEmpty else {
-            print("  ✅ every applicable command has a PASS in at least one recorded config"); return
+            print("  ✅ every applicable command has a PASS in at least one recorded config")
+            return
         }
         var byNote: [String: [String]] = [:]
-        for r in rem { byNote[r.note, default: []].append("\(r.command) [\(r.model)/\(r.firmware) · \(r.best.rawValue)]") }
+        for r in rem {
+            byNote[r.note, default: []].append("\(r.command) [\(r.model)/\(r.firmware) · \(r.best.rawValue)]")
+        }
         for note in byNote.keys.sorted() {
             print("  • \(note)")
             for item in byNote[note]!.sorted() { print("      - \(item)") }
@@ -1213,13 +1501,15 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         } else if let parsed = try? ResponseParser.parse(frame: frame, characteristic: ch) {
             switch parsed.message {
             case let m as ApiVersionResponse:
-                print("ℹ️ [hardware] pump firmware profile — API \(m.majorVersion).\(m.minorVersion) "
-                    + "\(m.isMobi ? "(Mobi)" : "(t:slim X2 family)") · pairing=\(pairingScheme.rawValue)")
+                print(
+                    "ℹ️ [hardware] pump firmware profile — API \(m.majorVersion).\(m.minorVersion) "
+                        + "\(m.isMobi ? "(Mobi)" : "(t:slim X2 family)") · pairing=\(pairingScheme.rawValue)")
             case let m as PumpVersionResponse:
                 print("ℹ️ [hardware] pump version — pumpSW=\(m.pumpRev) armSW=\(m.armSwVer) model=\(m.modelNum)")
             case let m as PumpFeaturesV1Response:
-                print("ℹ️ [hardware] capability bitmask = 0x\(String(m.featureBitmask, radix: 16)) "
-                    + "· controlIQSupported(bit1024)=\(m.controlIQSupported)")
+                print(
+                    "ℹ️ [hardware] capability bitmask = 0x\(String(m.featureBitmask, radix: 16)) "
+                        + "· controlIQSupported(bit1024)=\(m.controlIQSupported)")
             case let m as ErrorResponse:
                 // P1a (Addendum G): during the op-77 NACK sub-probe, capture the pump's ECHOED txId so the
                 // sub-probe can assert it equals the failing request's sent txId. `parsed.txId` == frame[1].
@@ -1227,36 +1517,54 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
                 // Attribute the error to the read that triggered it via the echoed txId (this legacy
                 // pump zeroes requestCodeId, so the cargo alone can't name the read).
                 let who = pollTxMap[parsed.txId] ?? "unknown"
-                print("⚠️ [error-response] pump REJECTED \(who) read (txId=\(parsed.txId)) "
-                    + "— reqCodeId=\(m.requestCodeId) errorCode=\(m.errorCodeId) (op-77)")
+                print(
+                    "⚠️ [error-response] pump REJECTED \(who) read (txId=\(parsed.txId)) "
+                        + "— reqCodeId=\(m.requestCodeId) errorCode=\(m.errorCodeId) (op-77)")
             case let m as ControlIQIOBResponse:
                 // iobUnits uses swan6hrIOB (matches the pump display, verified on hardware).
                 print("[status] IOB = \(m.iobUnits) u")
-                if isCarbMode { iobMilliunits = m.swan6hrIOB; maybeComputeCarbBolus() }
+                if isCarbMode {
+                    iobMilliunits = m.swan6hrIOB
+                    maybeComputeCarbBolus()
+                }
             case let m as InsulinStatusResponse: print("[status] insulin remaining = \(m.currentInsulinAmount) u")
             case let m as CurrentBatteryV2Response: print("[status] battery = \(m.batteryPercent)%")
             case let m as CurrentEgvGuiDataV2Response:
-                print("[status] glucose = \(m.hasValidReading ? "\(m.cgmReading)" : "--") mg/dL \(m.trendArrow) (status=\(m.egvStatusId) trendRate=\(m.trendRate))")
+                print(
+                    "[status] glucose = \(m.hasValidReading ? "\(m.cgmReading)" : "--") mg/dL \(m.trendArrow) (status=\(m.egvStatusId) trendRate=\(m.trendRate))"
+                )
             case let m as CurrentBasalStatusResponse:
                 print("[status] basal = \(m.currentBasalUnitsPerHour) u/hr")
             case let m as LastBolusStatusV2Response:
                 print("[status] last bolus = \(m.deliveredUnits) u (id \(m.bolusId))")
             case let m as BolusCalcDataSnapshotResponse:
-                print("[status] calc — carbRatio raw=\(m.carbRatio) (~\(m.carbRatioGramsPerUnit) g/u) "
-                    + "isf/correctionFactor=\(m.isf) mg/dL/u targetBG=\(m.targetBg) mg/dL "
-                    + "carbEntryEnabled=\(m.carbEntryEnabled) maxBolus=\(Double(m.maxBolusAmount)/1000.0)u")
-                if isCarbMode { calc = m; maybeComputeCarbBolus() }
+                print(
+                    "[status] calc — carbRatio raw=\(m.carbRatio) (~\(m.carbRatioGramsPerUnit) g/u) "
+                        + "isf/correctionFactor=\(m.isf) mg/dL/u targetBG=\(m.targetBg) mg/dL "
+                        + "carbEntryEnabled=\(m.carbEntryEnabled) maxBolus=\(Double(m.maxBolusAmount)/1000.0)u")
+                if isCarbMode {
+                    calc = m
+                    maybeComputeCarbBolus()
+                }
             case let m as TimeSinceResetResponse:
                 signingTimestamp = m.signingTimestamp
-                print("[time] currentTime=\(m.currentTime) pumpTimeSinceReset=\(m.pumpTimeSinceReset) → signing with \(signingTimestamp)")
+                print(
+                    "[time] currentTime=\(m.currentTime) pumpTimeSinceReset=\(m.pumpTimeSinceReset) → signing with \(signingTimestamp)"
+                )
                 if isCarbMode {
-                    haveTime = true; maybeComputeCarbBolus()
+                    haveTime = true
+                    maybeComputeCarbBolus()
                 } else if (mode == .permissionTest || isBolusMode) && !permissionSent {
                     sendSignedPermission()
                 }
             case let m as BolusPermissionResponse:
-                print("[permission] status=\(m.status) granted=\(m.granted) bolusId=\(m.bolusId) nackReason=\(m.nackReasonId)")
-                guard m.granted else { print("[permission] ❌ not granted — check signature/timestamp or pump state"); break }
+                print(
+                    "[permission] status=\(m.status) granted=\(m.granted) bolusId=\(m.bolusId) nackReason=\(m.nackReasonId)"
+                )
+                guard m.granted else {
+                    print("[permission] ❌ not granted — check signature/timestamp or pump state")
+                    break
+                }
                 if case let .deliverBolus(mu) = mode {
                     print("[permission] ✅ granted — proceeding to SALINE delivery")
                     initiateBolus(milliunits: mu, bolusId: m.bolusId)
@@ -1268,7 +1576,9 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
                     releasePermission(bolusId: m.bolusId)
                 }
             case let m as InitiateBolusResponse:
-                print("[bolus] initiate response — status=\(m.status) accepted=\(m.accepted) bolusId=\(m.bolusId) statusType=\(m.statusTypeId)")
+                print(
+                    "[bolus] initiate response — status=\(m.status) accepted=\(m.accepted) bolusId=\(m.bolusId) statusType=\(m.statusTypeId)"
+                )
                 if m.accepted {
                     print("[bolus] ✅ pump accepted the bolus — delivering SALINE. Weigh the container; Ctrl-C cancels.")
                     startBolusStatusPolling()
@@ -1294,11 +1604,13 @@ case "coverage-selftest":
     // pre-bench PLAN (nothing PASS without a real pump). Safe to run anywhere.
     BenchCoverageSelfTest.run()
 case "scan":
-    let m = Monitor(mode: .scan); _ = m
+    let m = Monitor(mode: .scan)
+    _ = m
     print("Scanning for pumps — Ctrl-C to stop.")
     RunLoop.main.run()
 case "monitor":
-    let m = Monitor(mode: .monitor); _ = m
+    let m = Monitor(mode: .monitor)
+    _ = m
     print("READ-ONLY monitor — connect, JPAKE pair, poll status. No writes that change pump state. Ctrl-C to stop.")
     RunLoop.main.run()
 case "probe":
@@ -1306,7 +1618,8 @@ case "probe":
     // acceptance (BolusPermission, NO delivery) + the "Mobi-only" write probes (time-set / temp-basal /
     // SetModes — state-mutating, no dispense). Both delivery walls stay armed; PUMPX2_DELIVER_SALINE is
     // never set. Intended for the SPARE bench pump only.
-    let m = Monitor(mode: .probe); _ = m
+    let m = Monitor(mode: .probe)
+    _ = m
     print("PROBE — reads + signed writes (NO insulin delivery). Pairs, runs the sequence, then idles.")
     print("Bench/spare pump only. Ctrl-C to stop.")
     RunLoop.main.run()
@@ -1318,21 +1631,24 @@ case "coverage":
     // delivery ONLY behind the saline gate, verified by the pump's own history log), and accumulates a
     // PERSISTENT matrix under bench-coverage/. Prints what remains and which config would cover it.
     // Both delivery walls stay armed throughout. Bench/spare pump only.
-    let m = Monitor(mode: .coverage); _ = m
+    let m = Monitor(mode: .coverage)
+    _ = m
     print("COVERAGE — resumable command-coverage sweep. Pairs, exercises this session's coverable")
     print("commands, accumulates bench-coverage/COVERAGE-MATRIX.{json,md}, prints what's left. Ctrl-C to stop.")
     RunLoop.main.run()
 case "permission-test":
     // Signed-write validation that delivers NO insulin: pair → sign a BolusPermissionRequest
     // → release. Delivery (InitiateBolus) is still hard-blocked (writePolicy .allowNonDelivery).
-    let m = Monitor(mode: .permissionTest); _ = m
+    let m = Monitor(mode: .permissionTest)
+    _ = m
     print("SIGNATURE TEST — pair, then send a SIGNED bolus-permission (NO insulin delivered) to")
     print("prove the pump accepts our HMAC. Delivery is hard-blocked. Ctrl-C to stop.")
     RunLoop.main.run()
 case "bolus":
     // PHASE B — ACTUALLY DELIVERS. Bench saline only. Guarded so it can't run by accident.
     guard args.count >= 2, let mu = UInt32(args[1]) else {
-        print("usage: bolus <milliunits>   e.g. 'bolus 100' = 0.10 u"); exit(2)
+        print("usage: bolus <milliunits>   e.g. 'bolus 100' = 0.10 u")
+        exit(2)
     }
     guard ProcessInfo.processInfo.environment["PUMPX2_DELIVER_SALINE"] == "1" else {
         print("REFUSED. This mode delivers a real bolus. Set PUMPX2_DELIVER_SALINE=1 to confirm")
@@ -1340,9 +1656,11 @@ case "bolus":
         exit(2)
     }
     guard mu >= 50 && mu <= 2000 else {
-        print("REFUSED. Bench limit is 50–2000 milliunits (0.05–2.0 u). Got \(mu)."); exit(2)
+        print("REFUSED. Bench limit is 50–2000 milliunits (0.05–2.0 u). Got \(mu).")
+        exit(2)
     }
-    let monitor = Monitor(mode: .deliverBolus(milliunits: mu)); _ = monitor
+    let monitor = Monitor(mode: .deliverBolus(milliunits: mu))
+    _ = monitor
     // Ctrl-C cancels the in-progress bolus, then exits shortly after.
     signal(SIGINT, SIG_IGN)
     let sigint = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
@@ -1357,16 +1675,21 @@ case "bolus":
 case "carb-bolus":
     // Carbs → units using the pump's carb ratio / ISF / target + IOB, then deliver. SALINE ONLY.
     guard args.count >= 2, let carbs = Double(args[1]) else {
-        print("usage: carb-bolus <grams> [bg]   e.g. 'carb-bolus 30' or 'carb-bolus 30 160'"); exit(2)
+        print("usage: carb-bolus <grams> [bg]   e.g. 'carb-bolus 30' or 'carb-bolus 30 160'")
+        exit(2)
     }
     let bg = args.count >= 3 ? Int(args[2]) : nil
     guard ProcessInfo.processInfo.environment["PUMPX2_DELIVER_SALINE"] == "1" else {
         print("REFUSED. Delivers a real bolus. Set PUMPX2_DELIVER_SALINE=1 to confirm SALINE on a scale.")
         exit(2)
     }
-    guard carbs > 0 && carbs <= 200 else { print("REFUSED. Enter 1–200 g."); exit(2) }
+    guard carbs > 0 && carbs <= 200 else {
+        print("REFUSED. Enter 1–200 g.")
+        exit(2)
+    }
     let monitor = Monitor(mode: .carbBolus(carbs: carbs, bg: bg))
-    monitor.carbGrams = carbs; monitor.carbBg = bg
+    monitor.carbGrams = carbs
+    monitor.carbBg = bg
     signal(SIGINT, SIG_IGN)
     let sigint = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
     sigint.setEventHandler {
@@ -1379,6 +1702,8 @@ case "carb-bolus":
     RunLoop.main.run()
 default:
     print("unknown command: \(args[0])")
-    print("commands: (none)=self-check, scan, monitor, probe, coverage, permission-test, bolus <milliunits>, carb-bolus <grams> [bg]")
+    print(
+        "commands: (none)=self-check, scan, monitor, probe, coverage, permission-test, bolus <milliunits>, carb-bolus <grams> [bg]"
+    )
     exit(2)
 }

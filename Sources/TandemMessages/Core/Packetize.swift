@@ -8,8 +8,8 @@ import CryptoKit
 /// Byte-exact port of `com.jwoglom.pumpx2.pump.messages.Packetize`. Verified against the
 /// cliparser oracle.
 public enum Packetize {
-    public static let defaultMaxChunkSize = 18   // observed for currentStatus
-    public static let controlMaxChunkSize = 40   // works for control requests
+    public static let defaultMaxChunkSize = 18  // observed for currentStatus
+    public static let controlMaxChunkSize = 40  // works for control requests
 
     /// Thrown when a message that modifies insulin delivery is packetized without the caller
     /// having explicitly enabled insulin-affecting actions. Mirrors upstream's gate.

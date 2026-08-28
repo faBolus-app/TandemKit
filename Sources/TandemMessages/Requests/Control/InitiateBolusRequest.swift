@@ -7,14 +7,14 @@ import Foundation
 ///
 /// Volumes are in **milliunits** (1000 = 1.0 u).
 public struct InitiateBolusRequest: Message {
-    public static let minBolusMilliunits: UInt32 = 50        // 0.05 u
-    public static let minExtendedBolusMilliunits: UInt32 = 400 // 0.40 u
+    public static let minBolusMilliunits: UInt32 = 50  // 0.05 u
+    public static let minExtendedBolusMilliunits: UInt32 = 400  // 0.40 u
 
     /// Bolus-type bits (mirrors `BolusDeliveryHistoryLog.BolusType`).
-    public static let bitFood1: Int = 1        // carb bolus
+    public static let bitFood1: Int = 1  // carb bolus
     public static let bitCorrection: Int = 2
     public static let bitExtended: Int = 4
-    public static let bitFood2: Int = 8        // no-carb food bit
+    public static let bitFood2: Int = 8  // no-carb food bit
     /// Union of all known type bits — a mask with any other bit set is rejected.
     public static let knownTypeBits: Int = 0x0F
 
@@ -34,15 +34,15 @@ public struct InitiateBolusRequest: Message {
     /// or trapping — the caller decides how to surface it, and no out-of-range value ever reaches the wire.
     public enum ValidationError: Error, Equatable {
         case doseTooSmall(totalMilliunits: UInt32, extendedMilliunits: UInt32)
-        case invalidBolusID(Int)                 // must be 1...65535 (uint16 on the wire)
-        case carbsOutOfRange(Int)                // 0...65535
-        case bgOutOfRange(Int)                   // 0...65535
-        case invalidTypeBitmask(Int)             // nonzero, only known bits
-        case extendedIncoherent(String)          // EXTENDED bit vs extendedVolume/extendedSeconds mismatch
-        case componentExceedsTotal(String)       // food+correction volume larger than the whole dose
-        case foodBitIncoherent(String)           // not exactly one of FOOD1/FOOD2, or carbs>0 without FOOD1
-        case correctionIncoherent(String)        // CORRECTION bit without a correction component
-        case arithmeticOverflow(String)          // total+extended or food+correction overflows UInt32
+        case invalidBolusID(Int)  // must be 1...65535 (uint16 on the wire)
+        case carbsOutOfRange(Int)  // 0...65535
+        case bgOutOfRange(Int)  // 0...65535
+        case invalidTypeBitmask(Int)  // nonzero, only known bits
+        case extendedIncoherent(String)  // EXTENDED bit vs extendedVolume/extendedSeconds mismatch
+        case componentExceedsTotal(String)  // food+correction volume larger than the whole dose
+        case foodBitIncoherent(String)  // not exactly one of FOOD1/FOOD2, or carbs>0 without FOOD1
+        case correctionIncoherent(String)  // CORRECTION bit without a correction component
+        case arithmeticOverflow(String)  // total+extended or food+correction overflows UInt32
     }
 
     /// Validates all bounds + cross-field invariants without constructing anything.
@@ -135,13 +135,13 @@ public struct InitiateBolusRequest: Message {
     }
 
     public static let props = MessageProps(
-        opCode: 0x9E,               // -98 as unsigned
+        opCode: 0x9E,  // -98 as unsigned
         size: 37,
         signed: true,
         type: .request,
         characteristic: .control,
         modifiesInsulinDelivery: true,
-        responseOpCode: 0x9F        // InitiateBolusResponse
+        responseOpCode: 0x9F  // InitiateBolusResponse
     )
 
     public var cargo: [UInt8]
@@ -192,8 +192,9 @@ public struct InitiateBolusRequest: Message {
         extendedSeconds: UInt32,
         extended3: UInt32
     ) {
-        precondition(totalVolume >= Self.minBolusMilliunits
-            || (totalVolume + extendedVolume) >= Self.minExtendedBolusMilliunits)
+        precondition(
+            totalVolume >= Self.minBolusMilliunits
+                || (totalVolume + extendedVolume) >= Self.minExtendedBolusMilliunits)
         precondition(bolusID > 0)
         self.cargo = Self.buildCargo(
             totalVolume: totalVolume, bolusID: bolusID, bolusTypeId: bolusTypeBitmask,

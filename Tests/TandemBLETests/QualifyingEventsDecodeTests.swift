@@ -52,11 +52,11 @@ import TandemMessages
         #expect(QualifyingEvent.decode(le4(8)) == .malfunction)
         #expect(QualifyingEvent.decode(le4(16)) == .cgmAlert)
         #expect(QualifyingEvent.decode(le4(524_288)) == .pumpCommunicationsSuspended)
-        #expect(QualifyingEvent.decode(le4(0x8000_0000)) == .bolusPermissionRevoked)   // bit 31
+        #expect(QualifyingEvent.decode(le4(0x8000_0000)) == .bolusPermissionRevoked)  // bit 31
     }
 
     @Test func decodeCombinesMultipleBitsAsAnOptionSet() {
-        let decoded = QualifyingEvent.decode(le4(1 | 2 | 524_288))   // alert + alarm + comms-suspended
+        let decoded = QualifyingEvent.decode(le4(1 | 2 | 524_288))  // alert + alarm + comms-suspended
         #expect(decoded == [.alert, .alarm, .pumpCommunicationsSuspended])
         #expect(decoded.contains(.alert))
         #expect(decoded.contains(.alarm))
@@ -99,7 +99,7 @@ import TandemMessages
         var clearCount = 0
         #expect(!client.transactions.hasSerializedInFlight)
 
-        client.handleQualifyingEventsFrame(le4(524_288)) { clearCount += 1 }   // PUMP_COMMUNICATIONS_SUSPENDED
+        client.handleQualifyingEventsFrame(le4(524_288)) { clearCount += 1 }  // PUMP_COMMUNICATIONS_SUSPENDED
 
         #expect(delegate.events == [.pumpCommunicationsSuspended])
         #expect(clearCount == 1)
@@ -128,12 +128,12 @@ import TandemMessages
         // actually suspends, so it can't contribute to that class of exhaustion.
         var attempts = 0
         while !client.transactions.hasSerializedInFlight && attempts < 200 {
-            try? await Task.sleep(nanoseconds: 1_000_000)   // 1ms; 200 attempts = 200ms ceiling
+            try? await Task.sleep(nanoseconds: 1_000_000)  // 1ms; 200 attempts = 200ms ceiling
             attempts += 1
         }
 
         var clearCount = 0
-        client.handleQualifyingEventsFrame(le4(1)) { clearCount += 1 }   // .alert
+        client.handleQualifyingEventsFrame(le4(1)) { clearCount += 1 }  // .alert
 
         #expect(delegate.events == [.alert], "the event must still be dispatched even when the clear defers")
         #expect(clearCount == 0, "the clear write must be deferred while a delivery transaction is in flight")
@@ -151,7 +151,7 @@ import TandemMessages
         client.delegate = NoOpStubDelegate()
         var clearCount = 0
 
-        client.handleQualifyingEventsFrame(le4(2)) { clearCount += 1 }   // .alarm
+        client.handleQualifyingEventsFrame(le4(2)) { clearCount += 1 }  // .alarm
 
         #expect(clearCount == 1, "dispatch to the default no-op must not prevent the clear from still firing")
     }

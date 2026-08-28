@@ -34,7 +34,7 @@ import TandemMessages
 
         let cargo = withAppId([UInt8](repeating: 0xAA, count: 10))
         var frame = wellFormedFrame(33, cargo)
-        frame[frame.count - 1] ^= 0xFF   // corrupt the trailing CRC byte
+        frame[frame.count - 1] ^= 0xFF  // corrupt the trailing CRC byte
 
         coord.handle(frame: frame)
 
@@ -52,8 +52,8 @@ import TandemMessages
 
         let cargo = withAppId([UInt8](repeating: 0xAA, count: 10))
         var body: [UInt8] = [33, 0, UInt8(cargo.count)] + cargo
-        body[2] = UInt8(cargo.count + 5)          // declares more cargo than is actually present
-        let frame = body + Bytes.calculateCRC16(body)   // CRC is valid over this (mismatched) body
+        body[2] = UInt8(cargo.count + 5)  // declares more cargo than is actually present
+        let frame = body + Bytes.calculateCRC16(body)  // CRC is valid over this (mismatched) body
 
         coord.handle(frame: frame)
 
@@ -71,7 +71,7 @@ import TandemMessages
 
         let cargo = withAppId([UInt8](repeating: 0xAA, count: 10))
         var body: [UInt8] = [33, 0, UInt8(cargo.count)] + cargo
-        body[2] = UInt8(cargo.count - 5)           // declares fewer bytes than are actually present
+        body[2] = UInt8(cargo.count - 5)  // declares fewer bytes than are actually present
         let frame = body + Bytes.calculateCRC16(body)
 
         coord.handle(frame: frame)

@@ -67,19 +67,24 @@ enum Preconditions {
         for precondition in preconditions {
             switch precondition {
             case .salineCartridge:
-                try #require(HardwareGate.cartridgeLoaded && HardwareGate.salineAttested,
-                             "precondition: a SALINE cartridge must be loaded + attested (PUMP_CARTRIDGE_LOADED=1, PUMP_SALINE_ATTESTED=1)")
+                try #require(
+                    HardwareGate.cartridgeLoaded && HardwareGate.salineAttested,
+                    "precondition: a SALINE cartridge must be loaded + attested (PUMP_CARTRIDGE_LOADED=1, PUMP_SALINE_ATTESTED=1)"
+                )
             case .minRemaining(let units):
                 let insulin = try await s.request(InsulinStatusRequest(), expect: InsulinStatusResponse.self)
-                try #require(Double(insulin.currentInsulinAmount) >= units,
-                             "precondition: need >= \(units)u remaining, pump reports \(insulin.currentInsulinAmount)u")
+                try #require(
+                    Double(insulin.currentInsulinAmount) >= units,
+                    "precondition: need >= \(units)u remaining, pump reports \(insulin.currentInsulinAmount)u")
             case .idle:
                 let bolus = try await s.request(CurrentBolusStatusRequest(), expect: CurrentBolusStatusResponse.self)
-                try #require(bolus.statusId == 0, "precondition: a bolus is already in progress (statusId \(bolus.statusId))")
+                try #require(
+                    bolus.statusId == 0, "precondition: a bolus is already in progress (statusId \(bolus.statusId))")
             case .controlIQ(let enabled):
                 let ciq = try await s.request(ControlIQInfoV2Request(), expect: ControlIQInfoV2Response.self)
-                try #require(ciq.closedLoopEnabled == enabled,
-                             "precondition: Control-IQ must be \(enabled ? "ON" : "OFF") for this case")
+                try #require(
+                    ciq.closedLoopEnabled == enabled,
+                    "precondition: Control-IQ must be \(enabled ? "ON" : "OFF") for this case")
             }
         }
     }
@@ -160,14 +165,15 @@ struct NoCartridgeBolusProbeTests {
 
         // Wall 2: `.allowDelivery` + `allowInsulinDelivery`. The command goes out; we RECORD the response.
         let mask = InitiateBolusRequest.typeBitmask(hasCarbs: false, hasCorrection: false, isExtended: false)
-        let req = try InitiateBolusRequest(validating: 100, bolusID: permission.bolusId, bolusTypeBitmask: mask) // 0.10u
+        let req = try InitiateBolusRequest(validating: 100, bolusID: permission.bolusId, bolusTypeBitmask: mask)  // 0.10u
         let initiate = try await s.request(req, expect: InitiateBolusResponse.self, deliver: true)
 
         if initiate.accepted {
             // The invariant that actually matters: no delivery was recorded (no saline to move).
             let completed = try await s.bolusCompleted(bolusId: permission.bolusId, since: baseline)
-            #expect(completed == nil,
-                    "SAFETY: a no-cartridge bolus produced a delivery record (id \(permission.bolusId)) — investigate")
+            #expect(
+                completed == nil,
+                "SAFETY: a no-cartridge bolus produced a delivery record (id \(permission.bolusId)) — investigate")
         } else {
             #expect(!initiate.accepted, "pump rejected the no-cartridge initiate (expected; status \(initiate.status))")
         }

@@ -10,9 +10,13 @@ import Testing
     /// Mirrors the helper in HistoryLogEventsTests.swift (that copy is file-private).
     private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8] = []) -> [UInt8] {
         var r = [UInt8](repeating: 0, count: 26)
-        let t = Bytes.firstTwoBytesLittleEndian(typeId); r[0] = t[0]; r[1] = t[1]
-        let pt = Bytes.toUint32(pumpTimeSec); for i in 0..<4 { r[2 + i] = pt[i] }
-        let sq = Bytes.toUint32(seq); for i in 0..<4 { r[6 + i] = sq[i] }
+        let t = Bytes.firstTwoBytesLittleEndian(typeId)
+        r[0] = t[0]
+        r[1] = t[1]
+        let pt = Bytes.toUint32(pumpTimeSec)
+        for i in 0..<4 { r[2 + i] = pt[i] }
+        let sq = Bytes.toUint32(seq)
+        for i in 0..<4 { r[6 + i] = sq[i] }
         for (i, b) in tail.enumerated() where 10 + i < 26 { r[10 + i] = b }
         return r
     }

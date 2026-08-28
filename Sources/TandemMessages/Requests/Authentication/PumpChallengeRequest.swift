@@ -9,7 +9,7 @@ public struct PumpChallengeRequest: Message {
         size: 22,
         type: .request,
         characteristic: .authorization,
-        responseOpCode: 19          // PumpChallengeResponse
+        responseOpCode: 19  // PumpChallengeResponse
     )
 
     public var cargo: [UInt8]

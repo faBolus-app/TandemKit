@@ -13,15 +13,15 @@ import Testing
     /// Two-packet frame: first returns nil, second completes and concatenates cargo.
     @Test func twoPackets() {
         var r = PacketReassembler()
-        #expect(r.ingest([1, 2, 0xAA, 0xBB]) == nil)      // packetsRemaining=1
-        let frame = r.ingest([0, 2, 0xCC, 0xDD])          // packetsRemaining=0
+        #expect(r.ingest([1, 2, 0xAA, 0xBB]) == nil)  // packetsRemaining=1
+        let frame = r.ingest([0, 2, 0xCC, 0xDD])  // packetsRemaining=0
         #expect(frame == [0xAA, 0xBB, 0xCC, 0xDD])
     }
 
     /// A new txId arriving mid-stream restarts reassembly.
     @Test func txIdMismatchResets() {
         var r = PacketReassembler()
-        #expect(r.ingest([1, 2, 0xAA]) == nil)            // txId 2, incomplete
+        #expect(r.ingest([1, 2, 0xAA]) == nil)  // txId 2, incomplete
         // txId changes to 3 as a single-packet frame → returns just its cargo.
         #expect(r.ingest([0, 3, 0xEE]) == [0xEE])
     }
@@ -39,9 +39,9 @@ import Testing
         let chunk = [UInt8](repeating: 0x11, count: 200)
         // packetsRemaining decrements 255 → 254 → 253 (never reaches 0);
         // cumulative cargo 200 → 400 → 600 crosses the 512 cap on the third packet.
-        #expect(r.ingest([255, txId] + chunk) == nil)   // accumulated 200
-        #expect(r.ingest([254, txId] + chunk) == nil)   // accumulated 400
-        #expect(r.ingest([253, txId] + chunk) == nil)   // 600 > 512 → reset
+        #expect(r.ingest([255, txId] + chunk) == nil)  // accumulated 200
+        #expect(r.ingest([254, txId] + chunk) == nil)  // accumulated 400
+        #expect(r.ingest([253, txId] + chunk) == nil)  // 600 > 512 → reset
         // Buffer is reset: a valid single-packet frame decodes normally.
         #expect(r.ingest([0, 9, 0x20, 9, 0, 0xaf, 0xb5]) == [0x20, 9, 0, 0xaf, 0xb5])
     }
@@ -50,7 +50,7 @@ import Testing
     /// silently concatenating the stale cargo.
     @Test func nonMonotonicRemainingResets() {
         var r = PacketReassembler()
-        #expect(r.ingest([2, 4, 0xAA]) == nil)   // fresh sequence, remaining 2
+        #expect(r.ingest([2, 4, 0xAA]) == nil)  // fresh sequence, remaining 2
         // Duplicate remaining=2 (should be 1) → monotonic violation → reset, nil.
         #expect(r.ingest([2, 4, 0xBB]) == nil)
         // 0xAA/0xBB were discarded, not concatenated: a fresh frame yields only its own cargo.

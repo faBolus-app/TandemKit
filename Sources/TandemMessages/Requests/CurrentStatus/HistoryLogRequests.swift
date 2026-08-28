@@ -10,8 +10,9 @@ import Foundation
 
 /// Empty-cargo request for the available history-log sequence-number range (opcode 58 → 59).
 public struct HistoryLogStatusRequest: EmptyCurrentStatusRequest {
-    public static let props = MessageProps(opCode: 58, size: 0, type: .request,
-                                           characteristic: .currentStatus, responseOpCode: 59)
+    public static let props = MessageProps(
+        opCode: 58, size: 0, type: .request,
+        characteristic: .currentStatus, responseOpCode: 59)
     public var cargo: [UInt8] = []
     public init(emptyCargo: Void = ()) { self.cargo = [] }
 }
@@ -20,9 +21,10 @@ public struct HistoryLogStatusRequest: EmptyCurrentStatusRequest {
 /// (opcode 60). The pump acks with `HistoryLogResponse` (61) and streams the entries as
 /// `HistoryLogStreamResponse` frames. `numberOfLogs` is a single byte (max 255 per request).
 public struct HistoryLogRequest: Message {
-    public static let props = MessageProps(opCode: 60, size: 5, type: .request,
-                                           characteristic: .currentStatus, responseOpCode: 61,
-                                           minApi: .benchConservativeUnverifiedFloor)   // CONSERVATIVE/UNVERIFIED bench floor (T-1 op-77, >2.5 only)
+    public static let props = MessageProps(
+        opCode: 60, size: 5, type: .request,
+        characteristic: .currentStatus, responseOpCode: 61,
+        minApi: .benchConservativeUnverifiedFloor)  // CONSERVATIVE/UNVERIFIED bench floor (T-1 op-77, >2.5 only)
     public var cargo: [UInt8]
     public private(set) var startLog: UInt32 = 0
     public private(set) var numberOfLogs: Int = 0

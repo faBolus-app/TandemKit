@@ -32,7 +32,8 @@ import TandemMessages
                 case let m as Jpake1aRequest:
                     clientR1a = m.centralChallenge
                     let r1 = try pump.writeRoundOne()
-                    pumpR1a = Array(r1[0..<165]); pumpR1b = Array(r1[165...])
+                    pumpR1a = Array(r1[0..<165])
+                    pumpR1b = Array(r1[165...])
                     coord.handle(frame: self.frame(33, self.withAppId(pumpR1a)))
                 case let m as Jpake1bRequest:
                     clientR1b = m.centralChallenge
@@ -48,8 +49,9 @@ import TandemMessages
                     coord.handle(frame: self.frame(39, self.withAppId(serverNonce3 + [UInt8](repeating: 0, count: 8))))
                 case let m as Jpake4KeyConfirmationRequest:
                     let key = Crypto.hkdf(nonce: serverNonce3, keyMaterial: pumpDerived)
-                    #expect(Crypto.hmacSha256(data: m.nonce, key: key) == m.hashDigest,
-                            "client key-confirmation HMAC should match")
+                    #expect(
+                        Crypto.hmacSha256(data: m.nonce, key: key) == m.hashDigest,
+                        "client key-confirmation HMAC should match")
                     let sn4 = JpakeAuth.randomBytes(8)
                     let sh = Crypto.hmacSha256(data: sn4, key: key)
                     coord.handle(frame: self.frame(41, self.withAppId(sn4 + [UInt8](repeating: 0, count: 8) + sh)))
@@ -70,7 +72,7 @@ import TandemMessages
     /// Resume ("quick-pair"): with a stored derived secret, only rounds 3–4 run (no code), and
     /// the session signing key is derived correctly.
     @Test func resumePairsWithStoredSecret() throws {
-        let secret = (0..<32).map { UInt8($0 &+ 7) }   // a secret from a prior full pairing
+        let secret = (0..<32).map { UInt8($0 &+ 7) }  // a secret from a prior full pairing
         let coord = PairingCoordinator(resumeDerivedSecret: secret)
         var serverNonce3: [UInt8] = []
         var pairedKey: [UInt8]?

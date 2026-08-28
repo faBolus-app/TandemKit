@@ -95,7 +95,7 @@ public final class LegacyPairingCoordinator: PairingCoordinating {
         let opcode = frame[0]
         let cargo = Self.frameCargo(frame)
         switch (step, opcode) {
-        case (.sentCentral, 17):   // CentralChallengeResponse
+        case (.sentCentral, 17):  // CentralChallengeResponse
             let resp = CentralChallengeResponse(cargo: cargo)
             guard resp.isValid else { return fail(PairingError.malformedResponse) }
             do {
@@ -118,11 +118,11 @@ public final class LegacyPairingCoordinator: PairingCoordinating {
                 step = .sentPump
                 onSendRequest?(pumpChallenge)
             } catch { fail(error) }
-        case (.sentPump, 19):      // PumpChallengeResponse
+        case (.sentPump, 19):  // PumpChallengeResponse
             let resp = PumpChallengeResponse(cargo: cargo)
             if resp.success {
                 step = .paired
-                onPaired?(authKey, [])   // no resume secret in V1
+                onPaired?(authKey, [])  // no resume secret in V1
             } else {
                 fail(PairingError.pairingRejected)
             }
@@ -131,14 +131,17 @@ public final class LegacyPairingCoordinator: PairingCoordinating {
         }
     }
 
-    private func fail(_ error: Error) { step = .failed; onError?(error) }
+    private func fail(_ error: Error) {
+        step = .failed
+        onError?(error)
+    }
 
     /// Extract cargo `[3 ..< 3+len]` from a `[opcode, txId, len, cargo…, crc0, crc1]` frame,
     /// mirroring `PairingCoordinator.frameCargo` (the coordinator parses AUTHORIZATION frames
     /// inline; the BLE layer already validated the CRC).
     private static func frameCargo(_ frame: [UInt8]) -> [UInt8] {
         let len = Int(frame[2])
-        let end = min(3 + len, frame.count - 2)   // exclude the 2-byte CRC
+        let end = min(3 + len, frame.count - 2)  // exclude the 2-byte CRC
         guard end >= 3 else { return [] }
         return Array(frame[3..<end])
     }

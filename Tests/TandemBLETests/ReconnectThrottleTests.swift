@@ -62,18 +62,18 @@ import TandemMessages
     @Test func repeatedArmCallsDoNotResetAttempts() {
         let fake = FakeCentral()
         let client = PumpBLEClient(central: fake)
-        client.connectKnownPeripheral(identifier: UUID())   // → .scanning, reconnectTargetId set, no handle
-        client.scanTimedOut()                               // first "drop" → arms the ladder at attempts=0
+        client.connectKnownPeripheral(identifier: UUID())  // → .scanning, reconnectTargetId set, no handle
+        client.scanTimedOut()  // first "drop" → arms the ladder at attempts=0
         #expect(client.reconnectAttemptsForTesting == 0)
 
-        client.reconnectTick()                              // one throttled attempt fires → attempts=1
+        client.reconnectTick()  // one throttled attempt fires → attempts=1
         #expect(client.reconnectAttemptsForTesting == 1)
 
         // Simulate what a SECOND disconnect does: call the arm entry point again while the ladder is
         // already running (`reconnectWatchdog != nil`).
         client.startReconnectWatchdog()
-        #expect(client.reconnectAttemptsForTesting == 1)    // NOT reset to 0 — the bug this test pins
-        #expect(client.reconnectWatchdogArmedForTesting)    // still armed (from the first tick's schedule)
+        #expect(client.reconnectAttemptsForTesting == 1)  // NOT reset to 0 — the bug this test pins
+        #expect(client.reconnectWatchdogArmedForTesting)  // still armed (from the first tick's schedule)
 
         client.disconnect()
     }
@@ -93,15 +93,15 @@ import TandemMessages
         for expected in 1...PumpBLEClient.maxReconnectAttemptsForTesting {
             client.reconnectTick()
             #expect(client.reconnectAttemptsForTesting == expected)
-            #expect(client.state != .reconnectExhausted)      // still within the ladder — kept retrying
-            #expect(client.reconnectWatchdogArmedForTesting)   // next attempt is scheduled
+            #expect(client.state != .reconnectExhausted)  // still within the ladder — kept retrying
+            #expect(client.reconnectWatchdogArmedForTesting)  // next attempt is scheduled
         }
 
         // One more tick pushes the count past the ceiling → give up and surface the loop instead of
         // silently retrying forever.
         client.reconnectTick()
         #expect(client.state == .reconnectExhausted)
-        #expect(!client.reconnectWatchdogArmedForTesting)      // no further attempt scheduled
+        #expect(!client.reconnectWatchdogArmedForTesting)  // no further attempt scheduled
         #expect(delegate.errors.contains(.reconnectLoopDetected))
 
         client.disconnect()
@@ -117,9 +117,9 @@ import TandemMessages
         for _ in 1...(PumpBLEClient.maxReconnectAttemptsForTesting + 1) { client.reconnectTick() }
         #expect(client.state == .reconnectExhausted)
 
-        client.startReconnectWatchdog()                        // simulates a stray late disconnect event
-        #expect(!client.reconnectWatchdogArmedForTesting)       // must NOT re-arm
-        #expect(client.state == .reconnectExhausted)            // still exhausted, not silently retrying
+        client.startReconnectWatchdog()  // simulates a stray late disconnect event
+        #expect(!client.reconnectWatchdogArmedForTesting)  // must NOT re-arm
+        #expect(client.state == .reconnectExhausted)  // still exhausted, not silently retrying
 
         client.disconnect()
     }
@@ -136,7 +136,7 @@ import TandemMessages
         client.reconnectTick()
         #expect(client.reconnectAttemptsForTesting == 2)
 
-        client.connectKnownPeripheral(identifier: target)      // user/app retries — a fresh pairing intent
+        client.connectKnownPeripheral(identifier: target)  // user/app retries — a fresh pairing intent
         #expect(client.reconnectAttemptsForTesting == 0)
 
         client.disconnect()
@@ -171,9 +171,9 @@ import TandemMessages
         let delegate = RecordingDelegate()
         client.delegate = delegate
         client.connectKnownPeripheral(identifier: UUID())
-        client.scanTimedOut()                                     // arms the ladder → willRetryReconnect(attempt: 0, …)
+        client.scanTimedOut()  // arms the ladder → willRetryReconnect(attempt: 0, …)
         #expect(delegate.retries.map(\.attempt) == [0])
-        #expect(delegate.retries.first?.delay ?? 0 >= 5)           // reconnectBackoff[0] == 5, jitter only adds
+        #expect(delegate.retries.first?.delay ?? 0 >= 5)  // reconnectBackoff[0] == 5, jitter only adds
 
         for expected in 1...PumpBLEClient.maxReconnectAttemptsForTesting {
             client.reconnectTick()
@@ -206,8 +206,8 @@ import TandemMessages
         #expect(!PumpBLEClient.readyHeldLongEnoughToResetLadder(heldFor: 0))
         #expect(!PumpBLEClient.readyHeldLongEnoughToResetLadder(heldFor: 0.9))
         #expect(!PumpBLEClient.readyHeldLongEnoughToResetLadder(heldFor: 2.999))
-        #expect(PumpBLEClient.readyHeldLongEnoughToResetLadder(heldFor: 3))    // exactly at the window
-        #expect(PumpBLEClient.readyHeldLongEnoughToResetLadder(heldFor: 28))   // on-device "healthy" cycle length
+        #expect(PumpBLEClient.readyHeldLongEnoughToResetLadder(heldFor: 3))  // exactly at the window
+        #expect(PumpBLEClient.readyHeldLongEnoughToResetLadder(heldFor: 28))  // on-device "healthy" cycle length
     }
 
     /// A peer that repeatedly reaches `.ready` and drops again WITHIN the stability window must still
@@ -228,8 +228,8 @@ import TandemMessages
             // This cycle momentarily "reaches ready" (readySince set to now), then drops immediately —
             // well under `readyStabilityWindow` — exactly like the on-device flap.
             client.readySinceForTesting = Date()
-            client.consumeReadyStabilityAndMaybeReset()          // what the drop handler calls
-            #expect(client.reconnectAttemptsForTesting == expected - 1)   // NOT reset by the brief "ready"
+            client.consumeReadyStabilityAndMaybeReset()  // what the drop handler calls
+            #expect(client.reconnectAttemptsForTesting == expected - 1)  // NOT reset by the brief "ready"
             client.reconnectTick()
             #expect(client.reconnectAttemptsForTesting == expected)
             #expect(client.state != .reconnectExhausted)
@@ -262,7 +262,7 @@ import TandemMessages
         // before dropping — well past `readyStabilityWindow`.
         client.readySinceForTesting = Date().addingTimeInterval(-28)
         client.consumeReadyStabilityAndMaybeReset()
-        #expect(client.reconnectAttemptsForTesting == 0)   // genuine recovery — ladder resets as before
+        #expect(client.reconnectAttemptsForTesting == 0)  // genuine recovery — ladder resets as before
 
         client.disconnect()
     }

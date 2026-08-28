@@ -64,12 +64,15 @@ import TandemMessages
         let bodyEnd = tail.range(of: "\n    static func randomBytes")?.lowerBound ?? tail.endIndex
         let body = String(tail[tail.startIndex..<bodyEnd])
 
-        #expect(!body.contains("== serverHashDigest"),
-                "verifyServerRound4 must not use short-circuiting Array `==` on the digest (timing side-channel)")
-        #expect(!body.contains("!= serverHashDigest"),
-                "verifyServerRound4 must not use short-circuiting Array `!=` on the digest (timing side-channel)")
-        #expect(body.contains("isValidHmacSha256") || body.contains("isValidAuthenticationCode"),
-                "verifyServerRound4 must route through a constant-time comparison primitive")
+        #expect(
+            !body.contains("== serverHashDigest"),
+            "verifyServerRound4 must not use short-circuiting Array `==` on the digest (timing side-channel)")
+        #expect(
+            !body.contains("!= serverHashDigest"),
+            "verifyServerRound4 must not use short-circuiting Array `!=` on the digest (timing side-channel)")
+        #expect(
+            body.contains("isValidHmacSha256") || body.contains("isValidAuthenticationCode"),
+            "verifyServerRound4 must route through a constant-time comparison primitive")
     }
 
     // MARK: - Task 2: behavioral regression safety net (green both before and after the fix)
@@ -113,7 +116,7 @@ import TandemMessages
         let serverNonce4 = JpakeAuth.randomBytes(8)
         var serverHash = Crypto.hmacSha256(
             data: serverNonce4, key: Crypto.hkdf(nonce: serverNonce3, keyMaterial: serverSecret))
-        serverHash[0] ^= 0xFF   // flip one byte — same length, wrong digest
+        serverHash[0] ^= 0xFF  // flip one byte — same length, wrong digest
         #expect(throws: JpakeAuth.JpakeAuthError.keyConfirmationFailed) {
             try auth.verifyServerRound4(serverNonce4: serverNonce4, serverHashDigest: serverHash)
         }
