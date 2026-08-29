@@ -55,18 +55,17 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
-      # Pick the NEWEST installed Xcode, not a hardcoded name: swift-format's output is
-      # version-dependent, and the runner image's Xcode set changes over time.
-      - name: Select the newest Xcode
-        run: |
-          newest=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
-          echo "selecting $newest"
-          sudo xcode-select -s "$newest"
-          xcodebuild -version | head -1
+      # PIN the formatter rather than using the runner's Xcode: the image lags Xcode by several point
+      # releases, and swift-format's output is version-dependent. Homebrew's 603.0.0 is
+      # byte-identical to Xcode 26.6's 6.3.0, so it is a stable single source of truth.
+      - name: Install the pinned swift-format
+        run: brew list swift-format >/dev/null 2>&1 || brew install swift-format
       # `format.sh --lint` exits 2 (not 1) when swift-format itself cannot run or cannot read the
       # config — a stale runner Xcode, not an unformatted tree. Treat that as a skip-with-notice
       # rather than a finding, so the report never tells anyone to reformat for an older tool.
       - name: swift-format — is the tree formatted?
+        env:
+          SWIFT_FORMAT: /opt/homebrew/bin/swift-format
         run: |
           set +e
           ./scripts/format.sh --lint

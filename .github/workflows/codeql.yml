@@ -39,8 +39,15 @@ jobs:
           # mbedtls + the pumpx2 oracle are submodules; `swift build` needs the C target present.
           submodules: recursive
 
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_26.app || sudo xcode-select -s /Applications/Xcode.app
+      # Select the NEWEST installed Xcode. A hardcoded name (`Xcode_26.app`) does not exist on the
+      # runner image and silently falls back to an older default toolchain, whose stricter concurrency
+      # checking can fail a build that compiles fine elsewhere.
+      - name: Select the newest Xcode
+        run: |
+          echo "Installed Xcodes:"; ls -d /Applications/Xcode*.app 2>/dev/null || true
+          NEWEST="$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$NEWEST" ]; then sudo xcode-select -s "$NEWEST/Contents/Developer"; fi
+          echo "Selected Xcode:"; xcodebuild -version
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3

@@ -39,7 +39,10 @@ oracle-parity test.**
 - Swift 6: keep CoreBluetooth delegate isolation correct.
 - Comments explain why (safety, oracle, hardware). Do not add phase/ticket IDs or pin SHAs here.
   faBolus's TandemKit pin lives in `faBolus/project.yml`.
-- **Run the formatter before you commit:** `./scripts/format.sh` (`--lint` to check only). The
+- **Run the formatter before you commit:** `./scripts/format.sh` (`--lint` to check only). It prints
+  the formatter version it used — swift-format's output is version-dependent, so CI pins Homebrew's
+  build (`brew install swift-format`, 603.0.0, byte-identical to Xcode 26.6's 6.3.0). Override with
+  `SWIFT_FORMAT=/path/to/swift-format` if your Xcode is older. The
   committed `.swift-format` disables every swift-format *rule* and keeps only the pretty-printer, so
   it reflows whitespace but never rewrites code — the disabled rules include ones that can widen
   access, delete a public memberwise init, or insert underscores into numeric literals INCLUDING
