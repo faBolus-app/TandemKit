@@ -11,9 +11,9 @@ import Foundation
     private func profile(iob: Double = 0) -> BenchBolusPlanner.Profile {
         BenchBolusPlanner.Profile(carbRatioGramsPerUnit: 10, isfMgdlPerUnit: 50, targetBgMgdl: 120, iobUnits: iob)
     }
-    private let F1 = InitiateBolusRequest.bitFood1
-    private let F2 = InitiateBolusRequest.bitFood2
-    private let CORR = InitiateBolusRequest.bitCorrection
+    private let food1 = InitiateBolusRequest.bitFood1
+    private let food2 = InitiateBolusRequest.bitFood2
+    private let correction = InitiateBolusRequest.bitCorrection
 
     /// food+correction always equals total; a deliverable plan (≥ 0.05 U) builds a valid request.
     private func assertCoherent(_ p: BenchBolusPlanner.Plan) {
@@ -30,7 +30,7 @@ import Foundation
         // fromCarbs 3.00 + fromBG (170-120)/50=1.00 → total 4.00
         #expect(p.totalMilliunits == 4000)
         #expect(p.foodMilliunits == 3000 && p.correctionMilliunits == 1000)
-        #expect(p.bitmask == (F1 | CORR))
+        #expect(p.bitmask == (food1 | correction))
         assertCoherent(p)
     }
 
@@ -38,7 +38,7 @@ import Foundation
         let p = BenchBolusPlanner.plan(carbsGrams: 30, bgMgdl: 140, profile: profile(iob: 2.0))
         // fromBG 0.40, fromIOB -2.00 → corr -1.60 (<0) → add nothing → total = carbs 3.00
         #expect(p.totalMilliunits == 3000)
-        #expect(p.correctionMilliunits == 0 && p.bitmask == F1)
+        #expect(p.correctionMilliunits == 0 && p.bitmask == food1)
         assertCoherent(p)
     }
 
@@ -68,7 +68,7 @@ import Foundation
         let p = BenchBolusPlanner.plan(carbsGrams: nil, bgMgdl: 50, profile: profile())
         // fromBG (50-120)/50 = -1.40, no carbs → total floored at 0.
         #expect(p.totalMilliunits == 0)
-        #expect(p.bitmask == F2)  // no carbs ⇒ FOOD2, no correction component
+        #expect(p.bitmask == food2)  // no carbs ⇒ FOOD2, no correction component
         assertCoherent(p)
     }
 
@@ -79,7 +79,7 @@ import Foundation
         // fromBG (200-120)/50 = 1.60 → total 1.60
         #expect(p.totalMilliunits == 1600)
         #expect(p.foodMilliunits == 0 && p.correctionMilliunits == 1600)
-        #expect(p.bitmask == (F2 | CORR))
+        #expect(p.bitmask == (food2 | correction))
         assertCoherent(p)
     }
 
@@ -120,7 +120,7 @@ import Foundation
         #expect(p.totalMilliunits == 5200)
         #expect(p.carbGrams == 45 && p.bgMgdl == 180)
         #expect(p.iobMilliunits == 500)
-        #expect(p.bitmask == (F1 | CORR))
+        #expect(p.bitmask == (food1 | correction))
         let req = try BenchBolusPlanner.request(for: p, bolusID: 7)  // validating build succeeds
         #expect(!req.cargo.isEmpty)
         assertCoherent(p)
@@ -151,7 +151,7 @@ import Foundation
         round.parse(req.cargo)  // bidirectional: cargo → fields
         #expect(round.totalVolume == 5200 && round.foodVolume == 4500 && round.correctionVolume == 700)
         #expect(round.bolusCarbs == 45 && round.bolusBG == 180 && round.bolusIOB == 500)
-        #expect(round.bolusTypeBitmask == (F1 | CORR))
+        #expect(round.bolusTypeBitmask == (food1 | correction))
     }
 
     // MARK: numeric-input safety
@@ -232,7 +232,7 @@ import Foundation
 
     @Test func atTargetNoCarbsIsZeroFood2() {
         let p = BenchBolusPlanner.plan(carbsGrams: nil, bgMgdl: 120, profile: profile())
-        #expect(p.totalMilliunits == 0 && p.bitmask == F2)
+        #expect(p.totalMilliunits == 0 && p.bitmask == food2)
         assertCoherent(p)
     }
 
@@ -249,7 +249,7 @@ import Foundation
         let none = BenchBolusPlanner.plan(carbsGrams: nil, bgMgdl: 170, profile: profile())
         // No carb dose in either → FOOD2|CORRECTION, correction 1.00 U.
         #expect(zero.totalMilliunits == 1000 && none.totalMilliunits == 1000)
-        #expect(zero.bitmask == (F2 | CORR) && none.bitmask == (F2 | CORR))
+        #expect(zero.bitmask == (food2 | correction) && none.bitmask == (food2 | correction))
         assertCoherent(zero)
         assertCoherent(none)
     }

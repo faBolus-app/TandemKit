@@ -147,16 +147,16 @@ public final class PumpTransactionCoordinator {
         }
     }
 
-    /// Deliver an inbound frame. If it matches the oldest pending transaction awaiting this
-    /// `(characteristic, opCode)`, that transaction resolves and this returns `true` (the frame was
-    /// consumed). Returns `false` if no transaction awaited it (the caller should route it elsewhere,
-    /// e.g. an unsolicited stream/status frame to a delegate).
     // `.txIdMatch` is gated on the hardware finding that a t:slim response ECHOES the request txId
     // in `frame[1]` (confirmed sequentially on a legacy pump; pipelined bijection still needs bench).
     // Enabled only for an allowlisted pump via `PumpBLEClient.setPumpFamily`. `.opcodeFIFO` is the
     // fail-closed default — matching a txId the pump does not echo would fail every correlation, so
     // a non-t:slim pump never leaves FIFO. Delivery-class serialization is kept in both modes (a
     // bolus is never pipelined); txId correlation only disambiguates concurrent reads.
+    /// Deliver an inbound frame. If it matches the oldest pending transaction awaiting this
+    /// `(characteristic, opCode)`, that transaction resolves and this returns `true` (the frame was
+    /// consumed). Returns `false` if no transaction awaited it (the caller should route it elsewhere,
+    /// e.g. an unsolicited stream/status frame to a delegate).
     @discardableResult
     public func ingest(frame: [UInt8], on characteristic: Characteristic) -> Bool {
         guard let opCode = frame.first else { return false }

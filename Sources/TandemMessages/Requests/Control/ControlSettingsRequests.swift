@@ -1,8 +1,8 @@
 import Foundation
 
-/// Assorted A2 settings-write control commands (CGM alert thresholds, Control-IQ settings, extended
-/// bolus, G6 transmitter id). All signed CONTROL. Only `AdditionalBolus` dispenses insulin. Ports
-/// of the corresponding `request/control/*Request` classes.
+// Assorted A2 settings-write control commands (CGM alert thresholds, Control-IQ settings, extended
+// bolus, G6 transmitter id). All signed CONTROL. Only `AdditionalBolus` dispenses insulin. Ports
+// of the corresponding `request/control/*Request` classes.
 
 // MARK: - CGM alert settings (non-insulin)
 

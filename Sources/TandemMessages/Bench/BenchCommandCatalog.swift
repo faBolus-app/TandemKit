@@ -105,7 +105,7 @@ public enum BenchCommandCatalog {
     /// unit tests exercise directly.
     public static func descriptor(name: String, props: MessageProps) -> BenchCommand {
         let lane: BenchLane
-        var scheme: BenchPairingScheme? = nil
+        var scheme: BenchPairingScheme?
         if props.characteristic == .authorization {
             lane = .pairing
             scheme = name.contains("Jpake") ? .jpake : .legacyV1
