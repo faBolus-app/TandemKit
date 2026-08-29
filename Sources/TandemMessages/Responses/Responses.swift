@@ -990,7 +990,7 @@ public struct ProfileStatusResponse: ResponseMessage {
 /// pump (`t:slim X2 · Control-IQ+ 7.10.2`). An unverified decompiled-Mobi rationale reads targetBg
 /// at byte 5, and the wire layout may differ by t:slim SOFTWARE VERSION as well as by pump family
 /// (t:slim vs Mobi). Byte-4 trust is GATED — not asserted — until confirmed live per (pump family,
-/// firmware version) at the Phase-11 saline bench (see TandemKit/docs/BENCH-SESSION-PLAN.md and
+/// firmware version) at the saline bench (see TandemKit/docs/BENCH-SESSION-PLAN.md and
 /// faBolus docs/UNVERIFIED-GUESSES.md); if a genuine byte-5 variant is captured, decoding must
 /// become variant-aware keyed on (pump family, firmware version). Experimental-only; not cleared for
 /// real insulin until the bench confirms it.

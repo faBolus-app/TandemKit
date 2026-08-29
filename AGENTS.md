@@ -40,5 +40,21 @@ oracle-parity test.**
 - Comments explain why (safety, oracle, hardware). Do not add phase/ticket IDs or pin SHAs here.
   faBolus's TandemKit pin lives in `faBolus/project.yml`.
 
+## Style + advisory tooling
+- **Run the formatter before you commit:** `./scripts/format.sh` (`--lint` to check only). Use the
+  script, not bare `swift-format`: it filters the vendored trees, which must never be restyled, and
+  prints the version it used. swift-format's output is version-dependent, so CI pins Homebrew's build
+  (`brew install swift-format`); override with `SWIFT_FORMAT=/path/to/swift-format`. The committed
+  `.swift-format` turns off every rule except `DoNotUseSemicolons`, so it reflows whitespace but does
+  not rewrite code.
+- `swiftlint lint --quiet` is advisory. Read `.swiftlint.yml` first: the metric rules fire on
+  wire-message constructors, and `case foo = "foo"` records a wire contract. Never rename a wire
+  field to satisfy a linter.
+- `semgrep --config <faBolus>/.semgrep/deslop.yml --metrics=off .` flags AI-process residue. The
+  ruleset lives in the faBolus repo; CI fetches it by raw URL. Advisory — a genuine oracle citation
+  (`HistoryLogResponse.java:35`) can look like a drifted line reference, and is a KEEP.
+- CI: `style` (format + SwiftLint, advisory), `semgrep` (advisory), the build/test job, and
+  `codeql.yml` on push. Only the build/test job gates.
+
 ## Consumed by
 `../faBolus` via SwiftPM. App-level UI and `AccessPolicy` live there; the wire format lives here.

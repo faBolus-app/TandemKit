@@ -335,7 +335,7 @@ final class LiveSession: NSObject, PumpBLEClientDelegate {
     }
 
     /// The authoritative delivered-units record for a bolus id: `BolusCompletedHistoryLog` (typeId 20)
-    /// with `insulinDelivered` == the physical dose (C4 ground truth; HistoryLogEvents.swift:238-260).
+    /// with `insulinDelivered` == the physical dose (C4 ground truth).
     func bolusCompleted(bolusId: Int, since seq: UInt32) async throws -> BolusCompletedHistoryLog? {
         try await streamHistory(from: seq, count: 255)
             .compactMap { $0 as? BolusCompletedHistoryLog }

@@ -2,11 +2,11 @@
 //
 // SKIP, NEVER FAIL. Absence of a pump / config flag => the relevant suite or test is SKIPPED (green),
 // exactly like the oracle gate `@Suite(.enabled(if: OracleRunner.isAvailable))`
-// (Tests/TandemMessagesTests/OracleParityTests.swift:7). A no-hardware checkout and CI stay green.
+// (`OracleParityTests`). A no-hardware checkout and CI stay green.
 //
 // SAFETY: the two delivery software walls are NOT touched here — they stay armed at all times
-//   (1) `PumpBLEClient.WritePolicy` default `.readOnly` (Sources/TandemBLE/PumpBLEClient.swift:85)
-//   (2) `Packetize` `actionsAffectingInsulinDeliveryEnabled` gate (Sources/.../Core/Packetize.swift:49)
+//   (1) `PumpBLEClient.writePolicy` defaults to `.readOnly`
+//   (2) the `actionsAffectingInsulinDeliveryEnabled` gate in `Packetize.packetize`
 // The harness only ELEVATES a policy for the exact op that needs it, scoped by `withWritePolicy`
 // (auto-restores `.readOnly`), and only sets `allowInsulinDelivery` for a delivery-class message.
 //

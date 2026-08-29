@@ -343,7 +343,7 @@ public final class PumpBLEClient: NSObject {
         state = .connecting
         // Keep the connection request alive across states; iOS completes it when in range.
         central.connect(peripheral, options: [CBConnectPeripheralOptionNotifyOnDisconnectionKey: true])
-        // R2-11 defect 3: bound this fresh/cold establishment. Armed AFTER `cancelReconnectWatchdog()`
+        // Bound this fresh/cold establishment. Armed AFTER `cancelReconnectWatchdog()`
         // above (which clears it) so the deadline starts now; cancelled at `.ready` / on any teardown.
         armEstablishmentWatchdog()
     }
@@ -502,7 +502,7 @@ public final class PumpBLEClient: NSObject {
         scanTimeout = nil
     }
 
-    // MARK: Establishment watchdog (R2-11 defect 3)
+    // MARK: Establishment watchdog
     /// A one-shot deadline on the PRE-`.ready` establishment chain:
     /// `.connecting → didConnect → .discovering → discoverServices → discoverCharacteristics →
     /// maybeBecomeReady → .ready`. A transient CoreBluetooth stall can otherwise strand `.connecting`/
@@ -514,7 +514,7 @@ public final class PumpBLEClient: NSObject {
     /// so it can't outlive its window or double-fire.
     ///
     /// COMPOSITION: this is DISJOINT from the app-side pairing-handshake watchdog (faBolus `TandemBackend`,
-    /// FB-4 / R2-01, armed AFTER `.ready` at `coord.start()`). This one covers PRE-`.ready` and hands off
+    /// armed AFTER `.ready` at `coord.start()`). This one covers PRE-`.ready` and hands off
     /// exactly at `.ready` (cancelled in `maybeBecomeReady`); the app-side one covers POST-`.ready`. No
     /// pairing logic lives here.
     private var establishmentWatchdog: Timer?
@@ -541,7 +541,7 @@ public final class PumpBLEClient: NSObject {
         establishmentWatchdog = nil
     }
 
-    /// R2-11 defect 3: the establishment chain stalled before reaching `.ready`. Fail closed (reset write
+    /// The establishment chain stalled before reaching `.ready`. Fail closed (reset write
     /// policy + resume any waiter), cancel the still-pending connect so CoreBluetooth can't silently
     /// complete it later, and drop the half-built discovery/subscription state. Then recover per target: a
     /// KNOWN target enters the throttled reconnect ladder (same as a scan-timeout / drop — no counter
@@ -570,7 +570,7 @@ public final class PumpBLEClient: NSObject {
     /// `scanTimedOut()` directly). Thin wrapper over the internal `establishmentTimedOut()`.
     func fireEstablishmentWatchdogForTesting() { establishmentTimedOut() }
 
-    /// §5.2.4 / R2-11 defect 1: a scan that never discovers the pump must not run forever. Branches on
+    /// §5.2.4: a scan that never discovers the pump must not run forever. Branches on
     /// whether a target is KNOWN:
     ///  • KNOWN pump (`reconnectTargetId != nil`) — recover WITHOUT tearing down (teardown/rebuild cycles
     ///    are the CAUSE of the stuck-scanning state). Does NOT `stopScan` or cancel the pending connect; it
@@ -627,7 +627,7 @@ public final class PumpBLEClient: NSObject {
 
     public func disconnect() {
         intentionalDisconnect = true
-        // R2-11 defect 2: a user cancel must quiesce the radio and reject any late discovery. The old
+        // A user cancel must quiesce the radio and reject any late discovery. The old
         // code never stopped the scan, so a first-pair discovery that landed after Cancel still
         // auto-connected (see the `!intentionalDisconnect` guard added at the top of `didDiscover`), and
         // when there was no peripheral (a first-pair scan) it never published a terminal state at all.
@@ -708,7 +708,7 @@ public final class PumpBLEClient: NSObject {
         reconnectExhausted = false
         readySince = nil  // a fresh user-initiated connect discards any stale stability window
         inlineConnectPending = false  // fresh intent → no stale pending connect
-        cancelEstablishmentWatchdog()  // R2-11: a fresh intent / teardown must not leave a stale cold-connect deadline
+        cancelEstablishmentWatchdog()  // a fresh intent / teardown must not leave a stale cold-connect deadline
     }
 
     /// Internal (not private) so a unit test can fire ladder ticks directly — no real Timer wait, and no
@@ -768,7 +768,7 @@ public final class PumpBLEClient: NSObject {
                 state = .connecting
                 // Re-issuing connect on the same peripheral is idempotent in CoreBluetooth.
                 central.connect(p, options: [CBConnectPeripheralOptionNotifyOnDisconnectionKey: true])
-                // R2-11 defect 3: a ladder-driven connect can also stall pre-`.ready`; bound it. Cancelled
+                // A ladder-driven connect can also stall pre-`.ready`; bound it. Cancelled
                 // at `.ready`/teardown. `armEstablishmentWatchdog()` REPLACES any prior instance, so the two
                 // watchdogs never stack; the reconnect ladder still owns its own throttle timer separately.
                 armEstablishmentWatchdog()
@@ -1019,7 +1019,7 @@ extension PumpBLEClient: CBCentralManagerDelegate {
         advertisementData: [String: Any], rssi RSSI: NSNumber
     ) {
         MainActor.assumeIsolated {
-            // R2-11 defect 2: a discovery that lands AFTER a user cancel must be rejected outright — both
+            // A discovery that lands AFTER a user cancel must be rejected outright — both
             // the auto-connect and the delegate-notify below. Without this, a late first-pair discovery
             // still auto-connected past a Cancel (and `disconnect()` now also `stopScan()`s to make late
             // discoveries rare, but a callback already in flight can still arrive).
@@ -1198,9 +1198,9 @@ extension PumpBLEClient: CBPeripheralDelegate {
         // though, so invalidate the watchdog TIMER without touching the attempt count.
         reconnectWatchdog?.invalidate()
         reconnectWatchdog = nil
-        cancelScanTimeout()  // B3b: no scan in flight once ready
-        cancelEstablishmentWatchdog()  // R2-11 defect 3: establishment succeeded — hand off to the app-side
-        // post-`.ready` pairing watchdog (FB-4 / R2-01); no pre-`.ready` deadline left standing
+        cancelScanTimeout()  // no scan in flight once ready
+        cancelEstablishmentWatchdog()  // establishment succeeded — hand off to the app-side
+        // post-`.ready` pairing watchdog; no pre-`.ready` deadline left standing
         readySince = Date()  // starts the stability window `consumeReadyStabilityAndMaybeReset` checks
         state = .ready
         notify { $0.pumpClientDidBecomeReady(self) }

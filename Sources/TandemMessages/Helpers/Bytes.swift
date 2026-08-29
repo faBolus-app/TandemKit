@@ -151,7 +151,7 @@ public enum Bytes {
     /// DOSE-PATH framing: two of the three call sites — `IdpCrudRequests.CreateIDPRequest` (name, 17)
     /// and `RenameIDPRequest` (profileName, 16) — are on `modifiesInsulinDelivery: true` messages.
     /// This fix carries the kit's dose-path review discipline: experimental-only; the §1.4 promotion
-    /// gate is NOT cleared here; the Phase-11 saline bench remains the real-insulin gate.
+    /// gate is NOT cleared here; the saline bench remains the real-insulin gate.
     public static func writeString(_ input: String, _ length: Int) -> [UInt8] {
         var encoded = [UInt8](input.utf8)
         precondition(
