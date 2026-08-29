@@ -91,7 +91,7 @@ enum BenchCases {
             try #require(!ciq.closedLoopEnabled, "Control-IQ must be OFF before a temp rate")
 
             let minutes = 30, percent = 80
-            // Range-check in-harness (init does NOT — TempRateRequests.swift:14-18).
+            // Range-check in-harness (`SetTempRateRequest.init` does NOT).
             try #require(
                 (SetTempRateRequest.minMinutes...SetTempRateRequest.maxMinutes).contains(minutes),
                 "temp-rate minutes out of range")

@@ -28,8 +28,9 @@ disabled_rules:
   - opening_brace
   # Same conflict for wrapped closure signatures.
   - closure_parameter_position
-  # A trailing comment on a code line is how this codebase records wire provenance and safety
-  # caveats; blocking on comment length would push that information out of the source.
+  # Unverified-on-device wire fields are marked in the source on purpose (`TODO`, `UNVERIFIED`,
+  # `NEEDS-BENCH`). Flagging those comments would pressure someone into deleting the caveat rather
+  # than confirming the field against hardware.
   - todo
 
 line_length:
