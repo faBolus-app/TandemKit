@@ -1,14 +1,10 @@
 import Foundation
 
-/// CC-03 (kit half): the pump's 32-bit qualifying-events bitmap, delivered as a little-endian
-/// 4-byte payload on the `.qualifyingEvents` characteristic — the pump's comms-suspension /
-/// alert/alarm/reminder signal. Port of `com.jwoglom.pumpx2.pump.messages.response.qualifyingEvent
-/// .QualifyingEvent`; bit values are a byte-exact transcription of upstream (Don't-Hand-Roll —
-/// never invent a value here).
+/// Pump qualifying-events bitmap: little-endian 4-byte payload on `.qualifyingEvents`.
+/// Port of upstream `QualifyingEvent`; bit values are a byte-exact transcription — never invent one.
 ///
-/// Fail-closed by construction: `decode(_:)` returns `[]` (no bits set → no dispatch, no clear —
-/// see `PumpBLEClient`'s `.qualifyingEvents` branch) for any buffer shorter than 4 bytes, rather
-/// than reading past the end or defaulting a partial read to a spurious bit.
+/// Fail-closed: `decode(_:)` returns `[]` for any buffer shorter than 4 bytes — no past-the-end
+/// read, no spurious bit from a partial buffer.
 public struct QualifyingEvent: OptionSet, Sendable, Hashable {
     public let rawValue: UInt32
     public init(rawValue: UInt32) { self.rawValue = rawValue }

@@ -42,11 +42,9 @@ public struct MessageProps: Sendable {
     /// Explicit risk override; `nil` derives a fail-safe default (see `operationRisk`).
     private let riskOverride: OperationRisk?
 
-    /// Device/API send-gating metadata (workstream B / D-08), the Swift mirror of upstream's
-    /// `@MessageProps` `supportedDevices=` / `minApi=` tags. Both are **additive-optional** and default
-    /// to `nil` = *unrestricted*, so every existing `MessageProps(...)` call site stays source-compatible
-    /// and every currently-sent message stays sendable byte-for-byte — the change is behavior-preserving
-    /// for supported combos. The values are consumed only by `isSupported(onModel:apiVersion:)`.
+    /// Device/API send-gating metadata, the Swift mirror of upstream `@MessageProps`
+    /// `supportedDevices=` / `minApi=`. Both additive-optional; `nil` = unrestricted so existing
+    /// call sites stay sendable. Consumed only by `isSupported(onModel:apiVersion:)`.
 
     /// The pump families this message is legal to send to; `nil` = every device (unrestricted).
     public let supportedDevices: [PumpModel]?
@@ -83,26 +81,12 @@ public struct MessageProps: Sendable {
         self.minApi = minApi
     }
 
-    /// Pure device/API compatibility predicate (workstream B / D-08). Decides whether this message is
-    /// legal to send to a target pump identified by `model` + `apiVersion`. **Fail-open by design:**
+    /// Whether this message is legal to send to `model` + `apiVersion`. **Fail-open:**
+    /// unrestricted messages stay sendable; unknown model/api does not refuse.
     ///
-    /// - Returns `true` when the message declares no restriction (`supportedDevices == nil` and
-    ///   `minApi == nil`) — an un-annotated message stays universally sendable.
-    /// VA-06: each declared dimension (device family, API floor) is evaluated **independently**.
-    /// - Returns `false` when the message DECLARES a restriction AND a KNOWN target violates THAT
-    ///   dimension: a known `model` not in `supportedDevices`, OR a known `apiVersion` below `minApi` —
-    ///   even if the OTHER dimension's context is still unknown.
-    /// - An UNKNOWN dimension fails OPEN for that dimension only (preserves send-then-firmware-NACK; and
-    ///   gating on an unknown API would deadlock bootstrap — the API is negotiated via op33 only AFTER
-    ///   JPAKE auth and several pre-identity reads that themselves carry a `minApi`).
-    /// - A fully-unrestricted message, or a fully-unknown target for a restricted message, stays supported.
-    ///
-    /// This is deliberately transport-free so the send gate's decision is deterministically testable and
-    /// cannot be masked by connection state (mirrors `PumpBLEClient.authorizationError`).
-    ///
-    /// NOTE (pre-VA-06 defect): the old `guard let model, let apiVersion else { return true }` required
-    /// BOTH dimensions known before gating EITHER, so a known t:slim could send a `[.mobi]`-only message
-    /// (or a known too-old API a `minApi` message) whenever the other dimension was not yet known.
+    /// Each declared dimension (device family, API floor) is evaluated independently: a known
+    /// t:slim must not send a Mobi-only message just because API is still unknown. An unknown
+    /// dimension fails open for that dimension only (API is negotiated via op33 after JPAKE).
     public func isSupported(onModel model: PumpModel?, apiVersion: ApiVersion?) -> Bool {
         // Unrestricted message ⇒ always supported (behavior-preserving for every un-annotated message).
         if supportedDevices == nil && minApi == nil { return true }

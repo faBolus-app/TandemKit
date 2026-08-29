@@ -17,7 +17,7 @@ public protocol JpakeChallengeMessage: Message {
 
 public struct Jpake1aRequest: JpakeChallengeMessage {
     public static let props = MessageProps(opCode: 32, size: 167, type: .request,
-                                           characteristic: .authorization, responseOpCode: 33, minApi: .v3_2) // upstream API_V3_2 (D-08)
+                                           characteristic: .authorization, responseOpCode: 33, minApi: .v3_2) // upstream API_V3_2
     public var cargo: [UInt8]
     public private(set) var appInstanceId: Int = 0
     public private(set) var centralChallenge: [UInt8] = []
@@ -33,7 +33,7 @@ public struct Jpake1aRequest: JpakeChallengeMessage {
 
 public struct Jpake1bRequest: JpakeChallengeMessage {
     public static let props = MessageProps(opCode: 34, size: 167, type: .request,
-                                           characteristic: .authorization, responseOpCode: 35, minApi: .v3_2) // upstream API_V3_2 (D-08)
+                                           characteristic: .authorization, responseOpCode: 35, minApi: .v3_2) // upstream API_V3_2
     public var cargo: [UInt8]
     public private(set) var appInstanceId: Int = 0
     public private(set) var centralChallenge: [UInt8] = []
@@ -49,7 +49,7 @@ public struct Jpake1bRequest: JpakeChallengeMessage {
 
 public struct Jpake2Request: JpakeChallengeMessage {
     public static let props = MessageProps(opCode: 36, size: 167, type: .request,
-                                           characteristic: .authorization, responseOpCode: 37, minApi: .v3_2) // upstream API_V3_2 (D-08)
+                                           characteristic: .authorization, responseOpCode: 37, minApi: .v3_2) // upstream API_V3_2
     public var cargo: [UInt8]
     public private(set) var appInstanceId: Int = 0
     public private(set) var centralChallenge: [UInt8] = []
@@ -66,7 +66,7 @@ public struct Jpake2Request: JpakeChallengeMessage {
 /// Round 3: 2-byte session-key challenge parameter.
 public struct Jpake3SessionKeyRequest: Message {
     public static let props = MessageProps(opCode: 38, size: 2, type: .request,
-                                           characteristic: .authorization, responseOpCode: 39, minApi: .v3_2) // upstream API_V3_2 (D-08)
+                                           characteristic: .authorization, responseOpCode: 39, minApi: .v3_2) // upstream API_V3_2
     public var cargo: [UInt8]
     public private(set) var challengeParam: Int = 0
     public init() { self.cargo = [] }
@@ -80,7 +80,7 @@ public struct Jpake3SessionKeyRequest: Message {
 /// Round 4: key confirmation. `appInstanceId (2) + nonce (8) + reserved (8) + hashDigest (32)`.
 public struct Jpake4KeyConfirmationRequest: Message {
     public static let props = MessageProps(opCode: 40, size: 50, type: .request,
-                                           characteristic: .authorization, responseOpCode: 41, minApi: .v3_2) // upstream API_V3_2 (D-08)
+                                           characteristic: .authorization, responseOpCode: 41, minApi: .v3_2) // upstream API_V3_2
     public var cargo: [UInt8]
     public private(set) var appInstanceId: Int = 0
     public private(set) var nonce: [UInt8] = []

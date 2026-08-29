@@ -7,7 +7,7 @@ public struct SuspendPumpingRequest: Message {
     public static let props = MessageProps(
         opCode: 0x9C, size: 0, signed: true, type: .request,
         characteristic: .control, modifiesInsulinDelivery: true, responseOpCode: 0x9D,
-        supportedDevices: [.mobi], minApi: .mobi_v3_5) // upstream MOBI_ONLY + MOBI_API_V3_5 (D-08)
+        supportedDevices: [.mobi], minApi: .mobi_v3_5) // upstream MOBI_ONLY + MOBI_API_V3_5
     public var cargo: [UInt8]
     public init() { self.cargo = [] }
     public mutating func parse(_ raw: [UInt8]) { self.cargo = [] }   // size 0 — empty cargo
@@ -19,7 +19,7 @@ public struct ResumePumpingRequest: Message {
     public static let props = MessageProps(
         opCode: 0x9A, size: 0, signed: true, type: .request,
         characteristic: .control, modifiesInsulinDelivery: true, responseOpCode: 0x9B,
-        supportedDevices: [.mobi]) // upstream MOBI_ONLY (D-08)
+        supportedDevices: [.mobi]) // upstream MOBI_ONLY
     public var cargo: [UInt8]
     public init() { self.cargo = [] }
     public mutating func parse(_ raw: [UInt8]) { self.cargo = [] }

@@ -8,7 +8,7 @@ public struct PlaySoundRequest: Message {
     public static let props = MessageProps(
         opCode: 0xF4, size: 0, signed: true, type: .request,
         characteristic: .control, risk: .benign, responseOpCode: 0xF5,
-        minApi: .benchConservativeUnverifiedFloor)   // find-my-pump (P-01); minApi = CONSERVATIVE/UNVERIFIED (bench T-1, >2.5 only)
+        minApi: .benchConservativeUnverifiedFloor)   // find-my-pump; minApi = CONSERVATIVE/UNVERIFIED (bench, >2.5 only)
     public var cargo: [UInt8]
     public init() { cargo = [] }
     public mutating func parse(_ raw: [UInt8]) { cargo = [] }

@@ -25,7 +25,7 @@ public extension EmptyCurrentStatusRequest {
 private func statusProps(_ op: UInt8,
                          supportedDevices: [PumpModel]? = nil,
                          minApi: ApiVersion? = nil) -> MessageProps {
-    // Device/API gating (D-08) is additive-optional: the two trailing args default to nil = unrestricted,
+    // Device/API gating is additive-optional: the two trailing args default to nil = unrestricted,
     // so every un-annotated status read stays universally sendable and byte-identical.
     MessageProps(opCode: op, size: 0, type: .request,
                  characteristic: .currentStatus, responseOpCode: op &+ 1,

@@ -92,7 +92,7 @@ public struct SetQuickBolusSettingsRequest: Message {
 
 /// Sets a sleep-schedule slot (opcode 0xCE → 0xCF). 8-byte cargo: slot + 6-byte schedule + flag.
 public struct SetSleepScheduleRequest: Message {
-    // Device/API gating (D-08): upstream @MessageProps tags this MOBI_ONLY + minApi MOBI_API_V3_5.
+    // Device/API gating: upstream @MessageProps tags this MOBI_ONLY + minApi MOBI_API_V3_5.
     public static let props = MessageProps(opCode: 0xCE, size: 8, signed: true, type: .request, characteristic: .control, responseOpCode: 0xCF,
                                            supportedDevices: [.mobi], minApi: .mobi_v3_5)
     public var cargo: [UInt8]

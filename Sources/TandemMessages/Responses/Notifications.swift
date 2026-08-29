@@ -241,7 +241,7 @@ public struct MalfunctionBitmaskStatusResponse: ResponseMessage {
 /// status response. Signed like a bolus, but it does not modify insulin delivery.
 public struct DismissNotificationRequest: Message {
     public static let props = MessageProps(opCode: 184, size: 6, signed: true, type: .request,
-                                           characteristic: .control, risk: .benign, responseOpCode: 185)   // clears an alert — no therapy effect (P-01)
+                                           characteristic: .control, risk: .benign, responseOpCode: 185)   // clears an alert — no therapy effect
     public var cargo: [UInt8]
     public private(set) var notificationId: Int = 0
     public private(set) var kind: NotificationKind = .alert
