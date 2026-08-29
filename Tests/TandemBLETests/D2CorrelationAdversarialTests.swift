@@ -3,19 +3,9 @@ import Foundation
 import TandemMessages
 @testable import TandemBLE
 
-/// Phase 09.11 (D2 BLE txId-correlation safety audit) — D-04 #4-#8: the coordinator-level
-/// failure-path/adversarial `.txIdMatch` tests the §1.4 gate requires, missing from the original D2 PR.
-/// The existing `PumpTransactionCoordinatorTests` D2 section (:201-297) only exercises the HAPPY path
-/// (reorder win, op-77 NACK, wraparound, short frame). These tests instead adversarially probe the exact
-/// scenarios where a mis-correlation could attribute the wrong status/ack to a dose-path-adjacent request:
-/// wrong-channel replay, NACK precision among several in-flight, duplicate/stale replay, a pathological
-/// shared-txId collision, and cancellation isolation.
-///
-/// **These are CONFIRMATION tests (type: execute), not TDD.** Every case is expected to PASS on first
-/// write — the `.txIdMatch` predicate (characteristic AND txId AND (expectedOpCode OR 77)) and the
-/// id-keyed `resolve(id:)` no-op-on-already-resolved guard already read as correct. A FAILING case here is
-/// a defect FINDING (cross-characteristic match, NACK misroute, or double-resolve), which is a
-/// REVERT-TRIGGER (D-06) for owner review — NOT a cue to "fix" `PumpTransactionCoordinator.swift`.
+/// Under `.txIdMatch`, a mis-correlation must not attribute the wrong status/ack to a pending
+/// request: wrong-channel replay, NACK precision among several in-flight, duplicate/stale replay,
+/// a shared-txId collision, and cancellation isolation.
 @Suite struct D2CorrelationAdversarialTests {
 
     /// Drive `perform` to the point where its pending transaction is registered (mirrors the helper in
@@ -32,7 +22,7 @@ import TandemMessages
         return task
     }
 
-    // MARK: - D-04 #4: cross-characteristic isolation
+    // MARK: - Cross-characteristic isolation
 
     /// A same-opcode, same-txId frame arriving on the WRONG characteristic must never resolve the pending
     /// transaction — the `.txIdMatch` predicate requires `expectedCharacteristic == characteristic` too, so
@@ -51,7 +41,7 @@ import TandemMessages
         #expect(coord.inFlightCount == 0)
     }
 
-    // MARK: - D-04 #5: op-77 NACK precision
+    // MARK: - Op-77 NACK precision
 
     /// An op-77 NACK echoing a specific in-flight txId resolves EXACTLY that transaction among several
     /// distinct-txId pendings — never a sibling. An op-77 carrying a txId that matches NO pending is
@@ -92,7 +82,7 @@ import TandemMessages
         _ = try await task.value
     }
 
-    // MARK: - D-04 #6: no double-resolve
+    // MARK: - No double-resolve
 
     /// A duplicate/stale frame arriving AFTER its transaction already resolved must not double-resolve —
     /// `resolve(id:)` is keyed by the unique transaction id and is a no-op once that id is gone, so the
@@ -109,18 +99,10 @@ import TandemMessages
         #expect(coord.inFlightCount == 0)
     }
 
-    // MARK: - D-04 #7: shared-txId defined behavior (pathological)
+    // MARK: - Shared-txId defined behavior
 
-    /// Two pending transactions sharing the SAME (characteristic, txId) — the pathological case a writer
-    /// wrap or bug could theoretically produce — has DEFINED, graceful behavior: ingesting one matching
-    /// frame resolves exactly the OLDEST match (`pending.firstIndex(where:)` scans registration order), the
-    /// second stays in flight, and `inFlightCount` goes 2 → 1. Never both resolve off a single frame.
-    ///
-    /// This collision requires 256 concurrent same-characteristic transactions sharing one wrapped `UInt8`
-    /// txId and is unreachable in practice (delivery is serialized to one in-flight command; reads are a
-    /// handful at a time — see `PumpTransactionCoordinatorTests.txIdMatchDistinguishesWraparoundTxIds`).
-    /// This test pins the graceful degradation of an otherwise-impossible input, not a supported/relied-upon
-    /// mode.
+    /// Two pendings sharing the same (characteristic, txId) — pathological wrap — must resolve only
+    /// the oldest match off one frame. Delivery is serialized so this collision is unreachable in practice.
     @MainActor @Test func txIdMatchSharedTxIdResolvesOldestOnlyDefinedBehavior() async throws {
         let coord = PumpTransactionCoordinator()
         coord.correlationMode = .txIdMatch
@@ -142,7 +124,7 @@ import TandemMessages
         #expect(coord.inFlightCount == 0)
     }
 
-    // MARK: - D-04 #8: cancellation-only-own under .txIdMatch
+    // MARK: - Cancellation isolates the owning transaction
 
     /// Re-assert `cancellingOneTaskResolvesOnlyThatTransaction` (proven under `.opcodeFIFO` in
     /// `PumpTransactionCoordinatorTests`) under `.txIdMatch`: cancelling ONE awaiting task resolves ONLY

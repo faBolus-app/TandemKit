@@ -2,9 +2,8 @@ import Testing
 import Foundation
 @testable import TandemBLE
 
-/// P12 (group C, §5.2): the reconnect backoff ladder gains additive jitter so a phone and pump both
-/// retrying/advertising on fixed intervals can't lock into a beat pattern where their windows repeatedly
-/// miss. Pins that the jitter is BOUNDED (never tightens the ladder, never runs away) and actually varies.
+/// Reconnect backoff includes additive jitter so a phone and pump retrying on fixed intervals cannot
+/// lock into a beat pattern. Jitter is bounded (never tightens the ladder, never runs away) and actually varies.
 @Suite struct ReconnectBackoffJitterTests {
 
     @Test func jitteredDelayStaysWithinBaseAndFiftyPercentMore() {

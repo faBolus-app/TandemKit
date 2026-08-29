@@ -170,9 +170,8 @@ import Foundation
         else { Issue.record("expected pending gap for SetBgReminder") }
         // Wired reversible affordances → exercise (no PUMPX2_DELIVER_SALINE needed).
         // SetMaxBolusLimit / ChangeTimeDate / PlaySound now carry the conservative minApi floor
-        // (.benchConservativeUnverifiedFloor = 3.4, ported from experimental@245b531 — C4-01/CX-T-03),
-        // which the classifier checks BEFORE the affordance logic, so the API-2.5 oldTslim session
-        // correctly DEFERS them instead of exercising (fail-safe: never send to a firmware that op-77s).
+        // (`.benchConservativeUnverifiedFloor` = 3.4), which the classifier checks BEFORE the affordance
+        // logic, so the API-2.5 oldTslim session correctly DEFERS them instead of exercising.
         if case .deferred(let r) = plan("SetMaxBolusLimitRequest", Self.oldTslim) { #expect(r.contains("3.4")) }
         else { Issue.record("SetMaxBolusLimit should defer on the API-2.5 t:slim (conservative minApi floor)") }
         if case .deferred(let r) = plan("ChangeTimeDateRequest", Self.oldTslim) { #expect(r.contains("3.4")) }
@@ -417,8 +416,8 @@ import Foundation
             Issue.record("Mobi-only delivery should be N/A on a t:slim")
         }
         // Drivable signed writes need no saline gate, but SetMaxBolusLimitRequest now carries the
-        // conservative minApi floor (3.4, ported C4-01/CX-T-03) which gates it ahead of the affordance
-        // check — it correctly DEFERS on the API-2.5 old t:slim rather than exercising.
+        // conservative minApi floor (3.4) which gates it ahead of the affordance check — it correctly
+        // DEFERS on the API-2.5 old t:slim rather than exercising.
         if case .deferred(let r) = BenchCoverage.plan(for: cmd("SetMaxBolusLimitRequest"), in: BenchCoveragePlanTests.oldTslim) {
             #expect(r.contains("3.4"))
         } else {

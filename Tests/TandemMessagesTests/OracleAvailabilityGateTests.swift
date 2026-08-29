@@ -2,15 +2,13 @@ import Testing
 import Foundation
 @testable import TandemMessages
 
-/// PX-09: make the oracle **fail-closed**. The parity suites are gated `.enabled(if: isAvailable)`, so a
-/// checkout without a built oracle (JDK 21 + `cliparser.jar`) silently skips *all* byte-parity coverage
-/// and the run still reports green — a dangerous false pass for a byte-exact insulin protocol. This suite
-/// turns that into an explicit failure unless the runner opts into a Swift-only dev mode, and it proves
-/// the oracle process actually executed (not merely that the files exist).
+/// Oracle byte-parity must fail closed when the oracle is unavailable. Default/CI/release runs
+/// require JDK 21 + `cliparser.jar`; `PUMPX2_ALLOW_ORACLE_SKIP` is a local Swift-only opt-out and
+/// must never be set in CI. This suite also proves the oracle process actually executed.
 @Suite struct OracleAvailabilityGateTests {
 
-    /// Default runs REQUIRE the oracle. A developer iterating without Java can set
-    /// `PUMPX2_ALLOW_ORACLE_SKIP=1` to run Swift-only — but CI / release must not.
+    /// Default runs require the oracle. `PUMPX2_ALLOW_ORACLE_SKIP=1` is local Swift-only iteration
+    /// only — CI / release must never set it.
     @Test func oracleRequiredUnlessDevModeOptOut() {
         if OracleRunner.isAvailable { return }
         let devMode = ProcessInfo.processInfo.environment["PUMPX2_ALLOW_ORACLE_SKIP"] == "1"
@@ -21,9 +19,8 @@ import Foundation
             """)
     }
 
-    /// A curated safety-critical message set must ALL byte-encode via the oracle when it is available —
-    /// proving the oracle really ran for these (PX-09 "assert the expected oracle case count ran"), so a
-    /// broken/no-op oracle can't masquerade as coverage. Count is asserted exactly.
+    /// A curated safety-critical message set must all byte-encode via the oracle when it is available,
+    /// so a broken/no-op oracle cannot masquerade as coverage.
     @Test(.enabled(if: OracleRunner.isAvailable))
     func safetyCriticalMessagesRunAgainstOracle() throws {
         let names = ["ApiVersionRequest", "CancelBolusRequest", "SuspendPumpingRequest",

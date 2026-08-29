@@ -3,12 +3,9 @@ import Foundation
 import CoreBluetooth
 @testable import TandemBLE
 
-/// B3(b) / §5.2.4 — the BLE scan-timeout + cold-launch retrieve-vs-scan, branch-tested via an injected
-/// fake `PumpCentral` (a macOS test host is TCC-aborted at a real scan, so this is the only way to exercise
-/// the lifecycle in `swift test`). Pins the load-bearing safety property: a scan that never discovers the
-/// pump escalates to the reconnect recovery ladder WITHOUT tearing down (no `stopScan`, no
-/// `cancelPeripheralConnection`) — teardown/rebuild is the very thing that causes the stuck-scanning state.
-/// Touches no message codec, so byte-parity is unaffected.
+/// A scan that never discovers the pump escalates to the reconnect ladder without tearing down
+/// (`stopScan` / `cancelPeripheralConnection` would leave a stuck-scanning state). Driven via an
+/// injected fake `PumpCentral` because a macOS test host is TCC-aborted at a real scan.
 @MainActor
 @Suite struct ScanTimeoutTests {
 
@@ -31,7 +28,7 @@ import CoreBluetooth
         let fake = FakeCentral()                       // powered on, no known handle
         let client = PumpBLEClient(central: fake)
         client.connectKnownPeripheral(identifier: UUID())
-        #expect(fake.scanCount == 1)                   // C1: retrieve empty ⇒ scan
+        #expect(fake.scanCount == 1)                   // retrieve empty ⇒ scan
         #expect(client.state == .scanning)
         #expect(fake.connectCount == 0)
         client.disconnect()
@@ -54,18 +51,16 @@ import CoreBluetooth
         let scansBefore = fake.scanCount
         client.scanTimedOut()                                // fire the timeout directly (no 30 s wait)
         #expect(client.reconnectWatchdogArmedForTesting)     // escalated to the recovery ladder…
-        // …§5.2.4 invariant: WITHOUT teardown — the pending scan/connect is left in place.
+        // Without teardown — the pending scan/connect is left in place.
         #expect(fake.stopScanCount == 0)
         #expect(fake.cancelCount == 0)
         #expect(fake.scanCount == scansBefore)               // and no synchronous re-scan
         client.disconnect()
     }
 
-    /// R2-11 defect 1: a first-time PAIRING scan (no `reconnectTargetId`) used to be INERT at timeout —
-    /// `scanTimedOut()` early-returned, so the scan ran forever. It must now be BOUNDED: stop the scan and
-    /// publish a retryable terminal `.disconnected`, and must NOT be routed into the known-target reconnect
-    /// ladder (there is no target to recover toward). (Rewritten from the old
-    /// `scanTimeoutIsInertForAPairingScanWithNoTarget`, which pinned the now-fixed inert behavior.)
+    /// A first-time pairing scan (no `reconnectTargetId`) must be bounded at timeout: stop the scan and
+    /// publish a retryable terminal `.disconnected`, and must not be routed into the known-target reconnect
+    /// ladder (there is no target to recover toward).
     @Test func firstPairScanTimeoutIsBounded() {
         let fake = FakeCentral()
         let client = PumpBLEClient(central: fake)
@@ -78,10 +73,8 @@ import CoreBluetooth
         client.disconnect()
     }
 
-    /// R2-11 defect 2: a user cancel during a first-pair scan (before any discovery) must stop the scan and
-    /// publish a terminal `.disconnected`. The old `disconnect()` never called `stopScan()` and, with no
-    /// peripheral, never published `.disconnected` — so a late discovery could still auto-connect and the
-    /// UI never left `.scanning`.
+    /// A user cancel during a first-pair scan (before any discovery) must stop the scan and publish
+    /// `.disconnected`, so a late discovery cannot still auto-connect.
     @Test func cancelBeforeDiscoveryStopsScanAndGoesDown() {
         let fake = FakeCentral()
         let client = PumpBLEClient(central: fake)
@@ -92,13 +85,9 @@ import CoreBluetooth
         #expect(client.state == .disconnected)               // first-pair cancel publishes the terminal
     }
 
-    /// R2-11 defect 3: a cold/reconnect establishment that stalls before `.ready` must fail closed via the
-    /// establishment watchdog. A live `CBPeripheral` cannot be constructed in a unit test (see the class
-    /// doc and sibling suites — that is why every FakeCentral keeps `retrieveResult` empty), so the pending-
-    /// connect `cancelPeripheralConnection` is exercised only on hardware; here we pin the state-machine
-    /// outcome the watchdog drives, and that the watchdog is cleared so it can't outlive its window /
-    /// double-fire: a KNOWN target lands on the throttled recovery ladder; a first-pair cold connect
-    /// terminates cleanly at `.disconnected`.
+    /// A cold/reconnect establishment that stalls before `.ready` must fail closed via the establishment
+    /// watchdog: a known target lands on the throttled recovery ladder; a first-pair cold connect
+    /// terminates at `.disconnected`. The watchdog is cleared so it cannot outlive its window.
     @Test func coldConnectEstablishmentWatchdogFailsClosed() {
         // KNOWN target → throttled recovery ladder (not a terminal).
         let fakeKnown = FakeCentral()

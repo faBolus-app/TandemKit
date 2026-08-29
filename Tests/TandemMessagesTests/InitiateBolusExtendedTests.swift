@@ -25,11 +25,11 @@ import Testing
         #expect(InitiateBolusRequest.minExtendedBolusMilliunits == 400)
     }
 
-    /// Oracle byte-lock for a **carb** bolus (audit C-07). Vector from the oracle test
-    /// `testInitiateBolusRequest_ID10652_013u_13g_carbs_142mgdl`: 0.13 U (130 mU), bolusID 10652.
-    /// The reverse-engineered app sends **bitmask 1 = FOOD1** ("used when there is carbs"), with
-    /// **foodVolume == totalVolume** (the whole dose is the food component) and correctionVolume 0 —
-    /// NOT FOOD2(8)/foodVolume 0. carbs 13 g @ bytes 17-18, BG 142 mg/dL @ bytes 19-20.
+    /// Oracle byte-lock for a carb bolus. Vector from the upstream oracle test
+    /// `testInitiateBolusRequest_ID10652_013u_13g_carbs_142mgdl` — 0.13 U (130 mU), bolusID 10652,
+    /// carbs 13 g @ bytes 17-18, BG 142 mg/dL @ bytes 19-20. The reverse-engineered app sends
+    /// bitmask 1 = FOOD1 ("used when there is carbs"), with foodVolume == totalVolume (the whole dose
+    /// is the food component) and correctionVolume 0 — NOT FOOD2(8)/foodVolume 0.
     @Test func carbBolusFood1CargoMatchesOracle() {
         let req = InitiateBolusRequest(totalVolume: 130, bolusID: 10652, bolusTypeBitmask: 1,
                                        foodVolume: 130, correctionVolume: 0, bolusCarbs: 13, bolusBG: 142, bolusIOB: 0,
@@ -45,9 +45,10 @@ import Testing
         #expect(req.bolusIOB == 0)
     }
 
-    /// Oracle byte-lock for a carb bolus **with IOB** (audit C-07). Vector from
-    /// `testInitiateBolusRequest_ID10653_011u_11g_carbs_161mgdl_013u_iob`: 0.11 U (110 mU), bolusID 10653,
-    /// carbs 11 g, BG 161, bolusIOB 130 (0.13 U) @ bytes 21-24. Confirms the app DOES populate bolusIOB.
+    /// Oracle byte-lock for a carb bolus with IOB. Vector from
+    /// `testInitiateBolusRequest_ID10653_011u_11g_carbs_161mgdl_013u_iob` — 0.11 U (110 mU),
+    /// bolusID 10653, carbs 11 g, BG 161, bolusIOB 130 (0.13 U) @ bytes 21-24. Confirms the app DOES
+    /// populate bolusIOB rather than leaving it zero.
     @Test func carbBolusWithIobCargoMatchesOracle() {
         let req = InitiateBolusRequest(totalVolume: 110, bolusID: 10653, bolusTypeBitmask: 1,
                                        foodVolume: 110, correctionVolume: 0, bolusCarbs: 11, bolusBG: 161, bolusIOB: 130,

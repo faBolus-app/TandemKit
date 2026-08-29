@@ -2,12 +2,9 @@ import Testing
 import Foundation
 @testable import TandemMessages
 
-/// Round-2 P1: the bench carb planner must match the Tandem oracle `BolusCalculator.parse()` — the same
-/// formula faBolus's `BolusMath` ports and `faBolusCore`'s 563-vector `BolusMathParityTests` verifies.
-/// The old harness formula used `max(0, (BG−target)/ISF)`, dropping the SIGNED below-target correction
-/// (and its IOB interaction) and skipping two-decimal component rounding — an over-delivery risk on saline.
-/// These deterministic cases lock the corrected behavior (signed correction, IOB, dp2, zero floor,
-/// 0.05 U snap, bench cap) and the full request cargo.
+/// The bench carb planner must match the Tandem oracle `BolusCalculator.parse()`: signed
+/// below-target correction (and its IOB interaction) and two-decimal component rounding. Dropping
+/// the signed correction is an over-delivery risk.
 @Suite struct BenchBolusPlannerTests {
 
     // A clean profile: 10 g/U, ISF 50 mg/dL/U, target 120 mg/dL.
@@ -18,7 +15,7 @@ import Foundation
     private let F2 = InitiateBolusRequest.bitFood2
     private let CORR = InitiateBolusRequest.bitCorrection
 
-    /// food+correction always equals total; a deliverable plan (≥ 0.05 U) builds a valid PX-07 request.
+    /// food+correction always equals total; a deliverable plan (≥ 0.05 U) builds a valid request.
     private func assertCoherent(_ p: BenchBolusPlanner.Plan) {
         #expect(p.foodMilliunits + p.correctionMilliunits == p.totalMilliunits)
         if p.totalMilliunits >= InitiateBolusRequest.minBolusMilliunits {
@@ -121,7 +118,7 @@ import Foundation
         #expect(p.carbGrams == 45 && p.bgMgdl == 180)
         #expect(p.iobMilliunits == 500)
         #expect(p.bitmask == (F1 | CORR))
-        let req = try BenchBolusPlanner.request(for: p, bolusID: 7)   // PX-07 validating build succeeds
+        let req = try BenchBolusPlanner.request(for: p, bolusID: 7)   // validating build succeeds
         #expect(!req.cargo.isEmpty)
         assertCoherent(p)
     }
@@ -153,7 +150,7 @@ import Foundation
         #expect(round.bolusTypeBitmask == (F1 | CORR))
     }
 
-    // MARK: R3-E — numeric-input safety (these inputs used to TRAP at the UInt32/Int conversions)
+    // MARK: numeric-input safety
 
     /// The 0.05 U → milliunit snap must never trap: non-finite → 0, and a dose beyond UInt32 clamps to
     /// UInt32.max (the bench cap then bounds it). Finite in-range values are byte-identical to the old code.
@@ -201,7 +198,7 @@ import Foundation
         #expect(nanIob.totalMilliunits == 4000)                                // NaN IOB == no IOB
     }
 
-    // MARK: R3-E — invalid-profile matrix (only carbRatio==0 was covered)
+    // MARK: invalid-profile matrix
 
     @Test func invalidIsfAndTargetSanityFailToZero() {
         let badIsf = BenchBolusPlanner.Profile(carbRatioGramsPerUnit: 10, isfMgdlPerUnit: 0, targetBgMgdl: 120, iobUnits: 0)
@@ -213,7 +210,7 @@ import Foundation
         }
     }
 
-    // MARK: R3-E — bench cap below the minimum dispensable dose
+    // MARK: bench cap below minimum dispensable dose
 
     @Test func capBelowMinimumYieldsNonDeliverablePlan() {
         let p = BenchBolusPlanner.plan(carbsGrams: 30, bgMgdl: nil, profile: profile(), benchCapMilliunits: 40)
@@ -224,7 +221,7 @@ import Foundation
         }
     }
 
-    // MARK: R3-E — matrix cells the earlier suite missed
+    // MARK: additional matrix cells
 
     @Test func atTargetNoCarbsIsZeroFood2() {
         let p = BenchBolusPlanner.plan(carbsGrams: nil, bgMgdl: 120, profile: profile())

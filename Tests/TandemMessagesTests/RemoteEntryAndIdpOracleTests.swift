@@ -1,10 +1,8 @@
 import Testing
 @testable import TandemMessages
 
-/// Byte-locks for the carb/BG-metadata and IDP field VALUES that faBolus sends (audit C-07). The
-/// encoders themselves are already parity-locked in OracleParityTests; these pin the specific argument
-/// values that were previously best guesses to the reference's ground truth, so a regression that
-/// reverts them fails here.
+/// Byte-locks for the carb/BG-metadata and IDP field values that faBolus sends. The encoders are
+/// already parity-locked in OracleParityTests; these pin the specific argument values so a regression fails here.
 @Suite struct RemoteEntryAndIdpOracleTests {
 
     /// Ground truth from a captured real-app BLE payload (oracle `RemoteBgEntryRequestTest.ID10652`):
@@ -29,12 +27,10 @@ import Testing
         #expect(legacy.cargo[4] == 0)   // PUMP — contradicts the captures; must not be used for a remote entry
     }
 
-    // MARK: - PX-05: full-byte IDP payload locks (create / modify / delete + one-bit mutation)
+    // MARK: - Full-byte IDP payload locks (create / modify / delete + one-bit mutation)
     //
-    // The per-field checks above catch a reverted field value; these lock the COMPLETE 35-byte create and
-    // 17-byte segment payloads so that a change to ANY byte (layout, offset, endianness, an adjacent
-    // field) is caught, not just the four we happened to name. The encoders are independently proven
-    // against the Java oracle in OracleParityTests; these pin the exact argument tuple faBolus sends.
+    // The per-field checks above catch a reverted field value; these lock the complete 35-byte create and
+    // 17-byte segment payloads so that a change to any byte is caught, not just the four we happened to name.
 
     /// Full 35-byte create payload (name "testprofile", CR 3000, basal 1000, target 100, ISF 2,
     /// duration 300, timeSeg 31, bolusSettings 5, idpSource 255, carbEntry 1).

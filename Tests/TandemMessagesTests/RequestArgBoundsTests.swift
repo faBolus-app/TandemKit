@@ -1,15 +1,9 @@
 import Testing
 import TandemMessages
 
-/// CX-T-07: restore upstream request-argument bounds validation at the TandemKit construction boundary.
-/// Today `SetTempRateRequest(minutes:percent:)` encodes `percent` via `Bytes.firstTwoBytesLittleEndian`,
-/// which silently TRUNCATES (percent 65536 -> 0%) — turning an out-of-range value into a DIFFERENT valid
-/// command instead of rejecting it. `SetMaxBolusLimitRequest`/`SetMaxBasalLimitRequest` had no bounds at
-/// all; `FillCannulaRequest` had no init bound (0 is upstream-invalid). Mirrors the `InitiateBolusRequest`
-/// throwing convention (PX-07): validate BEFORE any truncating byte-encode helper.
-///
-/// Owner decision (2026-08-25, see OWNER-DECISIONS.md 15-05 Task 1): ALIGN UP — the max-bolus/max-basal
-/// LIMIT floor is raised to pumpX2's documented 1.0 U (1000 mU / 1000 mU/hr), CONSERVATIVE/UNVERIFIED.
+/// Request constructors must reject out-of-range arguments before any truncating byte-encode helper
+/// can turn them into a different valid command (e.g. percent 65536 silently becoming 0%).
+/// Max-bolus / max-basal floors are 1.0 U (1000 mU), matching pumpX2.
 @Suite struct RequestArgBoundsTests {
 
     // MARK: - SetTempRateRequest (unconditional — no owner-decision dependency)

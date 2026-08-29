@@ -3,9 +3,9 @@ import TandemMessages
 @testable import TandemAuth
 
 @Suite struct PairingCoordinatorTests {
-    /// Build an inbound frame [opcode, txId, len, cargo…, crc(2)]. CX-T-08: `handle(frame:)` now
-    /// validates the CRC + declared length itself (mirroring ResponseParser), so this helper must
-    /// emit a REAL `Bytes.calculateCRC16` trailer — a dummy `[0, 0]` CRC would now fail closed.
+    /// Build an inbound frame [opcode, txId, len, cargo…, crc(2)]. `handle(frame:)` validates CRC +
+    /// declared length, so this helper must emit a real `Bytes.calculateCRC16` trailer — a dummy
+    /// `[0, 0]` CRC would fail closed.
     private func frame(_ opcode: UInt8, _ cargo: [UInt8]) -> [UInt8] {
         let body: [UInt8] = [opcode, 0, UInt8(cargo.count)] + cargo
         return body + Bytes.calculateCRC16(body)

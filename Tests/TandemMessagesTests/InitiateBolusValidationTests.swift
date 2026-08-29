@@ -1,8 +1,8 @@
 import Testing
 import TandemMessages
 
-/// PX-07: the typed/throwing `InitiateBolusRequest(validating:)` rejects out-of-range and incoherent
-/// doses BEFORE any byte reaches the wire, instead of silently truncating a uint16 field or trapping.
+/// The typed/throwing `InitiateBolusRequest(validating:)` rejects out-of-range and incoherent
+/// doses before any byte reaches the wire, instead of silently truncating a uint16 field or trapping.
 @Suite struct InitiateBolusValidationTests {
     typealias E = InitiateBolusRequest.ValidationError
 
@@ -148,7 +148,7 @@ import TandemMessages
         }
     }
 
-    // MARK: - PX-06: the shared type-bitmask derivation (used by the bench harness AND production)
+    // MARK: - Shared type-bitmask derivation (bench harness and production)
 
     /// A carb bolus is FOOD1 (1) — NOT FOOD1|FOOD2 (9). This is the exact bug the old bench harness had
     /// (it always OR-ed FOOD2 in). The value must match the oracle FOOD1 byte-lock in

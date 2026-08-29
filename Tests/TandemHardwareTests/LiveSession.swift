@@ -37,13 +37,10 @@ struct TraceFrame: Sendable {
     let hex: String
 }
 
-/// The pump's firmware/version identity, captured post-pairing so every hardware result can be
-/// TAGGED by pump version + auth scheme. A behavior that holds on one firmware may not hold on
-/// another — a legacy V1 (pre-v7.7, 16-char pairing) pump vs a modern JPAKE (v7.7+, 6-digit) pump
-/// can differ on capability bitmasks, "Mobi-only" writes, time-set, and txId behavior — so a bench
-/// finding is only valid for the version it was observed on. API version is jwoglom's firmware-FAMILY
-/// discriminator (t:slim X2 = 2.x–3.4, Mobi = 3.5+); `pumpSoftwareVersion`/`modelNumber` come from
-/// PumpVersionResponse when the pump answers it (older firmware may not).
+/// Pump firmware/version identity, captured post-pairing so hardware results are tagged by version and
+/// auth scheme. Legacy V1 (16-char) vs JPAKE (6-digit) pumps can differ on capability, txId, and time-set;
+/// bench findings are only valid for the version observed. `pumpSoftwareVersion`/`modelNumber` come from
+/// PumpVersionResponse when the pump answers it.
 struct PumpFirmwareProfile: Sendable, CustomStringConvertible {
     let apiMajor: Int
     let apiMinor: Int
@@ -63,7 +60,7 @@ struct PumpFirmwareProfile: Sendable, CustomStringConvertible {
     }
 }
 
-/// One request→response exchange with BOTH transaction ids exposed, for the txId-match probe (B7).
+/// One request→response exchange with both transaction ids exposed, for the txId-match probe.
 /// `requestTxId` is the byte the client wrote at `request.frame[1]`; `responseTxId` is the pump's byte at
 /// `response.frame[1]`. txId-match holds iff the pump echoes the request byte in the response byte.
 struct TxExchange: Sendable {
@@ -131,13 +128,9 @@ final class LiveSession: NSObject, PumpBLEClientDelegate {
         }
     }
 
-    /// Drive pairing, choosing the scheme from the operator's code (single decision point,
-    /// `PairingAuth.detectType`). Pairing messages are on AUTHORIZATION (risk `.read`), so they pass
-    /// the `.readOnly` interlock — same as the bench monitor. Both schemes are wired uniformly through
-    /// `PairingCoordinating`; they differ only in RESUME:
-    ///   • JPAKE (6-digit, v7.7+): full pair on first ready, quick-pair RESUME on every reconnect.
-    ///   • Legacy V1 (16-char, pre-v7.7): full CentralChallenge→PumpChallenge; NO resume — a reconnect
-    ///     re-runs the full challenge SILENTLY (the app already holds the code).
+    /// Drive pairing from the operator's code (`PairingAuth.detectType`). Pairing messages pass the
+    /// `.readOnly` interlock. JPAKE (6-digit): full pair first, quick-pair RESUME on reconnect.
+    /// Legacy V1 (16-char): full CentralChallenge→PumpChallenge; reconnect re-runs the challenge silently.
     private func beginPairing() {
         do {
             let scheme = PairingAuth.detectType(pairingCode)
@@ -178,12 +171,9 @@ final class LiveSession: NSObject, PumpBLEClientDelegate {
         cont.resume(with: result)
     }
 
-    /// Simulate a link drop and let the client reconnect + JPAKE-resume. Uses only public API: a
-    /// disconnect fail-closes the write policy to `.readOnly` (PumpBLEClient.swift:361-364); the rescan
-    /// re-discovers the pump, `didDiscover` reconnects, and `pumpClientDidBecomeReady` runs the resume
-    /// handshake. The reconnect *ladder+jitter* timing itself is unit-covered
-    /// (ReconnectBackoffJitterTests); the hardware value is confirming the real pump re-advertises and
-    /// the resume handshake completes (doc §2 A3/A4).
+    /// Simulate a link drop and let the client reconnect + resume pairing via public API only.
+    /// `disconnect` fail-closes write policy to `.readOnly`; rescan rediscovers and resumes.
+    /// Reconnect ladder timing is unit-covered; hardware confirms the pump re-advertises and resume completes.
     func simulateLinkDrop() {
         isPaired = false
         coordinator = nil
@@ -221,10 +211,8 @@ final class LiveSession: NSObject, PumpBLEClientDelegate {
     }
 
     /// Send `message` (optionally signed, optionally awaiting the correlated reply) and record the frame.
-    /// For a signed message the cached `authKey` + `signingTimestamp` are supplied; the write policy is
-    /// elevated to the MINIMUM the message's `operationRisk` needs, scoped by `withWritePolicy` (always
-    /// restored to `.readOnly`). `deliver == true` additionally arms `allowInsulinDelivery` (the second
-    /// wall) — required by, and only by, a delivery-class message.
+    /// Write policy is elevated to the minimum `operationRisk` requires, always restored to `.readOnly`.
+    /// `deliver == true` arms `allowInsulinDelivery` for delivery-class messages.
     @discardableResult
     func send(_ message: Message, awaitReply: Bool = true, deliver: Bool = false,
               deadline: TimeInterval = 15) async throws -> [UInt8] {
@@ -233,7 +221,7 @@ final class LiveSession: NSObject, PumpBLEClientDelegate {
         let ts = signed ? signingTimestamp : 0
         recordOutgoing(message, key: key, ts: ts, deliver: deliver)
         let policy = Self.minimumPolicy(for: message.operationRisk)
-        let serialized = (message.operationRisk == .delivery)   // R3-D: at most one delivery in flight
+        let serialized = (message.operationRisk == .delivery)   // delivery-class: at most one in flight
         return try await client.withWritePolicy(policy) {
             if awaitReply {
                 return try await self.client.sendAwaitingResponse(
@@ -264,11 +252,8 @@ final class LiveSession: NSObject, PumpBLEClientDelegate {
         return typed
     }
 
-    /// Send `message` and await its reply, exposing BOTH transaction ids for the txId-match probe (B7).
-    /// READ-ONLY ONLY: throws if the message would modify pump state — the probe must never issue a
-    /// delivery/mutating command (and never pipeline two of them). Drives the transaction coordinator
-    /// directly (public API) so the client-assigned request txId is captured from the `write` thunk; the
-    /// response frame's `[1]` byte is the pump's echoed txId. The write policy stays `.readOnly` throughout.
+    /// Read-only exchange exposing both request and response txIds for the txId-match probe.
+    /// Throws on mutating messages — the probe must never pipeline delivery commands. Write policy stays `.readOnly`.
     func exchangeCapturingTxId(_ message: Message, deadline: TimeInterval = 15) async throws -> TxExchange {
         guard message.operationRisk == .read else {
             throw HarnessError.unexpectedResponse("txId probe is READ-ONLY; refusing \(type(of: message)) (risk \(message.operationRisk))")

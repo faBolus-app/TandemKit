@@ -1,13 +1,9 @@
 import Testing
 @testable import TandemMessages
 
-/// CX-T-01: the 5 CONTROL_STREAM cartridge-fill state responses (0xE1/0xE3/0xE5/0xE7/0xE9) declare
-/// `signed: true, stream: true` so `ResponseParser.parse` actually HMAC-verifies their 24-byte auth
-/// trailer and strips it before decoding cargo — previously these opcodes had neither flag set, so
-/// VA-04 verification silently never ran on them. This suite hand-builds a valid trailer (via the
-/// same `Packetize.doHmacSha1` primitive `ResponseParser` verifies with) rather than depending on the
-/// JDK oracle, since the oracle's message catalog does not cover these representative-per-opcode
-/// CONTROL_STREAM types. Byte-exact with `ResponseParser.parse`'s own signed-over-region computation.
+/// The five CONTROL_STREAM cartridge-fill state responses (0xE1/0xE3/0xE5/0xE7/0xE9) declare
+/// `signed: true, stream: true` so `ResponseParser` HMAC-verifies their 24-byte auth trailer and
+/// strips it before decoding cargo. Frames are hand-built (oracle catalog does not cover these types).
 @Suite struct ControlStreamSignedVerifyTests {
 
     private let key: [UInt8] = Array("unit-test-session-key".utf8)

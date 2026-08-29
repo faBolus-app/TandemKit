@@ -4,20 +4,10 @@ import CoreBluetooth
 import TandemMessages
 @testable import TandemBLE
 
-/// CX-T-05 (phase 14 delivery-safety remediation, ledger id CX-T-05). `PumpBLEClient` has two CORRECT
-/// sibling `CBPeripheralDelegate` error branches (`didUpdateNotificationStateFor`/`didUpdateValueFor`) that
-/// call `failClosed(resumePending: true)` on error; `didWriteValueFor`'s error branch did not — an async
-/// write failure left `writePolicy` elevated and any transaction awaiting that write's correlated response
-/// hanging instead of resolving `.connectionLost`. Separately, a POST-ready notification loss (no CB error,
-/// `isNotifying` flips false while `state == .ready`) was silently absorbed: `maybeBecomeReady()` no-ops
-/// once `.ready`, so nothing ever revoked the (now-stale) readiness.
-///
-/// Both fixed methods are exercised through internal (not private) helpers extracted from the real
-/// `CBPeripheralDelegate` methods — `handleWriteResult`/`handleNotificationStateUpdate` — the SAME
-/// testability pattern this file already uses for `handleQualifyingEventsFrame`: a real `CBPeripheral`/
-/// `CBCharacteristic` cannot be constructed in a macOS unit test host (TCC-aborted at scan; see the class
-/// doc), and neither helper's real CB parameters were ever read in the delegate bodies they were extracted
-/// from, so nothing is lost by testing the plain-value core directly.
+/// A write-value error must `failClosed` (revoke `writePolicy`, resolve in-flight as `.connectionLost`),
+/// matching the notify-state and value-update error branches. A post-ready notification loss with
+/// `isNotifying == false` must revoke readiness. A notify-only loss must NOT reset writePolicy — that
+/// gate is writePolicy + serialization, not connection state.
 @Suite struct WriteFailureAndNotificationLossFailClosedTests {
 
     /// Same fake as the sibling suites (each keeps its own copy — private to their suite scope, per the
@@ -48,11 +38,10 @@ import TandemMessages
         return task
     }
 
-    // MARK: - CX-T-05 (first half): didWriteValueFor's error branch fails closed
+    // MARK: - Write-value error fails closed
 
-    /// NEGATIVE PATH: an async write error must resume any transaction awaiting that write's correlated
-    /// response with a connection-lost-class failure, and must de-elevate the write policy — never leave a
-    /// caller hanging or the policy standing elevated (PX-04/PX-08), exactly like the two correct siblings.
+    /// An async write error must resume any transaction awaiting that write's correlated response
+    /// as `.connectionLost` and de-elevate `writePolicy` — never leave a caller hanging or the policy elevated.
     @MainActor @Test func writeErrorFailsClosedAndResumesPendingTransaction() async {
         let client = PumpBLEClient(central: FakeCentral())
         client.writePolicy = .allowDelivery   // elevate first, so the reset is observable
@@ -77,9 +66,9 @@ import TandemMessages
         #expect(client.writePolicy == .allowDelivery, "a successful write must not touch the write policy")
     }
 
-    // MARK: - CX-T-05 (second half): post-ready notification loss revokes readiness
+    // MARK: - Post-ready notification loss revokes readiness
 
-    /// NEGATIVE PATH: once `.ready`, a notification-state update with NO CB error but `isNotifying == false`
+    /// Once `.ready`, a notification-state update with no CB error but `isNotifying == false`
     /// (the pump/OS dropped the subscription) must revoke readiness rather than being silently absorbed —
     /// `maybeBecomeReady()` alone cannot do this since it no-ops once `state == .ready`.
     @MainActor @Test func postReadyNotificationLossRevokesReadiness() {
@@ -103,9 +92,8 @@ import TandemMessages
         #expect(client.state == .ready, "a notification confirmation must not revoke an already-ready link")
     }
 
-    /// A notification-state ERROR must still fail closed exactly as before (unchanged sibling behavior) —
-    /// the CX-T-05 fix is additive to the write-error/notification-loss branches, not a replacement for the
-    /// existing error handling in this same delegate.
+    /// A notification-state error must still `failClosed` (revoke `writePolicy`, resolve in-flight).
+    /// Notify-loss handling is additive to this error branch, not a replacement.
     @MainActor @Test func notificationStateErrorStillFailsClosed() async {
         let client = PumpBLEClient(central: FakeCentral())
         client.writePolicy = .allowDelivery
@@ -120,14 +108,9 @@ import TandemMessages
         #expect(client.writePolicy == .readOnly)
     }
 
-    /// 14-WR-02 (Phase 14 review, Option 2 — pin the DELIBERATE no-fail-closed behavior): a post-ready
-    /// notification LOSS (no CB error) revokes readiness to `.discovering` but INTENTIONALLY does NOT reset
-    /// `writePolicy` and does NOT fail in-flight transactions — unlike the CB-error branch above. A
-    /// notify-barrier flip is not a disconnect, and failing every in-flight transaction on a possibly
-    /// transient toggle would be an unbenched pump-link RELIABILITY change. The write gate is `writePolicy`
-    /// + `TandemBackend`'s at-most-one-in-flight serialization + `perform()`'s `defer`, NOT `state == .ready`
-    /// alone. This test pins that contract so a future edit that "helpfully" fails closed here (a bench-gated
-    /// change) is caught and forced through hardware validation first.
+    /// A post-ready notification loss (no CB error) revokes readiness to `.discovering` but must NOT
+    /// reset `writePolicy` and must NOT fail in-flight transactions. A notify-barrier flip is not a
+    /// disconnect; the write gate is writePolicy + serialization, not `state == .ready` alone.
     @MainActor @Test func postReadyNotificationLossDoesNotResetWritePolicyOrFailPending() async {
         let client = PumpBLEClient(central: FakeCentral())
         client.stateForTesting = .ready
@@ -145,26 +128,11 @@ import TandemMessages
         pending.cancel()   // cleanup: nothing resolves this pending tx by design, so cancel the awaiting task
     }
 
-    // MARK: - debug pump-drop-no-reconnect: revoked .discovering must NOT hang silently until force-quit
+    // MARK: - Revoked `.discovering` must not hang silently
 
-    /// REGRESSION (debug `pump-drop-no-reconnect`, symptom 2.1). A post-`.ready` notify loss revokes to
-    /// `.discovering` (pinned above), but the CX-T-05 comment's premise — that `.ready` is "re-declarable
-    /// once the subscription is reconfirmed" — only holds if SOMETHING re-drives the subscription-ready
-    /// barrier. On real hardware the pump/OS can drop a notify subscription after a long session WITHOUT a
-    /// CB disconnect (the ATT link stays up), so `didDisconnectPeripheral` never fires and the reconnect
-    /// ladder is never armed; the establishment watchdog was cancelled when `.ready` was first reached; and
-    /// nothing re-issues `setNotifyValue(true)`. With the lost characteristic still in `requestedNotify` but
-    /// gone from `confirmedNotifying`, `maybeBecomeReady()` can never re-pass — so the link latches in
-    /// `.discovering` FOREVER, silently, until the app is force-quit (the reported bug).
-    ///
-    /// The recovery contract: a revoked `.discovering` MUST arm a bounded backstop (the establishment
-    /// watchdog — the same mechanism every other pre-`.ready` establishment path uses) so it either
-    /// re-declares `.ready` after re-subscription or escalates to the reconnect ladder (→ `.ready`, or a
-    /// VISIBLE `.reconnectExhausted`). It must never sit in `.discovering` with no timer behind it.
-    ///
-    /// Oracle: `specified` (the required recovery invariant — "no non-`.ready`/non-terminal state without a
-    /// deadline"). Boundary neighbor of the pinned `postReadyNotificationLoss…` cases: same trigger, asserts
-    /// the MISSING half (recovery armed) rather than the immediate-values half (state/policy/in-flight).
+    /// A post-ready notify loss can happen without a CB disconnect, so the reconnect ladder never arms.
+    /// A revoked `.discovering` must arm the establishment watchdog so it either re-declares `.ready`
+    /// or escalates — never sit with no timer behind it.
     @MainActor @Test func postReadyNotificationLossArmsRecoverySoItCannotHangUntilForceQuit() {
         let client = PumpBLEClient(central: FakeCentral())
         client.stateForTesting = .ready

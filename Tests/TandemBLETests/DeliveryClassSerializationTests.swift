@@ -4,19 +4,9 @@ import CoreBluetooth
 import TandemMessages
 @testable import TandemBLE
 
-/// CX-T-06 (phase 14 delivery-safety remediation). `sendAwaitingResponse`'s `serialized` parameter was a
-/// caller-forgettable, default-`false` opt-in into the R3-D at-most-one-delivery-in-flight lane — nothing
-/// tied it to `MessageProps.modifiesInsulinDelivery`, the SINGLE existing source of truth for "is this a
-/// delivery command." A future/careless call site could pass `serialized: false` for a genuine bolus/
-/// delivery message and it would be accepted, defeating the "a bolus is never pipelined" invariant
-/// `PumpTransactionCoordinator` documents.
-///
-/// The busy-gate in `PumpTransactionCoordinator.perform` is checked BEFORE any bytes are written (R3-D),
-/// using ONLY the caller-passed `serialized` flag — so it is directly observable without a live connection:
-/// pre-occupy the serialized lane with an unrelated in-flight transaction, then assert that a delivery-class
-/// message passed with `serialized: false` still hits `.busy` (because the fix ORs in
-/// `message.props.modifiesInsulinDelivery`), while a non-delivery message with the same caller flag does
-/// NOT (it falls through to `send()`, which throws `.notReady` — no live connection in a unit test).
+/// A delivery-class message (`props.modifiesInsulinDelivery`) is serialized even when the caller
+/// passes `serialized: false`, so a bolus can never be pipelined. The busy-gate in `perform` is
+/// checked before any bytes are written, using the effective serialized flag.
 @Suite struct DeliveryClassSerializationTests {
 
     final class FakeCentral: PumpCentral {

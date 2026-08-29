@@ -1,18 +1,9 @@
 import Testing
 import Foundation
 
-/// Regression guard for the intermittent full-suite SIGABRT (a TCC "no NSBluetoothAlwaysUsageDescription"
-/// abort — see `InertCentral`). The bare `PumpBLEClient()` initializer builds a real `CBCentralManager`,
-/// which the `swift test` host process is not entitled to touch; constructing one in a unit test crashes
-/// the whole combined run at a nondeterministic point. Every BLE unit test must instead go through
-/// `PumpBLEClient.forUnitTest()` (inert central) or inject its own fake via `PumpBLEClient(central:)`.
-///
-/// This scans the sibling `Tests/TandemBLETests` sources (resolved from `#filePath`, the project's
-/// established source-scan-guard idiom) and fails if the bare initializer reappears in code. Line comments
-/// are stripped first so the doc-comment mentions of the pattern (including this file's) don't self-trip,
-/// and the needle is assembled at runtime for the same reason. The Info.plist-carrying bench harness and
-/// the hardware-gated `LiveSession` legitimately use the real initializer and live in other directories,
-/// so they are out of scope by construction.
+/// BLE unit tests must not construct a real `CBCentralManager` (`PumpBLEClient()`) — the `swift test`
+/// host has no Bluetooth entitlement and TCC-aborts. Use `PumpBLEClient.forUnitTest()` or inject a
+/// fake via `PumpBLEClient(central:)`. This source-scan fails if the bare initializer reappears.
 @Suite struct NoBareCentralGuardTests {
 
     @Test func bleUnitTestsNeverConstructARealCentralManager() throws {
