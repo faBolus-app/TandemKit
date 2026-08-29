@@ -27,7 +27,10 @@ public struct PacketReassembler {
     /// that does not decrement by exactly 1 within a sequence (mis-ordered/duplicated), or an
     /// accumulation that would exceed `maxReassembledFrameSize`.
     public mutating func ingest(_ raw: [UInt8]) -> [UInt8]? {
-        guard raw.count >= 2 else { reset(); return nil }
+        guard raw.count >= 2 else {
+            reset()
+            return nil
+        }
         let packetsRemaining = raw[0]
         let txId = raw[1]
         let internalCargo = Array(raw[2...])

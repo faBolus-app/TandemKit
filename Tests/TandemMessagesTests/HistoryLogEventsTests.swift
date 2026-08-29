@@ -4,9 +4,13 @@ import Testing
 /// Builds a 26-byte history-log record with the given header + a tail starting at offset 10.
 private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8] = []) -> [UInt8] {
     var r = [UInt8](repeating: 0, count: 26)
-    let t = Bytes.firstTwoBytesLittleEndian(typeId); r[0] = t[0]; r[1] = t[1]
-    let pt = Bytes.toUint32(pumpTimeSec); for i in 0..<4 { r[2 + i] = pt[i] }
-    let sq = Bytes.toUint32(seq); for i in 0..<4 { r[6 + i] = sq[i] }
+    let t = Bytes.firstTwoBytesLittleEndian(typeId)
+    r[0] = t[0]
+    r[1] = t[1]
+    let pt = Bytes.toUint32(pumpTimeSec)
+    for i in 0..<4 { r[2 + i] = pt[i] }
+    let sq = Bytes.toUint32(seq)
+    for i in 0..<4 { r[6 + i] = sq[i] }
     for (i, b) in tail.enumerated() where 10 + i < 26 { r[10 + i] = b }
     return r
 }
@@ -80,7 +84,7 @@ private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8]
         (36, "UsbConnectedHistoryLog"),
         (37, "UsbDisconnectedHistoryLog"),
         (67, "UsbEnumeratedHistoryLog"),
-        (307, "VersionsAHistoryLog"),
+        (307, "VersionsAHistoryLog")
     ]
 
     @Test(arguments: cases)
@@ -178,12 +182,14 @@ private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8]
         (291, "TipscReqPrimeCannulaHistoryLog"),
         (301, "WumpCartridgeFilledHistoryLog"),
         (302, "WumpCartridgeRemovedHistoryLog"),
-        (283, "WumpOcclusionDebugHistoryLog"),
+        (283, "WumpOcclusionDebugHistoryLog")
     ]
     @Test(arguments: cases)
     func dispatch(typeId: Int, name: String) {
         var r = [UInt8](repeating: 0, count: 26)
-        let t = Bytes.firstTwoBytesLittleEndian(typeId); r[0] = t[0]; r[1] = t[1]
+        let t = Bytes.firstTwoBytesLittleEndian(typeId)
+        r[0] = t[0]
+        r[1] = t[1]
         let event = HistoryLogParser.parse(record: r)
         #expect(String(describing: type(of: event)) == name)
         #expect(event.typeId == typeId)
@@ -193,9 +199,13 @@ private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8]
 /// Direct field-offset tests that don't need the oracle.
 @Suite struct HistoryLogEventsTests {
     private func hex(_ s: String) -> [UInt8] {
-        var out: [UInt8] = []; var i = s.startIndex
-        while i < s.endIndex { let j = s.index(i, offsetBy: 2)
-            out.append(UInt8(s[i..<j], radix: 16)!); i = j }
+        var out: [UInt8] = []
+        var i = s.startIndex
+        while i < s.endIndex {
+            let j = s.index(i, offsetBy: 2)
+            out.append(UInt8(s[i..<j], radix: 16)!)
+            i = j
+        }
         return out
     }
 
@@ -226,8 +236,11 @@ private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8]
     /// TempRateActivated: percent float@10, tempRateId short@20.
     @Test func tempRateActivatedFields() {
         var tail = [UInt8](repeating: 0, count: 16)
-        let pct = Bytes.toFloat(150.0); for i in 0..<4 { tail[i] = pct[i] }         // offset 10
-        let id = Bytes.firstTwoBytesLittleEndian(7); tail[10] = id[0]; tail[11] = id[1] // offset 20
+        let pct = Bytes.toFloat(150.0)
+        for i in 0..<4 { tail[i] = pct[i] }  // offset 10
+        let id = Bytes.firstTwoBytesLittleEndian(7)
+        tail[10] = id[0]
+        tail[11] = id[1]  // offset 20
         let rec = record(typeId: 2, pumpTimeSec: 500, seq: 1, tail: tail)
         let m = try? #require(HistoryLogParser.parse(record: rec) as? TempRateActivatedHistoryLog)
         #expect(m?.percent == 150.0)
@@ -239,15 +252,21 @@ private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8]
     // decoding e.g. alertId 2 as 770. Captured real-pump records. Non-oracle (the oracle doesn't
     // compare alertId). Only the alertId narrowing is ported to `main`; sensorType et al. stay on experimental.
     @Test func cgmDexAlertIdIsSingleByteAtOffset10() throws {
-        let ack = try #require(HistoryLogParser.parse(
-            record: Hex.decode("7311a88c9d228379070002030000000000000000000000000000")) as? CgmAlertAckDexHistoryLog)
+        let ack = try #require(
+            HistoryLogParser.parse(
+                record: Hex.decode("7311a88c9d228379070002030000000000000000000000000000")) as? CgmAlertAckDexHistoryLog
+        )
         #expect(ack.pumpTimeSec == 580_750_504)
-        #expect(ack.alertId == 2)   // byte @10 — was 770 under the old 4-byte read
-        let activated = try #require(HistoryLogParser.parse(
-            record: Hex.decode("7111f8da9d22057d07000203000014210000d000000000004843")) as? CgmAlertActivatedDexHistoryLog)
+        #expect(ack.alertId == 2)  // byte @10 — was 770 under the old 4-byte read
+        let activated = try #require(
+            HistoryLogParser.parse(
+                record: Hex.decode("7111f8da9d22057d07000203000014210000d000000000004843"))
+                as? CgmAlertActivatedDexHistoryLog)
         #expect(activated.alertId == 2)
-        let cleared = try #require(HistoryLogParser.parse(
-            record: Hex.decode("721123f79d227e7e070002030000000000000000000000000000")) as? CgmAlertClearedDexHistoryLog)
+        let cleared = try #require(
+            HistoryLogParser.parse(
+                record: Hex.decode("721123f79d227e7e070002030000000000000000000000000000"))
+                as? CgmAlertClearedDexHistoryLog)
         #expect(cleared.alertId == 2)
     }
 }
@@ -332,21 +351,30 @@ private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8]
 @Suite struct BolusHistoryRecordTests {
     /// Builds a 26-byte `LID_BOLUS_COMPLETED` (typeId 20) record with the layout `HistoryLog.parseBolusRecord`
     /// decodes: completionStatus = short@10, bolusId = short@12, iob = float@14, delivered = float@18.
-    private func bolusRecord(pumpTimeSec: UInt32, seq: UInt32, completionStatusId: Int, bolusId: Int,
-                             iobUnits: Double, deliveredUnits: Double) -> [UInt8] {
+    private func bolusRecord(
+        pumpTimeSec: UInt32, seq: UInt32, completionStatusId: Int, bolusId: Int,
+        iobUnits: Double, deliveredUnits: Double
+    ) -> [UInt8] {
         var tail = [UInt8](repeating: 0, count: 16)
-        let cs = Bytes.firstTwoBytesLittleEndian(completionStatusId); tail[0] = cs[0]; tail[1] = cs[1]   // offset 10
-        let bid = Bytes.firstTwoBytesLittleEndian(bolusId); tail[2] = bid[0]; tail[3] = bid[1]           // offset 12
-        let iob = Bytes.toFloat(Float(iobUnits)); for i in 0..<4 { tail[4 + i] = iob[i] }                // offset 14
-        let dv = Bytes.toFloat(Float(deliveredUnits)); for i in 0..<4 { tail[8 + i] = dv[i] }            // offset 18
+        let cs = Bytes.firstTwoBytesLittleEndian(completionStatusId)
+        tail[0] = cs[0]
+        tail[1] = cs[1]  // offset 10
+        let bid = Bytes.firstTwoBytesLittleEndian(bolusId)
+        tail[2] = bid[0]
+        tail[3] = bid[1]  // offset 12
+        let iob = Bytes.toFloat(Float(iobUnits))
+        for i in 0..<4 { tail[4 + i] = iob[i] }  // offset 14
+        let dv = Bytes.toFloat(Float(deliveredUnits))
+        for i in 0..<4 { tail[8 + i] = dv[i] }  // offset 18
         return record(typeId: HistoryLog.bolusCompletedTypeId, pumpTimeSec: pumpTimeSec, seq: seq, tail: tail)
     }
 
     /// `bolusId` (short@12) must be exposed on the decoded `BolusHistoryRecord`, mirroring
     /// `BolusCompletedHistoryLog`'s existing correct decode of the same field.
     @Test func parseBolusRecordExposesBolusId() {
-        let raw = bolusRecord(pumpTimeSec: 500, seq: 42, completionStatusId: 3, bolusId: 1057,
-                              iobUnits: 2.5, deliveredUnits: 1.25)
+        let raw = bolusRecord(
+            pumpTimeSec: 500, seq: 42, completionStatusId: 3, bolusId: 1057,
+            iobUnits: 2.5, deliveredUnits: 1.25)
         let rec = try? #require(HistoryLog.parseBolusRecord(raw))
         #expect(rec?.bolusId == 1057)
         #expect(rec?.completionStatusId == 3)
@@ -357,8 +385,9 @@ private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8]
 
     /// A 0U-delivered completed record must still parse — rejecting it would hide the record from exact-id search.
     @Test func parseBolusRecordAcceptsZeroUnitsCompleted() {
-        let raw = bolusRecord(pumpTimeSec: 600, seq: 43, completionStatusId: 5, bolusId: 2001,
-                              iobUnits: 0.4, deliveredUnits: 0)
+        let raw = bolusRecord(
+            pumpTimeSec: 600, seq: 43, completionStatusId: 5, bolusId: 2001,
+            iobUnits: 0.4, deliveredUnits: 0)
         let rec = try? #require(HistoryLog.parseBolusRecord(raw))
         #expect(rec?.deliveredUnits == 0)
         #expect(rec?.bolusId == 2001)
@@ -366,14 +395,17 @@ private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8]
 
     /// Fail-closed guard preserved: a short/invalid buffer still returns nil (unchanged).
     @Test func parseBolusRecordRejectsShortBuffer() {
-        let raw = Array(bolusRecord(pumpTimeSec: 1, seq: 1, completionStatusId: 0, bolusId: 1,
-                                    iobUnits: 0, deliveredUnits: 1).dropLast())
+        let raw = Array(
+            bolusRecord(
+                pumpTimeSec: 1, seq: 1, completionStatusId: 0, bolusId: 1,
+                iobUnits: 0, deliveredUnits: 1
+            ).dropLast())
         #expect(HistoryLog.parseBolusRecord(raw) == nil)
     }
 
     /// A non-bolus typeId must still be rejected (unchanged fail-closed behavior).
     @Test func parseBolusRecordRejectsWrongTypeId() {
-        let raw = record(typeId: 21, pumpTimeSec: 1, seq: 1)   // BolexCompletedHistoryLog, not BolusCompleted
+        let raw = record(typeId: 21, pumpTimeSec: 1, seq: 1)  // BolexCompletedHistoryLog, not BolusCompleted
         #expect(HistoryLog.parseBolusRecord(raw) == nil)
     }
 }

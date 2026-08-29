@@ -43,7 +43,9 @@ import TandemMessages
 
             if line.hasPrefix("JPAKE_1A:") {
                 serverRound1a = try JpakeOracle.messageParamBytes(line, index: 1)
-                let (a, b) = try auth.makeRound1Requests(); r1a = a; r1b = b
+                let (a, b) = try auth.makeRound1Requests()
+                r1a = a
+                r1b = b
                 try send(hex(a))
             } else if line.hasPrefix("JPAKE_1B:") {
                 serverRound1b = try JpakeOracle.messageParamBytes(line, index: 1)
@@ -54,7 +56,7 @@ import TandemMessages
                 try auth.readServerRound2(challenge: serverRound2)
                 try send(hex(auth.makeRound2Request()))
                 _ = try auth.derive()
-                try send(hex(Jpake3SessionKeyRequest(challengeParam: 0)))   // round 3 (no server data needed)
+                try send(hex(Jpake3SessionKeyRequest(challengeParam: 0)))  // round 3 (no server data needed)
             } else if line.hasPrefix("JPAKE_3:") {
                 let serverNonce3 = try JpakeOracle.messageParamBytes(line, index: 1)
                 try send(hex(auth.makeRound4Request(serverNonce3: serverNonce3)))
@@ -67,8 +69,9 @@ import TandemMessages
         proc.waitUntilExit()
 
         let serverSecret = try #require(finalDerivedSecret, "server never returned a derived secret")
-        #expect(Hex.encode(auth.derivedSecret) == serverSecret,
-                "client/server derived secrets differ — EC-JPAKE not interoperable")
+        #expect(
+            Hex.encode(auth.derivedSecret) == serverSecret,
+            "client/server derived secrets differ — EC-JPAKE not interoperable")
         #expect(!auth.authKey.isEmpty)
     }
 }
@@ -97,7 +100,8 @@ enum JpakeOracle {
     static func messageParamBytes(_ line: String, index: Int) throws -> [UInt8] {
         let obj = try json(line)
         guard let params = obj["messageParams"] as? [Any], index < params.count,
-              let arr = params[index] as? [Any] else { return [] }
+            let arr = params[index] as? [Any]
+        else { return [] }
         return arr.compactMap { ($0 as? NSNumber).map { UInt8(truncatingIfNeeded: $0.intValue) } }
     }
 
@@ -119,9 +123,11 @@ final class LineReader {
                 return String(data: lineData, encoding: .utf8) ?? ""
             }
             let chunk = handle.availableData
-            if chunk.isEmpty {   // EOF
+            if chunk.isEmpty {  // EOF
                 if buffer.isEmpty { return nil }
-                let rest = String(data: buffer, encoding: .utf8); buffer.removeAll(); return rest
+                let rest = String(data: buffer, encoding: .utf8)
+                buffer.removeAll()
+                return rest
             }
             buffer.append(chunk)
         }

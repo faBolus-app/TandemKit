@@ -11,7 +11,9 @@ import TandemMessages
 /// is unit-tested in-process against a mock pump.
 public final class PairingCoordinator {
     public enum Step: Equatable, Sendable { case idle, sent1a, sent1b, sent2, sent3, sent4, paired, failed }
-    public enum PairingError: Error, Equatable { case unexpectedResponse(opcode: UInt8), keyConfirmationFailed, malformedFrame }
+    public enum PairingError: Error, Equatable {
+        case unexpectedResponse(opcode: UInt8), keyConfirmationFailed, malformedFrame
+    }
 
     private let auth: JpakeAuth
     private let isResume: Bool
@@ -69,27 +71,27 @@ public final class PairingCoordinator {
         guard 3 + Int(frame[2]) == frame.count - 2 else { return fail(PairingError.malformedFrame) }
         let opcode = frame[0]
         let cargo = frameCargo(frame)
-        let challenge = Array(cargo.dropFirst(2))   // cargo = appInstanceId(2) + payload
+        let challenge = Array(cargo.dropFirst(2))  // cargo = appInstanceId(2) + payload
         do {
             switch (step, opcode) {
-            case (.sent1a, 33):   // Jpake1aResponse
+            case (.sent1a, 33):  // Jpake1aResponse
                 pumpRound1a = challenge
                 step = .sent1b
                 onSendRequest?(r1b!)
-            case (.sent1b, 35):   // Jpake1bResponse
+            case (.sent1b, 35):  // Jpake1bResponse
                 try auth.readServerRound1(challenge1a: pumpRound1a, challenge1b: challenge)
                 step = .sent2
                 onSendRequest?(try auth.makeRound2Request())
-            case (.sent2, 37):    // Jpake2Response
+            case (.sent2, 37):  // Jpake2Response
                 try auth.readServerRound2(challenge: challenge)
                 _ = try auth.derive()
                 step = .sent3
                 onSendRequest?(Jpake3SessionKeyRequest(challengeParam: 0))
-            case (.sent3, 39):    // Jpake3SessionKeyResponse: payload = nonce(8) + reserved(8)
+            case (.sent3, 39):  // Jpake3SessionKeyResponse: payload = nonce(8) + reserved(8)
                 let serverNonce3 = Array(challenge.prefix(8))
                 step = .sent4
                 onSendRequest?(auth.makeRound4Request(serverNonce3: serverNonce3))
-            case (.sent4, 41):    // Jpake4KeyConfirmationResponse: nonce(8)+reserved(8)+hash(32)
+            case (.sent4, 41):  // Jpake4KeyConfirmationResponse: nonce(8)+reserved(8)+hash(32)
                 let serverNonce4 = Array(challenge.prefix(8))
                 let serverHash = Array(challenge.dropFirst(16).prefix(32))
                 try auth.verifyServerRound4(serverNonce4: serverNonce4, serverHashDigest: serverHash)
@@ -103,11 +105,14 @@ public final class PairingCoordinator {
 
     public var authKey: [UInt8] { auth.authKey }
 
-    private func fail(_ error: Error) { step = .failed; onError?(error) }
+    private func fail(_ error: Error) {
+        step = .failed
+        onError?(error)
+    }
 
     private func frameCargo(_ frame: [UInt8]) -> [UInt8] {
         let len = Int(frame[2])
-        let end = min(3 + len, frame.count - 2)   // exclude the 2-byte CRC
+        let end = min(3 + len, frame.count - 2)  // exclude the 2-byte CRC
         guard end >= 3 else { return [] }
         return Array(frame[3..<end])
     }

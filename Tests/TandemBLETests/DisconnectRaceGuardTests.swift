@@ -35,8 +35,9 @@ import TandemMessages
 
         client.disconnect()
 
-        #expect(client.state == .disconnected,
-                "disconnect() must transition state synchronously, not leave it stale until didDisconnectPeripheral")
+        #expect(
+            client.state == .disconnected,
+            "disconnect() must transition state synchronously, not leave it stale until didDisconnectPeripheral")
     }
 
     /// `disconnect()` sets `intentionalDisconnect` synchronously too (pre-existing, pinned here alongside
@@ -55,7 +56,7 @@ import TandemMessages
     /// by (and not confusable with) a plain `.notReady`.
     @MainActor @Test func sendRefusesDuringDisconnectGap() {
         let client = PumpBLEClient(central: FakeCentral())
-        client.writePolicy = .allowBenignControl   // clear the write-policy interlock first
+        client.writePolicy = .allowBenignControl  // clear the write-policy interlock first
         client.intentionalDisconnectForTesting = true
 
         #expect(throws: PumpBLEClient.ClientError.disconnecting) {
@@ -93,7 +94,7 @@ import TandemMessages
     /// `.readOnly` policy is refused with `.writeBlocked` even mid-disconnect, not silently reclassified as
     /// `.disconnecting` — authorization is still checked first.
     @MainActor @Test func writePolicyInterlockStillPrecedesDisconnectGuard() {
-        let client = PumpBLEClient(central: FakeCentral())   // default .readOnly
+        let client = PumpBLEClient(central: FakeCentral())  // default .readOnly
         client.intentionalDisconnectForTesting = true
 
         #expect(throws: PumpBLEClient.ClientError.writeBlocked(policy: .readOnly, opcode: PlaySoundRequest().opCode)) {

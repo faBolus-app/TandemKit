@@ -9,7 +9,7 @@ public struct SetTempRateRequest: Message {
     public static let props = MessageProps(
         opCode: 0xA4, size: 6, signed: true, type: .request,
         characteristic: .control, modifiesInsulinDelivery: true, responseOpCode: 0xA5,
-        supportedDevices: [.mobi], minApi: .mobi_v3_5) // upstream MOBI_ONLY + MOBI_API_V3_5
+        supportedDevices: [.mobi], minApi: .mobi_v3_5)  // upstream MOBI_ONLY + MOBI_API_V3_5
 
     /// Duration bounds enforced by the pump (durations < 15 min or > 72 h are rejected).
     public static let minMinutes = 15
@@ -28,7 +28,8 @@ public struct SetTempRateRequest: Message {
         // app's generic control-error catch) shows a clear cause, not a bridged NSError string.
         public var errorDescription: String? {
             switch self {
-            case .minutesOutOfRange(let m): return "Temp rate duration \(m) min is out of range — must be 15 to 4320 minutes (72 h)."
+            case .minutesOutOfRange(let m):
+                return "Temp rate duration \(m) min is out of range — must be 15 to 4320 minutes (72 h)."
             case .percentOutOfRange(let p): return "Temp rate \(p)% is out of range — must be 0 to 250%."
             }
         }
@@ -68,7 +69,7 @@ public struct StopTempRateRequest: Message {
     public static let props = MessageProps(
         opCode: 0xA6, size: 0, signed: true, type: .request,
         characteristic: .control, modifiesInsulinDelivery: true, responseOpCode: 0xA7,
-        supportedDevices: [.mobi], minApi: .mobi_v3_5) // upstream MOBI_ONLY + MOBI_API_V3_5
+        supportedDevices: [.mobi], minApi: .mobi_v3_5)  // upstream MOBI_ONLY + MOBI_API_V3_5
     public var cargo: [UInt8]
     public init() { self.cargo = [] }
     public mutating func parse(_ raw: [UInt8]) { self.cargo = [] }

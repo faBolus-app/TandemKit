@@ -29,13 +29,14 @@ enum OracleRunner {
 
     /// Package root, derived from this file's path (…/Tests/TandemMessagesTests/OracleRunner.swift).
     static let packageRoot: URL = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()   // TandemMessagesTests
-        .deletingLastPathComponent()   // Tests
-        .deletingLastPathComponent()   // package root
+        .deletingLastPathComponent()  // TandemMessagesTests
+        .deletingLastPathComponent()  // Tests
+        .deletingLastPathComponent()  // package root
 
     static let jarPath: String = {
         if let env = ProcessInfo.processInfo.environment["PUMPX2_ORACLE_JAR"] { return env }
-        return packageRoot
+        return
+            packageRoot
             .appendingPathComponent("vendor/pumpx2-oracle/cliparser/build/libs/cliparser.jar")
             .path
     }()
@@ -57,7 +58,7 @@ enum OracleRunner {
     /// A fixed legacy pairing code + pump-time used for signed-message parity tests. The HMAC
     /// key for a legacy pairing is the code's ASCII bytes (see PumpStateSupplier), so the same
     /// values fed to Swift Packetize and to the oracle env produce identical signed packets.
-    static let testPairingCode = "6VeDeRAL5DCigGw2"   // 16 chars, from an upstream example
+    static let testPairingCode = "6VeDeRAL5DCigGw2"  // 16 chars, from an upstream example
     static let testPumpTimeSinceReset: UInt32 = 461_589_180
 
     /// Runs `cliparser encode <txId> <messageName> <jsonParams>` and returns the parsed result.
@@ -76,15 +77,17 @@ enum OracleRunner {
         var env: [String: String] = [:]
         if let pairingCode { env["PUMP_PAIRING_CODE"] = pairingCode }
         if let pumpTimeSinceReset { env["PUMP_TIME_SINCE_RESET"] = String(pumpTimeSinceReset) }
-        let (out, err, status) = try run([
-            "-jar", jarPath, "encode", String(txId), messageName, json,
-        ], extraEnv: env)
+        let (out, err, status) = try run(
+            [
+                "-jar", jarPath, "encode", String(txId), messageName, json
+            ], extraEnv: env)
         guard status == 0 else {
             throw OracleError.failed("exit \(status): \(err)")
         }
         // The oracle prints the JSON result on stdout; diagnostics go to stderr.
         guard let line = out.split(separator: "\n").last(where: { $0.contains("\"packets\"") }),
-              let data = line.data(using: .utf8) else {
+            let data = line.data(using: .utf8)
+        else {
             throw OracleError.failed("no JSON in output: \(out)\n\(err)")
         }
         return try JSONDecoder().decode(EncodeResult.self, from: data)
@@ -95,7 +98,11 @@ enum OracleRunner {
         try encode(txId: txId, messageName: messageName, json: json).packets
     }
 
-    struct HistoryLogParse { let typeId: Int; let className: String; let description: String }
+    struct HistoryLogParse {
+        let typeId: Int
+        let className: String
+        let description: String
+    }
 
     /// Runs `cliparser historylog <hex>` — decodes a 26-byte history-log record and returns the
     /// upstream typeId + class short-name (+ toString). History logs are decode-only, so this gives
@@ -112,12 +119,14 @@ enum OracleRunner {
             throw OracleError.failed("unparseable historylog line: \(line)")
         }
         let shortName = parts[1].components(separatedBy: ".").last ?? parts[1]
-        return HistoryLogParse(typeId: tid, className: shortName,
-                               description: parts.count >= 4 ? parts[3] : "")
+        return HistoryLogParse(
+            typeId: tid, className: shortName,
+            description: parts.count >= 4 ? parts[3] : "")
     }
 
     private static func run(_ args: [String], extraEnv: [String: String] = [:]) throws
-        -> (out: String, err: String, status: Int32) {
+        -> (out: String, err: String, status: Int32)
+    {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: javaPath)
         proc.arguments = args

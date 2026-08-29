@@ -17,9 +17,9 @@ public enum ResponseParser {
         case unknownOpcode(UInt8)
         case cargoLengthMismatch(opcode: UInt8, expected: Int, got: Int)
         // Signed-response HMAC verification failures (fail-closed).
-        case signatureMissing(opcode: UInt8)         // signed response but the 24-byte auth trailer is absent/short
+        case signatureMissing(opcode: UInt8)  // signed response but the 24-byte auth trailer is absent/short
         case signatureKeyUnavailable(opcode: UInt8)  // signed response but no session key to verify against
-        case signatureInvalid(opcode: UInt8)         // trailer present but the HMAC-SHA1 does not verify
+        case signatureInvalid(opcode: UInt8)  // trailer present but the HMAC-SHA1 does not verify
     }
 
     public struct Parsed {
@@ -32,7 +32,7 @@ public enum ResponseParser {
     /// `MessageProps`, so registration is a single `add(_:)` per response.
     struct Registration {
         let make: @Sendable ([UInt8]) -> any Message
-        let expectedSize: Int?   // nil = variable-size / stream frame
+        let expectedSize: Int?  // nil = variable-size / stream frame
         let signed: Bool
     }
 
@@ -214,8 +214,10 @@ public enum ResponseParser {
     ///     fails CLOSED (`.signatureKeyUnavailable`), never fail-open. Production MUST pass the real key.
     ///   - verifySignature: set false ONLY in decode/dispatch tests that use zero/placeholder HMACs; leave
     ///     true (the default) everywhere else so forged/absent signatures are rejected.
-    public static func parse(frame: [UInt8], characteristic: Characteristic,
-                             authenticationKey: [UInt8] = [], verifySignature: Bool = true) throws -> Parsed {
+    public static func parse(
+        frame: [UInt8], characteristic: Characteristic,
+        authenticationKey: [UInt8] = [], verifySignature: Bool = true
+    ) throws -> Parsed {
         guard frame.count >= 5 else { throw ParseError.frameTooShort }
         let body = Array(frame[0..<(frame.count - 2)])
         let crc = Array(frame[(frame.count - 2)...])

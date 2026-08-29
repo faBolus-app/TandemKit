@@ -47,7 +47,9 @@ import TandemMessages
         let client = PumpBLEClient(central: fake)
         client.connectKnownPeripheral(identifier: UUID())
         client.scanTimedOut()
-        client.reconnectTick(); client.reconnectTick(); client.reconnectTick()   // climb to step 3
+        client.reconnectTick()
+        client.reconnectTick()
+        client.reconnectTick()  // climb to step 3
         #expect(client.reconnectAttemptsForTesting == 3)
 
         let issued = client.planUnintendedDropRecovery(heldReadyStably: true)
@@ -83,20 +85,20 @@ import TandemMessages
     @Test func firstTickAfterInlineConnectIsPureBackoffThenEscalates() {
         let fake = FakeCentral()
         let client = PumpBLEClient(central: fake)
-        client.connectKnownPeripheral(identifier: UUID())   // → .scanning
-        client.scanTimedOut()                               // arm ladder at attempts=0
+        client.connectKnownPeripheral(identifier: UUID())  // → .scanning
+        client.scanTimedOut()  // arm ladder at attempts=0
         let scansAfterArm = fake.scanCount
 
         client.planUnintendedDropRecovery(heldReadyStably: true)
         #expect(client.inlineConnectPendingForTesting)
 
-        client.reconnectTick()                              // FIRST tick — pure backoff
+        client.reconnectTick()  // FIRST tick — pure backoff
         #expect(client.reconnectAttemptsForTesting == 1)
         #expect(!client.inlineConnectPendingForTesting, "the first tick consumes the pending flag")
         #expect(fake.scanCount == scansAfterArm, "must NOT stack a second connect/rescan on the first tick")
         #expect(client.reconnectWatchdogArmedForTesting)
 
-        client.reconnectTick()                              // SECOND tick — escalation resumes
+        client.reconnectTick()  // SECOND tick — escalation resumes
         #expect(client.reconnectAttemptsForTesting == 2)
         #expect(fake.scanCount == scansAfterArm + 1, "escalation (rescan) resumes once the flag is consumed")
         client.disconnect()
@@ -109,7 +111,8 @@ import TandemMessages
     @Test func exhaustionStillReachedAndClearsInlinePending() {
         let fake = FakeCentral()
         let client = PumpBLEClient(central: fake)
-        let delegate = RecordingDelegate(); client.delegate = delegate
+        let delegate = RecordingDelegate()
+        client.delegate = delegate
         client.connectKnownPeripheral(identifier: UUID())
         client.scanTimedOut()
         client.planUnintendedDropRecovery(heldReadyStably: true)
@@ -130,7 +133,7 @@ import TandemMessages
         client.planUnintendedDropRecovery(heldReadyStably: true)
         #expect(client.inlineConnectPendingForTesting)
 
-        client.connectKnownPeripheral(identifier: UUID())   // fresh pairing/connect intent
+        client.connectKnownPeripheral(identifier: UUID())  // fresh pairing/connect intent
         #expect(!client.inlineConnectPendingForTesting)
         #expect(client.reconnectAttemptsForTesting == 0)
         client.disconnect()

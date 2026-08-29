@@ -9,7 +9,7 @@ public struct CentralChallengeRequest: Message {
         size: 10,
         type: .request,
         characteristic: .authorization,
-        responseOpCode: 17          // CentralChallengeResponse
+        responseOpCode: 17  // CentralChallengeResponse
     )
 
     public var cargo: [UInt8]

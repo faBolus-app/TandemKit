@@ -139,11 +139,11 @@ public final class PumpBLEClient: NSObject {
         /// The highest `OperationRisk` this policy authorizes.
         var maxRisk: OperationRisk {
             switch self {
-            case .readOnly:           return .read
+            case .readOnly: return .read
             case .allowBenignControl: return .benign
-            case .allowNonDelivery:   return .settings
-            case .allowDestructive:   return .destructive
-            case .allowDelivery:      return .delivery
+            case .allowNonDelivery: return .settings
+            case .allowDestructive: return .destructive
+            case .allowDelivery: return .delivery
             }
         }
         func permits(_ risk: OperationRisk) -> Bool { risk <= maxRisk }
@@ -318,13 +318,20 @@ public final class PumpBLEClient: NSObject {
 
     public func startScan() {
         wasScanning = true
-        guard central.state == .poweredOn else { state = mapCentralState(central.state); return }
+        guard central.state == .poweredOn else {
+            state = mapCentralState(central.state)
+            return
+        }
         state = .scanning
         central.scanForPeripherals(withServices: [CBUUID(nsuuid: ServiceUUID.pumpService)], options: nil)
-        armScanTimeout()   // §5.2.4 (B3b): recover a KNOWN-pump scan that never discovers, without teardown
+        armScanTimeout()  // §5.2.4 (B3b): recover a KNOWN-pump scan that never discovers, without teardown
     }
 
-    public func stopScan() { wasScanning = false; cancelScanTimeout(); central.stopScan() }
+    public func stopScan() {
+        wasScanning = false
+        cancelScanTimeout()
+        central.stopScan()
+    }
 
     public func connect(_ peripheral: CBPeripheral) {
         stopScan()
@@ -349,9 +356,12 @@ public final class PumpBLEClient: NSObject {
     /// Additive — the existing scan/connect/restore paths are unchanged.
     public func connectKnownPeripheral(identifier id: UUID) {
         intentionalDisconnect = false
-        cancelReconnectWatchdog()   // genuinely new pairing/reconnect intent — restart the ladder at 0
+        cancelReconnectWatchdog()  // genuinely new pairing/reconnect intent — restart the ladder at 0
         reconnectTargetId = id
-        guard central.state == .poweredOn else { pendingRetrieveId = id; return }
+        guard central.state == .poweredOn else {
+            pendingRetrieveId = id
+            return
+        }
         resolveOrScan(id)
     }
 
@@ -360,8 +370,9 @@ public final class PumpBLEClient: NSObject {
     private func resolveOrScan(_ id: UUID) {
         let pumpUUID = CBUUID(nsuuid: ServiceUUID.pumpService)
         if let p = central.retrievePeripherals(withIdentifiers: [id]).first
-            ?? central.retrieveConnectedPeripherals(withServices: [pumpUUID]).first {
-            connect(p)   // reuses connect(_:) → .connecting, sets reconnectTargetId
+            ?? central.retrieveConnectedPeripherals(withServices: [pumpUUID]).first
+        {
+            connect(p)  // reuses connect(_:) → .connecting, sets reconnectTargetId
         } else {
             startScan()  // didDiscover auto-connects when the target (reconnectTargetId) reappears
         }
@@ -438,7 +449,8 @@ public final class PumpBLEClient: NSObject {
     func consumeReadyStabilityAndMaybeReset() {
         defer { readySince = nil }
         guard let since = readySince,
-              Self.readyHeldLongEnoughToResetLadder(heldFor: Date().timeIntervalSince(since)) else { return }
+            Self.readyHeldLongEnoughToResetLadder(heldFor: Date().timeIntervalSince(since))
+        else { return }
         reconnectAttempts = 0
         reconnectExhausted = false
     }
@@ -485,7 +497,10 @@ public final class PumpBLEClient: NSObject {
         }
     }
 
-    private func cancelScanTimeout() { scanTimeout?.invalidate(); scanTimeout = nil }
+    private func cancelScanTimeout() {
+        scanTimeout?.invalidate()
+        scanTimeout = nil
+    }
 
     // MARK: Establishment watchdog (R2-11 defect 3)
     /// A one-shot deadline on the PRE-`.ready` establishment chain:
@@ -521,7 +536,10 @@ public final class PumpBLEClient: NSObject {
         }
     }
 
-    private func cancelEstablishmentWatchdog() { establishmentWatchdog?.invalidate(); establishmentWatchdog = nil }
+    private func cancelEstablishmentWatchdog() {
+        establishmentWatchdog?.invalidate()
+        establishmentWatchdog = nil
+    }
 
     /// R2-11 defect 3: the establishment chain stalled before reaching `.ready`. Fail closed (reset write
     /// policy + resume any waiter), cancel the still-pending connect so CoreBluetooth can't silently
@@ -539,9 +557,9 @@ public final class PumpBLEClient: NSObject {
         requestedNotify.removeAll()
         confirmedNotifying.removeAll()
         if reconnectTargetId != nil {
-            startReconnectWatchdog()   // KNOWN target → throttled recovery ladder (no reset, no double-arm)
+            startReconnectWatchdog()  // KNOWN target → throttled recovery ladder (no reset, no double-arm)
         } else {
-            state = .disconnected      // first-pair cold connect → clean, retryable terminal
+            state = .disconnected  // first-pair cold connect → clean, retryable terminal
         }
     }
 
@@ -596,9 +614,11 @@ public final class PumpBLEClient: NSObject {
     /// their scan and advertise windows repeatedly miss, stalling recovery; the jitter breaks that
     /// lockstep. Bounded and never shorter than `base`, so it can't tighten the ladder — result is
     /// always in `[base, 1.5·base]` (and exactly `base` when `base <= 0`).
-    nonisolated static func jitteredDelay(base: TimeInterval, using rng: inout some RandomNumberGenerator) -> TimeInterval {
+    nonisolated static func jitteredDelay(base: TimeInterval, using rng: inout some RandomNumberGenerator)
+        -> TimeInterval
+    {
         guard base > 0 else { return base }
-        return base + TimeInterval.random(in: 0 ... base * 0.5, using: &rng)
+        return base + TimeInterval.random(in: 0...base * 0.5, using: &rng)
     }
     nonisolated static func jitteredDelay(base: TimeInterval) -> TimeInterval {
         var g = SystemRandomNumberGenerator()
@@ -611,11 +631,11 @@ public final class PumpBLEClient: NSObject {
         // code never stopped the scan, so a first-pair discovery that landed after Cancel still
         // auto-connected (see the `!intentionalDisconnect` guard added at the top of `didDiscover`), and
         // when there was no peripheral (a first-pair scan) it never published a terminal state at all.
-        stopScan()                      // stop scanning + cancelScanTimeout (subsumed) — no late auto-connect
-        cancelReconnectWatchdog()       // also cancels the establishment watchdog
-        cancelEstablishmentWatchdog()   // explicit: no cold-connect watchdog may outlive a user cancel
-        reconnectTargetId = nil         // no auto-reconnect target survives an intentional disconnect
-        pendingRetrieveId = nil         // drop any deferred cold-launch retrieve
+        stopScan()  // stop scanning + cancelScanTimeout (subsumed) — no late auto-connect
+        cancelReconnectWatchdog()  // also cancels the establishment watchdog
+        cancelEstablishmentWatchdog()  // explicit: no cold-connect watchdog may outlive a user cancel
+        reconnectTargetId = nil  // no auto-reconnect target survives an intentional disconnect
+        pendingRetrieveId = nil  // drop any deferred cold-launch retrieve
         // Publish the terminal state SYNCHRONOUSLY, before the async CoreBluetooth teardown
         // (`cancelPeripheralConnection` → eventual `didDisconnectPeripheral`) completes. The old code only
         // set `state` here for the no-peripheral (first-pair scan) branch and otherwise left `state`
@@ -626,7 +646,7 @@ public final class PumpBLEClient: NSObject {
         // checks it; the guard in `send()` closes the gap even for a caller that doesn't.
         state = .disconnected
         if let p = peripheral {
-            central.cancelPeripheralConnection(p)   // established/connecting → CB will report didDisconnect
+            central.cancelPeripheralConnection(p)  // established/connecting → CB will report didDisconnect
         }
     }
 
@@ -664,13 +684,13 @@ public final class PumpBLEClient: NSObject {
     func planUnintendedDropRecovery(heldReadyStably: Bool) -> Bool {
         guard !intentionalDisconnect, !reconnectExhausted else { return false }
         if heldReadyStably { inlineConnectPending = true }
-        startReconnectWatchdog()   // backoff/escalation ladder; no counter reset, no double-arm
+        startReconnectWatchdog()  // backoff/escalation ladder; no counter reset, no double-arm
         return heldReadyStably
     }
 
     private func scheduleNextReconnectAttempt() {
         let base = Self.reconnectBackoff[min(reconnectAttempts, Self.reconnectBackoff.count - 1)]
-        let delay = Self.jitteredDelay(base: base)   // break phone↔pump fixed-interval lockstep (group C)
+        let delay = Self.jitteredDelay(base: base)  // break phone↔pump fixed-interval lockstep (group C)
         // Attempt# and backoff are non-PHI numerics — .public so a flapping-peer pattern is
         // visible in a pulled logarchive without correlating to the app-side BLESessionLog.
         bleLog.log("reconnect attempt=\(self.reconnectAttempts, privacy: .public) delay=\(delay, privacy: .public)s")
@@ -682,11 +702,12 @@ public final class PumpBLEClient: NSObject {
     }
 
     private func cancelReconnectWatchdog() {
-        reconnectWatchdog?.invalidate(); reconnectWatchdog = nil
+        reconnectWatchdog?.invalidate()
+        reconnectWatchdog = nil
         reconnectAttempts = 0
         reconnectExhausted = false
-        readySince = nil   // a fresh user-initiated connect discards any stale stability window
-        inlineConnectPending = false   // fresh intent → no stale pending connect
+        readySince = nil  // a fresh user-initiated connect discards any stale stability window
+        inlineConnectPending = false  // fresh intent → no stale pending connect
         cancelEstablishmentWatchdog()  // R2-11: a fresh intent / teardown must not leave a stale cold-connect deadline
     }
 
@@ -695,22 +716,29 @@ public final class PumpBLEClient: NSObject {
     /// test exercises.
     func reconnectTick() {
         // Recovered or the user took over → stop.
-        guard !intentionalDisconnect, state != .ready else { cancelReconnectWatchdog(); return }
+        guard !intentionalDisconnect, state != .ready else {
+            cancelReconnectWatchdog()
+            return
+        }
         // Bluetooth off → wait for `centralManagerDidUpdateState`, but keep the watchdog armed.
-        guard central.state == .poweredOn else { scheduleNextReconnectAttempt(); return }
+        guard central.state == .poweredOn else {
+            scheduleNextReconnectAttempt()
+            return
+        }
         reconnectAttempts += 1
         if reconnectAttempts > Self.maxReconnectAttempts {
             // Ladder exhausted without ever reaching `.ready` (a flapping peer) — stop the automatic
             // retries and surface it via BOTH the state (for a delegate that keys off `didChange`) and
             // an error (for one that only observes `didError`). `reconnectExhausted` blocks
             // `startReconnectWatchdog` from re-arming until a fresh user-initiated connect clears it.
-            reconnectWatchdog?.invalidate(); reconnectWatchdog = nil
+            reconnectWatchdog?.invalidate()
+            reconnectWatchdog = nil
             reconnectExhausted = true
             // Fully quiesce: cancel any still-pending `central.connect()` from the last attempt so
             // CoreBluetooth can't silently complete it later and contradict the "gave up" state — mirrors
             // the cancel `disconnect()` issues for a user-initiated stop.
             if let p = peripheral { central.cancelPeripheralConnection(p) }
-            inlineConnectPending = false   // debug pump-background-disconnect: pending connect cancelled above
+            inlineConnectPending = false  // debug pump-background-disconnect: pending connect cancelled above
             state = .reconnectExhausted
             notify { $0.pumpClient(self, didError: ClientError.reconnectLoopDetected) }
             return
@@ -727,7 +755,8 @@ public final class PumpBLEClient: NSObject {
         let pumpUUID = CBUUID(nsuuid: ServiceUUID.pumpService)
         // Re-resolve a fresh, valid handle if we lost ours.
         if peripheral == nil, let id = reconnectTargetId {
-            peripheral = central.retrievePeripherals(withIdentifiers: [id]).first
+            peripheral =
+                central.retrievePeripherals(withIdentifiers: [id]).first
                 ?? central.retrieveConnectedPeripherals(withServices: [pumpUUID]).first
             peripheral?.delegate = self
         }
@@ -786,7 +815,8 @@ public final class PumpBLEClient: NSObject {
         // in this class (`didDiscover`, `reconnectTick`, `startReconnectWatchdog`, …).
         if intentionalDisconnect { throw ClientError.disconnecting }
         guard state == .ready, let peripheral,
-              let cbChar = characteristics[message.characteristic] else {
+            let cbChar = characteristics[message.characteristic]
+        else {
             throw ClientError.notReady
         }
         let txId = txIds.nextThenIncrement()
@@ -835,10 +865,11 @@ public final class PumpBLEClient: NSObject {
             expectedResponseOn: characteristic, opCode: expectedOpCode, deadline: deadline,
             serialized: effectiveSerialized
         ) {
-            try self.send(message,
-                          authenticationKey: authenticationKey,
-                          pumpTimeSinceReset: pumpTimeSinceReset,
-                          allowInsulinDelivery: allowInsulinDelivery)
+            try self.send(
+                message,
+                authenticationKey: authenticationKey,
+                pumpTimeSinceReset: pumpTimeSinceReset,
+                allowInsulinDelivery: allowInsulinDelivery)
         }
     }
 
@@ -956,10 +987,12 @@ extension PumpBLEClient: CBCentralManagerDelegate {
     /// under Swift 6. A restore that was still mid-connection isn't "connected" yet, so it won't be
     /// returned here — but its pending connect persists across restoration and completes via
     /// `didConnect` (which adopts the peripheral). Discovery/subscription continue as normal.
-    public nonisolated func centralManager(_ central: CBCentralManager,
-                                           willRestoreState dict: [String: Any]) {
+    public nonisolated func centralManager(
+        _ central: CBCentralManager,
+        willRestoreState dict: [String: Any]
+    ) {
         MainActor.assumeIsolated {
-            failClosed(resumePending: false)   // a relaunched central starts read-only
+            failClosed(resumePending: false)  // a relaunched central starts read-only
             let pumpUUID = CBUUID(nsuuid: ServiceUUID.pumpService)
             guard let p = central.retrieveConnectedPeripherals(withServices: [pumpUUID]).first else { return }
             self.peripheral = p
@@ -981,8 +1014,10 @@ extension PumpBLEClient: CBCentralManagerDelegate {
         }
     }
 
-    public nonisolated func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
-                                           advertisementData: [String: Any], rssi RSSI: NSNumber) {
+    public nonisolated func centralManager(
+        _ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
+        advertisementData: [String: Any], rssi RSSI: NSNumber
+    ) {
         MainActor.assumeIsolated {
             // R2-11 defect 2: a discovery that lands AFTER a user cancel must be rejected outright — both
             // the auto-connect and the delegate-notify below. Without this, a late first-pair discovery
@@ -1005,25 +1040,28 @@ extension PumpBLEClient: CBCentralManagerDelegate {
             // also covers a connect that completed after state restoration).
             self.peripheral = peripheral
             peripheral.delegate = self
-            inlineConnectPending = false   // debug pump-background-disconnect: the pending connect completed
+            inlineConnectPending = false  // debug pump-background-disconnect: the pending connect completed
             state = .discovering
             peripheral.discoverServices([CBUUID(nsuuid: ServiceUUID.pumpService)])
         }
     }
 
-    public nonisolated func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral,
-                                           error: Error?) {
+    public nonisolated func centralManager(
+        _ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral,
+        error: Error?
+    ) {
         MainActor.assumeIsolated {
             characteristics.removeAll()
             reassembly.removeAll()
-            failClosed(resumePending: true)   // policy → .readOnly, resume all waiters
+            failClosed(resumePending: true)  // policy → .readOnly, resume all waiters
             // debug pump-background-disconnect (H1): capture whether the link had HELD `.ready` long enough
             // to trust as a stable connection, BEFORE `consumeReadyStabilityAndMaybeReset()` clears the
             // `readySince` stamp. This gates the inline background-safe reconnect below (a genuine stable-link
             // drop recovers immediately; a sub-window flap does NOT get a zero-delay connect → throttle intact).
-            let heldReadyStably = readySince.map {
-                Self.readyHeldLongEnoughToResetLadder(heldFor: Date().timeIntervalSince($0))
-            } ?? false
+            let heldReadyStably =
+                readySince.map {
+                    Self.readyHeldLongEnoughToResetLadder(heldFor: Date().timeIntervalSince($0))
+                } ?? false
             // Was the link that just dropped a genuine recovery (held `.ready` >= `readyStabilityWindow`),
             // or an accept-then-immediately-drop flap? Only the former resets the ladder — see
             // `readyStabilityWindow`'s doc. Must run before the `reconnectExhausted` check below, since a
@@ -1034,7 +1072,9 @@ extension PumpBLEClient: CBCentralManagerDelegate {
                 // logarchive. `localizedDescription` can embed a peripheral name → stays .private
                 // (redaction is emit-time and unrecoverable).
                 let ns = error as NSError
-                bleLog.log("disconnect domain=\(ns.domain, privacy: .public) code=\(ns.code, privacy: .public) desc=\(ns.localizedDescription, privacy: .private)")
+                bleLog.log(
+                    "disconnect domain=\(ns.domain, privacy: .public) code=\(ns.code, privacy: .public) desc=\(ns.localizedDescription, privacy: .private)"
+                )
                 notify { $0.pumpClient(self, didError: error) }
             }
             // Auto-reconnect on an unintended drop (e.g. out of range, or a background idle/supervision-timeout
@@ -1071,10 +1111,12 @@ extension PumpBLEClient: CBCentralManagerDelegate {
         }
     }
 
-    public nonisolated func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral,
-                                           error: Error?) {
+    public nonisolated func centralManager(
+        _ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral,
+        error: Error?
+    ) {
         MainActor.assumeIsolated {
-            failClosed(resumePending: true)   // never leave policy elevated or a waiter hung
+            failClosed(resumePending: true)  // never leave policy elevated or a waiter hung
             // Defensive/symmetry with `didDisconnectPeripheral` — normally already consumed (and cleared)
             // by the disconnect that preceded this failed reconnect attempt; harmless no-op if so.
             consumeReadyStabilityAndMaybeReset()
@@ -1103,7 +1145,10 @@ extension PumpBLEClient: CBCentralManagerDelegate {
 extension PumpBLEClient: CBPeripheralDelegate {
     public nonisolated func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         MainActor.assumeIsolated {
-            if let error { notify { $0.pumpClient(self, didError: error) }; return }
+            if let error {
+                notify { $0.pumpClient(self, didError: error) }
+                return
+            }
             // Fresh (re)discovery → reset the subscription-ready barrier so a reconnect re-confirms notify.
             requestedNotify.removeAll()
             confirmedNotifying.removeAll()
@@ -1114,15 +1159,21 @@ extension PumpBLEClient: CBPeripheralDelegate {
         }
     }
 
-    public nonisolated func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService,
-                                       error: Error?) {
+    public nonisolated func peripheral(
+        _ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService,
+        error: Error?
+    ) {
         MainActor.assumeIsolated {
-            if let error { notify { $0.pumpClient(self, didError: error) }; return }
+            if let error {
+                notify { $0.pumpClient(self, didError: error) }
+                return
+            }
             for cb in service.characteristics ?? [] {
                 guard let mapped = Characteristic.of(uuid: cb.uuid.uuidValue) else { continue }
                 characteristics[mapped] = cb
                 if ServiceUUID.notificationCharacteristics.contains(mapped),
-                   cb.properties.contains(.notify) {
+                    cb.properties.contains(.notify)
+                {
                     requestedNotify.insert(mapped)
                     peripheral.setNotifyValue(true, for: cb)
                 }
@@ -1145,17 +1196,20 @@ extension PumpBLEClient: CBPeripheralDelegate {
         // link will actually hold (see `readyStabilityWindow`'s doc: a flapping peer can reach `.ready`
         // and drop again in under a second, every cycle). No pending retry needs to fire while ready,
         // though, so invalidate the watchdog TIMER without touching the attempt count.
-        reconnectWatchdog?.invalidate(); reconnectWatchdog = nil
-        cancelScanTimeout()             // B3b: no scan in flight once ready
-        cancelEstablishmentWatchdog()   // R2-11 defect 3: establishment succeeded — hand off to the app-side
-                                        // post-`.ready` pairing watchdog (FB-4 / R2-01); no pre-`.ready` deadline left standing
-        readySince = Date()         // starts the stability window `consumeReadyStabilityAndMaybeReset` checks
+        reconnectWatchdog?.invalidate()
+        reconnectWatchdog = nil
+        cancelScanTimeout()  // B3b: no scan in flight once ready
+        cancelEstablishmentWatchdog()  // R2-11 defect 3: establishment succeeded — hand off to the app-side
+        // post-`.ready` pairing watchdog (FB-4 / R2-01); no pre-`.ready` deadline left standing
+        readySince = Date()  // starts the stability window `consumeReadyStabilityAndMaybeReset` checks
         state = .ready
         notify { $0.pumpClientDidBecomeReady(self) }
     }
 
-    public nonisolated func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic,
-                                       error: Error?) {
+    public nonisolated func peripheral(
+        _ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic,
+        error: Error?
+    ) {
         MainActor.assumeIsolated {
             handleNotificationStateUpdate(
                 mapped: Characteristic.of(uuid: characteristic.uuid.uuidValue),
@@ -1235,13 +1289,15 @@ extension PumpBLEClient: CBPeripheralDelegate {
     private func revokeReadiness(lost: Characteristic? = nil) {
         state = .discovering
         if let lost, let peripheral, let cb = characteristics[lost] {
-            peripheral.setNotifyValue(true, for: cb)   // re-drive the subscription-ready barrier over the still-live link
+            peripheral.setNotifyValue(true, for: cb)  // re-drive the subscription-ready barrier over the still-live link
         }
-        armEstablishmentWatchdog()   // bounded backstop → reconnect ladder if the re-subscribe never confirms
+        armEstablishmentWatchdog()  // bounded backstop → reconnect ladder if the re-subscribe never confirms
     }
 
-    public nonisolated func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic,
-                                       error: Error?) {
+    public nonisolated func peripheral(
+        _ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic,
+        error: Error?
+    ) {
         MainActor.assumeIsolated {
             // A read/notify-value error orphans any awaited response → fail closed (reset policy + resume
             // every pending transaction) so a delivery caller sees connectionLost, not a silent hang (§6 req 5).
@@ -1251,7 +1307,8 @@ extension PumpBLEClient: CBPeripheralDelegate {
                 return
             }
             guard let mapped = Characteristic.of(uuid: characteristic.uuid.uuidValue),
-                  let data = characteristic.value else { return }
+                let data = characteristic.value
+            else { return }
             var reassembler = reassembly[mapped] ?? PacketReassembler()
             if let frame = reassembler.ingest([UInt8](data)) {
                 reassembly[mapped] = PacketReassembler()
@@ -1267,7 +1324,8 @@ extension PumpBLEClient: CBPeripheralDelegate {
                             // `self.peripheral` (not the `peripheral:` parameter of this delegate
                             // callback, which is non-optional and shadows it in this scope).
                             guard let target = self.peripheral,
-                                  let cbChar = characteristics[.qualifyingEvents] else { return }
+                                let cbChar = characteristics[.qualifyingEvents]
+                            else { return }
                             target.writeValue(Data([0, 0, 0, 0]), for: cbChar, type: .withResponse)
                         }
                     }
@@ -1278,8 +1336,10 @@ extension PumpBLEClient: CBPeripheralDelegate {
         }
     }
 
-    public nonisolated func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic,
-                                       error: Error?) {
+    public nonisolated func peripheral(
+        _ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic,
+        error: Error?
+    ) {
         MainActor.assumeIsolated { handleWriteResult(error: error) }
     }
 

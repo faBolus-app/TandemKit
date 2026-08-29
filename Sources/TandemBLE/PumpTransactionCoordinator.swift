@@ -122,7 +122,7 @@ public final class PumpTransactionCoordinator {
         if serialized && pending.contains(where: { $0.serialized }) { throw TxError.busy }
         // Pre-write cancellation check: if the owning task was already cancelled, do not emit bytes.
         try Task.checkCancellation()
-        let txId = try write()   // may throw synchronously (authorization/notReady) → no pending registered
+        let txId = try write()  // may throw synchronously (authorization/notReady) → no pending registered
         let id = nextId
         nextId &+= 1
         // Structured-cancellation aware: if the OWNING task is cancelled while awaiting, resolve ONLY this
@@ -130,13 +130,15 @@ public final class PumpTransactionCoordinator {
         // continuation or misfire onto another in-flight request (§6 requirement 4).
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (cont: CheckedContinuation<[UInt8], Error>) in
-                var entry = Pending(id: id, expectedCharacteristic: characteristic, expectedOpCode: opCode,
-                                    txId: txId, serialized: serialized, continuation: cont, deadline: nil)
+                var entry = Pending(
+                    id: id, expectedCharacteristic: characteristic, expectedOpCode: opCode,
+                    txId: txId, serialized: serialized, continuation: cont, deadline: nil)
                 entry.deadline = Task { [weak self] in
                     let ns = UInt64((deadline * 1_000_000_000).rounded())
                     try? await Task.sleep(nanoseconds: ns)
                     guard !Task.isCancelled else { return }
-                    self?.resolve(id: id, with: .failure(TxError.timedOut(characteristic: characteristic, opCode: opCode)))
+                    self?.resolve(
+                        id: id, with: .failure(TxError.timedOut(characteristic: characteristic, opCode: opCode)))
                 }
                 pending.append(entry)
             }
@@ -145,16 +147,16 @@ public final class PumpTransactionCoordinator {
         }
     }
 
-    /// Deliver an inbound frame. If it matches the oldest pending transaction awaiting this
-    /// `(characteristic, opCode)`, that transaction resolves and this returns `true` (the frame was
-    /// consumed). Returns `false` if no transaction awaited it (the caller should route it elsewhere,
-    /// e.g. an unsolicited stream/status frame to a delegate).
     // `.txIdMatch` is gated on the hardware finding that a t:slim response ECHOES the request txId
     // in `frame[1]` (confirmed sequentially on a legacy pump; pipelined bijection still needs bench).
     // Enabled only for an allowlisted pump via `PumpBLEClient.setPumpFamily`. `.opcodeFIFO` is the
     // fail-closed default — matching a txId the pump does not echo would fail every correlation, so
     // a non-t:slim pump never leaves FIFO. Delivery-class serialization is kept in both modes (a
     // bolus is never pipelined); txId correlation only disambiguates concurrent reads.
+    /// Deliver an inbound frame. If it matches the oldest pending transaction awaiting this
+    /// `(characteristic, opCode)`, that transaction resolves and this returns `true` (the frame was
+    /// consumed). Returns `false` if no transaction awaited it (the caller should route it elsewhere,
+    /// e.g. an unsolicited stream/status frame to a delegate).
     @discardableResult
     public func ingest(frame: [UInt8], on characteristic: Characteristic) -> Bool {
         guard let opCode = frame.first else { return false }
@@ -196,7 +198,7 @@ public final class PumpTransactionCoordinator {
     public func cancelAll() { failAll(.cancelled) }
 
     private func resolve(id: UInt64, with result: Result<[UInt8], Error>) {
-        guard let idx = pending.firstIndex(where: { $0.id == id }) else { return }   // already resolved → no-op
+        guard let idx = pending.firstIndex(where: { $0.id == id }) else { return }  // already resolved → no-op
         let entry = pending.remove(at: idx)
         entry.deadline?.cancel()
         entry.continuation.resume(with: result)

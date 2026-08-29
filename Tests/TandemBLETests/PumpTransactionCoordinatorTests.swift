@@ -17,7 +17,7 @@ import TandemMessages
         let task = Task { @MainActor in
             try await coord.perform(expectedResponseOn: ch, opCode: opCode, deadline: deadline) { txId }
         }
-        while coord.inFlightCount == before { await Task.yield() }   // wait until THIS transaction registers
+        while coord.inFlightCount == before { await Task.yield() }  // wait until THIS transaction registers
         return task
     }
 
@@ -51,7 +51,8 @@ import TandemMessages
 
     @MainActor @Test func deadlineResolvesTimedOut() async {
         let coord = PumpTransactionCoordinator()
-        await #expect(throws: PumpTransactionCoordinator.TxError.timedOut(characteristic: .currentStatus, opCode: 0x99)) {
+        await #expect(throws: PumpTransactionCoordinator.TxError.timedOut(characteristic: .currentStatus, opCode: 0x99))
+        {
             try await coord.perform(expectedResponseOn: .currentStatus, opCode: 0x99, deadline: 0.02) { 7 }
         }
         #expect(coord.inFlightCount == 0)
@@ -92,8 +93,8 @@ import TandemMessages
         _ = try await task.value
         // Start a fresh transaction and let the previous (already-cancelled) deadline window elapse.
         let task2 = await launchAndRegister(coord, on: .control, opCode: 0x03, deadline: 5, txId: 9)
-        try? await Task.sleep(nanoseconds: 80_000_000)   // > the first deadline
-        #expect(coord.inFlightCount == 1)                // task2 still awaiting — not killed by a stale timer
+        try? await Task.sleep(nanoseconds: 80_000_000)  // > the first deadline
+        #expect(coord.inFlightCount == 1)  // task2 still awaiting — not killed by a stale timer
         coord.ingest(frame: [0x03, 9, 1], on: .control)
         _ = try await task2.value
     }
@@ -106,11 +107,11 @@ import TandemMessages
         let a = await launchAndRegister(coord, on: .control, opCode: 0x03, txId: 1)
         let b = await launchAndRegister(coord, on: .control, opCode: 0x03, txId: 2)
         #expect(coord.inFlightCount == 2)
-        #expect(coord.ingest(frame: [0x03, 1, 0xAA], on: .control))   // first frame → oldest (a)
+        #expect(coord.ingest(frame: [0x03, 1, 0xAA], on: .control))  // first frame → oldest (a)
         let aFrame = try await a.value
         #expect(aFrame == [0x03, 1, 0xAA])
         #expect(coord.inFlightCount == 1)
-        #expect(coord.ingest(frame: [0x03, 2, 0xBB], on: .control))   // next frame → b
+        #expect(coord.ingest(frame: [0x03, 2, 0xBB], on: .control))  // next frame → b
         let bFrame = try await b.value
         #expect(bFrame == [0x03, 2, 0xBB])
     }
@@ -125,8 +126,8 @@ import TandemMessages
         a.cancel()
         let aResult = await a.result
         if case .success = aResult { Issue.record("expected the cancelled task to throw") }
-        #expect(coord.inFlightCount == 1)                             // only a was resolved
-        #expect(coord.ingest(frame: [0x05, 2, 0], on: .control))      // b unaffected
+        #expect(coord.inFlightCount == 1)  // only a was resolved
+        #expect(coord.ingest(frame: [0x05, 2, 0], on: .control))  // b unaffected
         let bFrame = try await b.value
         #expect(bFrame.first == 0x05)
     }
@@ -140,23 +141,38 @@ import TandemMessages
         let coord = PumpTransactionCoordinator()
         var writes = 0
         let first = Task { @MainActor in
-            try await coord.perform(expectedResponseOn: .control, opCode: 0x10, deadline: 5,
-                                    serialized: true) { writes += 1; return 1 }
+            try await coord.perform(
+                expectedResponseOn: .control, opCode: 0x10, deadline: 5,
+                serialized: true
+            ) {
+                writes += 1
+                return 1
+            }
         }
         while !coord.hasSerializedInFlight { await Task.yield() }
         #expect(writes == 1)
 
         // Second serialized command → `.busy`, and it must NOT have written.
         await #expect(throws: PumpTransactionCoordinator.TxError.busy) {
-            try await coord.perform(expectedResponseOn: .control, opCode: 0x11, deadline: 5,
-                                    serialized: true) { writes += 1; return 2 }
+            try await coord.perform(
+                expectedResponseOn: .control, opCode: 0x11, deadline: 5,
+                serialized: true
+            ) {
+                writes += 1
+                return 2
+            }
         }
         #expect(writes == 1)
 
         // A concurrent non-serialized read is still allowed.
         let read = Task { @MainActor in
-            try await coord.perform(expectedResponseOn: .control, opCode: 0x20, deadline: 5,
-                                    serialized: false) { writes += 1; return 3 }
+            try await coord.perform(
+                expectedResponseOn: .control, opCode: 0x20, deadline: 5,
+                serialized: false
+            ) {
+                writes += 1
+                return 3
+            }
         }
         while coord.inFlightCount < 2 { await Task.yield() }
         #expect(writes == 2)
@@ -171,15 +187,20 @@ import TandemMessages
     /// per-in-flight, not a permanent lock.
     @MainActor @Test func serializedAdmittedAgainAfterFirstResolves() async throws {
         let coord = PumpTransactionCoordinator()
-        let first = await launchAndRegister(coord, on: .control, opCode: 0x10)   // (non-serialized helper)
+        let first = await launchAndRegister(coord, on: .control, opCode: 0x10)  // (non-serialized helper)
         // Make it serialized-in-flight by resolving the helper, then run a real serialized pair in order.
         _ = coord.ingest(frame: [0x10, 7, 0], on: .control)
         _ = try await first.value
 
         var writes = 0
         let a = Task { @MainActor in
-            try await coord.perform(expectedResponseOn: .control, opCode: 0x30, deadline: 5,
-                                    serialized: true) { writes += 1; return 1 }
+            try await coord.perform(
+                expectedResponseOn: .control, opCode: 0x30, deadline: 5,
+                serialized: true
+            ) {
+                writes += 1
+                return 1
+            }
         }
         while !coord.hasSerializedInFlight { await Task.yield() }
         _ = coord.ingest(frame: [0x30, 1, 0], on: .control)
@@ -188,8 +209,13 @@ import TandemMessages
 
         // A second serialized command now proceeds (the first is done).
         let b = Task { @MainActor in
-            try await coord.perform(expectedResponseOn: .control, opCode: 0x31, deadline: 5,
-                                    serialized: true) { writes += 1; return 2 }
+            try await coord.perform(
+                expectedResponseOn: .control, opCode: 0x31, deadline: 5,
+                serialized: true
+            ) {
+                writes += 1
+                return 2
+            }
         }
         while !coord.hasSerializedInFlight { await Task.yield() }
         #expect(writes == 2)
@@ -228,7 +254,7 @@ import TandemMessages
         let coord = PumpTransactionCoordinator()
         coord.correlationMode = .txIdMatch
         let task = await launchAndRegister(coord, on: .control, opCode: 0x1C, txId: 3)
-        #expect(coord.ingest(frame: [77, 3, 2, 0x1C, 3], on: .control))   // op-77, txId 3
+        #expect(coord.ingest(frame: [77, 3, 2, 0x1C, 3], on: .control))  // op-77, txId 3
         let frame = try await task.value
         #expect(frame.first == 77 && frame[1] == 3)
         #expect(coord.inFlightCount == 0)
@@ -241,9 +267,9 @@ import TandemMessages
         let coord = PumpTransactionCoordinator()
         coord.correlationMode = .txIdMatch
         let task = await launchAndRegister(coord, on: .control, opCode: 0x03, txId: 5)
-        #expect(coord.ingest(frame: [129, 5, 0], on: .control) == false)   // op-129 stream, same txId 5
+        #expect(coord.ingest(frame: [129, 5, 0], on: .control) == false)  // op-129 stream, same txId 5
         #expect(coord.inFlightCount == 1)
-        #expect(coord.ingest(frame: [0x03, 5, 0], on: .control))           // its real reply resolves it
+        #expect(coord.ingest(frame: [0x03, 5, 0], on: .control))  // its real reply resolves it
         _ = try await task.value
     }
 
@@ -269,14 +295,24 @@ import TandemMessages
         coord.correlationMode = .txIdMatch
         var writes = 0
         let first = Task { @MainActor in
-            try await coord.perform(expectedResponseOn: .control, opCode: 0x10, deadline: 5,
-                                    serialized: true) { writes += 1; return 1 }
+            try await coord.perform(
+                expectedResponseOn: .control, opCode: 0x10, deadline: 5,
+                serialized: true
+            ) {
+                writes += 1
+                return 1
+            }
         }
         while !coord.hasSerializedInFlight { await Task.yield() }
         #expect(writes == 1)
         await #expect(throws: PumpTransactionCoordinator.TxError.busy) {
-            try await coord.perform(expectedResponseOn: .control, opCode: 0x11, deadline: 5,
-                                    serialized: true) { writes += 1; return 2 }
+            try await coord.perform(
+                expectedResponseOn: .control, opCode: 0x11, deadline: 5,
+                serialized: true
+            ) {
+                writes += 1
+                return 2
+            }
         }
         #expect(writes == 1)
         _ = coord.ingest(frame: [0x10, 1, 0], on: .control)

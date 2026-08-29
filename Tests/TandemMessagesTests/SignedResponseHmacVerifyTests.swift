@@ -22,7 +22,8 @@ import Testing
         let packets = try OracleRunner.encode(
             txId: 5, messageName: "InitiateBolusResponse", json: "[0, 10650, 0]",
             pairingCode: OracleRunner.testPairingCode,
-            pumpTimeSinceReset: OracleRunner.testPumpTimeSinceReset).packets
+            pumpTimeSinceReset: OracleRunner.testPumpTimeSinceReset
+        ).packets
         return try reassemble(packets)
     }
 
@@ -34,7 +35,7 @@ import Testing
         let frame = try validSignedFrame()
         let parsed = try ResponseParser.parse(frame: frame, characteristic: .control, authenticationKey: key)
         let msg = try #require(parsed.message as? InitiateBolusResponse)
-        #expect(msg.accepted)          // status 0 ⇒ accepted
+        #expect(msg.accepted)  // status 0 ⇒ accepted
         #expect(msg.bolusId == 10650)
     }
 
@@ -43,8 +44,8 @@ import Testing
     @Test func tamperedStatusWithFixedCrcIsRejected() throws {
         var frame = try validSignedFrame()
         var body = Array(frame[0..<(frame.count - 2)])
-        body[3] = body[3] == 0 ? 1 : 0            // flip accepted(0) ⇄ rejected(non-zero)
-        frame = reCrc(body)                        // attacker fixes the CRC
+        body[3] = body[3] == 0 ? 1 : 0  // flip accepted(0) ⇄ rejected(non-zero)
+        frame = reCrc(body)  // attacker fixes the CRC
         #expect(throws: ResponseParser.ParseError.signatureInvalid(opcode: op)) {
             _ = try ResponseParser.parse(frame: frame, characteristic: .control, authenticationKey: key)
         }
@@ -70,7 +71,7 @@ import Testing
     /// A wrong session key rejects an otherwise-valid frame.
     @Test func wrongKeyIsRejected() throws {
         let frame = try validSignedFrame()
-        let wrong = Array("0000000000000000".utf8)   // 16 chars, wrong value
+        let wrong = Array("0000000000000000".utf8)  // 16 chars, wrong value
         #expect(throws: ResponseParser.ParseError.signatureInvalid(opcode: op)) {
             _ = try ResponseParser.parse(frame: frame, characteristic: .control, authenticationKey: wrong)
         }
@@ -80,8 +81,9 @@ import Testing
     /// gate is the verification step, not the decode path.
     @Test func verifyDisabledStillDecodes() throws {
         let frame = try validSignedFrame()
-        let parsed = try ResponseParser.parse(frame: frame, characteristic: .control,
-                                              authenticationKey: [], verifySignature: false)
+        let parsed = try ResponseParser.parse(
+            frame: frame, characteristic: .control,
+            authenticationKey: [], verifySignature: false)
         #expect(parsed.message is InitiateBolusResponse)
     }
 }

@@ -70,8 +70,8 @@ public struct BenchCommand: Sendable, Equatable {
     public var isAutoFireable: Bool {
         switch lane {
         case .read: return true
-        case .delivery: return true               // still gated on saline+cartridge by `plan`
-        case .pairing: return true                // implicit on connect
+        case .delivery: return true  // still gated on saline+cartridge by `plan`
+        case .pairing: return true  // implicit on connect
         case .signedWrite: return BenchCommandCatalog.benchExercisableSignedWrites.contains(name)
         }
     }
@@ -105,7 +105,7 @@ public enum BenchCommandCatalog {
     /// unit tests exercise directly.
     public static func descriptor(name: String, props: MessageProps) -> BenchCommand {
         let lane: BenchLane
-        var scheme: BenchPairingScheme? = nil
+        var scheme: BenchPairingScheme?
         if props.characteristic == .authorization {
             lane = .pairing
             scheme = name.contains("Jpake") ? .jpake : .legacyV1
@@ -208,7 +208,7 @@ public enum BenchCommandCatalog {
         SetBgReminderRequest.self, SetSiteChangeReminderRequest.self, SetMissedMealBolusReminderRequest.self,
         SetPumpAlertSnoozeRequest.self, SetQuickBolusSettingsRequest.self, SetSleepScheduleRequest.self,
         // Sounds / time
-        PlaySoundRequest.self, SetPumpSoundsRequest.self, ChangeTimeDateRequest.self,
+        PlaySoundRequest.self, SetPumpSoundsRequest.self, ChangeTimeDateRequest.self
     ]
 
     /// The full derived catalog, one `BenchCommand` per enumerated request type.
@@ -225,7 +225,8 @@ public enum BenchCommandCatalog {
     /// a known read — the runner never fabricates a parameterized delivery/write instance this way.
     public static func makeReadInstance(_ name: String) -> Message? {
         guard let cmd = all.first(where: { $0.name == name }), cmd.lane == .read,
-              let type = typesByName[name] else { return nil }
+            let type = typesByName[name]
+        else { return nil }
         return type.init()
     }
 

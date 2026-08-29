@@ -64,8 +64,8 @@ import TandemMessages
 
     @Test func fillCannulaAcceptsInRangeAndEncodesByteStable() throws {
         let req = try FillCannulaRequest(primeSize: 300)
-        _ = try FillCannulaRequest(primeSize: 1)      // floor
-        _ = try FillCannulaRequest(primeSize: 3000)   // ceiling
+        _ = try FillCannulaRequest(primeSize: 1)  // floor
+        _ = try FillCannulaRequest(primeSize: 3000)  // ceiling
         #expect(req.cargo == Bytes.firstTwoBytesLittleEndian(300))
     }
 
@@ -86,7 +86,7 @@ import TandemMessages
 
     @Test func maxBolusLimitAcceptsInRangeAndEncodesByteStable() throws {
         let req = try SetMaxBolusLimitRequest(maxBolusMilliunits: 25000)
-        _ = try SetMaxBolusLimitRequest(maxBolusMilliunits: 1000)   // floor
+        _ = try SetMaxBolusLimitRequest(maxBolusMilliunits: 1000)  // floor
         #expect(req.cargo == Bytes.firstTwoBytesLittleEndian(25000))
     }
 
@@ -104,7 +104,7 @@ import TandemMessages
 
     @Test func maxBasalLimitAcceptsInRangeAndEncodesByteStable() throws {
         let req = try SetMaxBasalLimitRequest(maxHourlyBasalMilliunits: 15000)
-        _ = try SetMaxBasalLimitRequest(maxHourlyBasalMilliunits: 1000)   // floor
+        _ = try SetMaxBasalLimitRequest(maxHourlyBasalMilliunits: 1000)  // floor
         #expect(req.cargo == Bytes.toUint32(15000))
     }
 }

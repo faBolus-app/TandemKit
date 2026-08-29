@@ -25,20 +25,21 @@ import CoreBluetooth
     }
 
     @Test func coldLaunchRetrieveEmptyFallsBackToScan() {
-        let fake = FakeCentral()                       // powered on, no known handle
+        let fake = FakeCentral()  // powered on, no known handle
         let client = PumpBLEClient(central: fake)
         client.connectKnownPeripheral(identifier: UUID())
-        #expect(fake.scanCount == 1)                   // retrieve empty ⇒ scan
+        #expect(fake.scanCount == 1)  // retrieve empty ⇒ scan
         #expect(client.state == .scanning)
         #expect(fake.connectCount == 0)
         client.disconnect()
     }
 
     @Test func connectKnownPeripheralDefersWhenBluetoothOff() {
-        let fake = FakeCentral(); fake.stateValue = .poweredOff
+        let fake = FakeCentral()
+        fake.stateValue = .poweredOff
         let client = PumpBLEClient(central: fake)
         client.connectKnownPeripheral(identifier: UUID())
-        #expect(fake.scanCount == 0)                   // deferred until poweredOn (pendingRetrieveId)
+        #expect(fake.scanCount == 0)  // deferred until poweredOn (pendingRetrieveId)
         #expect(fake.connectCount == 0)
         client.disconnect()
     }
@@ -46,15 +47,15 @@ import CoreBluetooth
     @Test func scanTimeoutEscalatesToRecoveryWithoutTeardown() {
         let fake = FakeCentral()
         let client = PumpBLEClient(central: fake)
-        client.connectKnownPeripheral(identifier: UUID())   // ⇒ .scanning, reconnectTargetId set
+        client.connectKnownPeripheral(identifier: UUID())  // ⇒ .scanning, reconnectTargetId set
         #expect(client.state == .scanning)
         let scansBefore = fake.scanCount
-        client.scanTimedOut()                                // fire the timeout directly (no 30 s wait)
-        #expect(client.reconnectWatchdogArmedForTesting)     // escalated to the recovery ladder…
+        client.scanTimedOut()  // fire the timeout directly (no 30 s wait)
+        #expect(client.reconnectWatchdogArmedForTesting)  // escalated to the recovery ladder…
         // Without teardown — the pending scan/connect is left in place.
         #expect(fake.stopScanCount == 0)
         #expect(fake.cancelCount == 0)
-        #expect(fake.scanCount == scansBefore)               // and no synchronous re-scan
+        #expect(fake.scanCount == scansBefore)  // and no synchronous re-scan
         client.disconnect()
     }
 
@@ -64,12 +65,12 @@ import CoreBluetooth
     @Test func firstPairScanTimeoutIsBounded() {
         let fake = FakeCentral()
         let client = PumpBLEClient(central: fake)
-        client.startScan()                                   // fresh pairing scan — no reconnectTargetId
+        client.startScan()  // fresh pairing scan — no reconnectTargetId
         #expect(client.state == .scanning)
         client.scanTimedOut()
-        #expect(fake.stopScanCount == 1)                     // bounded: the scan is stopped…
-        #expect(client.state == .disconnected)               // …and a retryable terminal is published
-        #expect(!client.reconnectWatchdogArmedForTesting)    // NOT the known-target ladder
+        #expect(fake.stopScanCount == 1)  // bounded: the scan is stopped…
+        #expect(client.state == .disconnected)  // …and a retryable terminal is published
+        #expect(!client.reconnectWatchdogArmedForTesting)  // NOT the known-target ladder
         client.disconnect()
     }
 
@@ -78,11 +79,11 @@ import CoreBluetooth
     @Test func cancelBeforeDiscoveryStopsScanAndGoesDown() {
         let fake = FakeCentral()
         let client = PumpBLEClient(central: fake)
-        client.startScan()                                   // first-pair scan in flight, no peripheral
+        client.startScan()  // first-pair scan in flight, no peripheral
         #expect(client.state == .scanning)
         client.disconnect()
-        #expect(fake.stopScanCount >= 1)                     // radio quiesced → no late auto-connect
-        #expect(client.state == .disconnected)               // first-pair cancel publishes the terminal
+        #expect(fake.stopScanCount >= 1)  // radio quiesced → no late auto-connect
+        #expect(client.state == .disconnected)  // first-pair cancel publishes the terminal
     }
 
     /// A cold/reconnect establishment that stalls before `.ready` must fail closed via the establishment
@@ -92,19 +93,19 @@ import CoreBluetooth
         // KNOWN target → throttled recovery ladder (not a terminal).
         let fakeKnown = FakeCentral()
         let known = PumpBLEClient(central: fakeKnown)
-        known.connectKnownPeripheral(identifier: UUID())     // known target set; empty retrieve ⇒ .scanning
-        known.fireEstablishmentWatchdogForTesting()          // establishment stalls before .ready
-        #expect(known.reconnectWatchdogArmedForTesting)      // KNOWN target ⇒ reconnect ladder
-        #expect(!known.establishmentWatchdogArmedForTesting) // watchdog cleared — no outliving/double-fire
+        known.connectKnownPeripheral(identifier: UUID())  // known target set; empty retrieve ⇒ .scanning
+        known.fireEstablishmentWatchdogForTesting()  // establishment stalls before .ready
+        #expect(known.reconnectWatchdogArmedForTesting)  // KNOWN target ⇒ reconnect ladder
+        #expect(!known.establishmentWatchdogArmedForTesting)  // watchdog cleared — no outliving/double-fire
         #expect(known.state != .ready)
         known.disconnect()
 
         // FIRST PAIR (no known target) → clean, retryable terminal.
         let fakeFirst = FakeCentral()
         let first = PumpBLEClient(central: fakeFirst)
-        first.startScan()                                    // no reconnectTargetId
+        first.startScan()  // no reconnectTargetId
         first.fireEstablishmentWatchdogForTesting()
-        #expect(first.state == .disconnected)                // first pair ⇒ terminal, not the ladder
+        #expect(first.state == .disconnected)  // first pair ⇒ terminal, not the ladder
         #expect(!first.reconnectWatchdogArmedForTesting)
         #expect(!first.establishmentWatchdogArmedForTesting)
         first.disconnect()

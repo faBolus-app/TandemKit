@@ -8,13 +8,13 @@ import TandemMessages
 /// key rule, fail-closed rejection, and the no-resume (full re-challenge) behavior.
 @Suite struct LegacyPairingCoordinatorTests {
     private func frame(_ opcode: UInt8, _ cargo: [UInt8]) -> [UInt8] {
-        [opcode, 0, UInt8(cargo.count)] + cargo + [0, 0]   // [opcode, txId, len, cargo…, crc(2 dummy)]
+        [opcode, 0, UInt8(cargo.count)] + cargo + [0, 0]  // [opcode, txId, len, cargo…, crc(2 dummy)]
     }
     private func withAppId(_ payload: [UInt8]) -> [UInt8] { [0, 0] + payload }  // appInstanceId = 0
 
-    private let code = "abcd1234ijkl5678"                                       // valid 16-char code
+    private let code = "abcd1234ijkl5678"  // valid 16-char code
     private let hmacKey: [UInt8] = [0x84, 0x0c, 0x4e, 0x16, 0x87, 0x30, 0x46, 0xbc]
-    private let challengeHash = [UInt8](repeating: 0xAB, count: 20)             // pump's hash (client ignores)
+    private let challengeHash = [UInt8](repeating: 0xAB, count: 20)  // pump's hash (client ignores)
 
     @Test func pairsWithMockPump() throws {
         let coord = try LegacyPairingCoordinator(pairingCode: code)
@@ -22,7 +22,10 @@ import TandemMessages
         var pumpChallengeSent: [UInt8]?
         var pairedKey: [UInt8]?
         coord.onError = { Issue.record("pairing error: \($0)") }
-        coord.onPaired = { key, nonce in pairedKey = key; #expect(nonce.isEmpty) }  // V1 has no resume secret
+        coord.onPaired = { key, nonce in
+            pairedKey = key
+            #expect(nonce.isEmpty)
+        }  // V1 has no resume secret
         coord.onSendRequest = { msg in
             switch msg {
             case let m as CentralChallengeRequest:
@@ -34,7 +37,7 @@ import TandemMessages
                 pumpChallengeSent = m.pumpChallengeHash
                 // The pump verifies exactly as createV1 computes: HMAC-SHA1(data = hmacKey, key = code).
                 #expect(m.pumpChallengeHash == Crypto.hmacSha1(data: self.hmacKey, key: Array(self.code.utf8)))
-                coord.handle(frame: self.frame(19, self.withAppId([1])))   // success
+                coord.handle(frame: self.frame(19, self.withAppId([1])))  // success
             default:
                 Issue.record("unexpected request: \(type(of: msg))")
             }
@@ -51,8 +54,8 @@ import TandemMessages
     /// `PumpChallengeRequest` (op18) must carry the pump-assigned `appInstanceId` echoed in
     /// `CentralChallengeResponse` (op17), not this coordinator's own op16 value — even when the two differ.
     @Test func pumpChallengeRequestEchoesThePumpAssignedAppInstanceId() throws {
-        let coord = try LegacyPairingCoordinator(pairingCode: code)   // op16 appInstanceId defaults to 0
-        let pumpAssignedId = 517                                      // nonzero, deliberately != 0
+        let coord = try LegacyPairingCoordinator(pairingCode: code)  // op16 appInstanceId defaults to 0
+        let pumpAssignedId = 517  // nonzero, deliberately != 0
         var pumpChallengeAppInstanceId: Int?
         coord.onError = { Issue.record("pairing error: \($0)") }
         coord.onSendRequest = { msg in
@@ -71,7 +74,7 @@ import TandemMessages
         }
         coord.start()
         #expect(coord.step == .paired)
-        #expect(pumpChallengeAppInstanceId == pumpAssignedId)          // echoed, not op16's default 0
+        #expect(pumpChallengeAppInstanceId == pumpAssignedId)  // echoed, not op16's default 0
     }
 
     @Test func rejectsWrongPairingCode() throws {
@@ -84,7 +87,7 @@ import TandemMessages
             case is CentralChallengeRequest:
                 coord.handle(frame: self.frame(17, self.withAppId(self.challengeHash + self.hmacKey)))
             case is PumpChallengeRequest:
-                coord.handle(frame: self.frame(19, self.withAppId([0])))   // success = false
+                coord.handle(frame: self.frame(19, self.withAppId([0])))  // success = false
             default: Issue.record("unexpected request: \(type(of: msg))")
             }
         }
@@ -123,7 +126,7 @@ import TandemMessages
 
     @Test func invalidCodeThrows() {
         #expect(throws: PairingAuth.PairingError.self) {
-            _ = try LegacyPairingCoordinator(pairingCode: "123456")     // a 6-digit is not a 16-char code
+            _ = try LegacyPairingCoordinator(pairingCode: "123456")  // a 6-digit is not a 16-char code
         }
     }
 
@@ -132,7 +135,9 @@ import TandemMessages
     @Test func reconnectRerunsFullChallenge() throws {
         let coord = try LegacyPairingCoordinator(pairingCode: code, centralChallenge: [UInt8](repeating: 9, count: 8))
         var firstRequestType: String?
-        coord.onSendRequest = { msg in if firstRequestType == nil { firstRequestType = String(describing: type(of: msg)) } }
+        coord.onSendRequest = { msg in
+            if firstRequestType == nil { firstRequestType = String(describing: type(of: msg)) }
+        }
         coord.start()
         #expect(firstRequestType == "CentralChallengeRequest")
     }

@@ -36,7 +36,7 @@ public enum BenchBolusPlanner {
         public let foodMilliunits: UInt32
         public let correctionMilliunits: UInt32
         public let carbGrams: Int
-        public let bgMgdl: Int              // 0 ⇒ no BG entered
+        public let bgMgdl: Int  // 0 ⇒ no BG entered
         public let iobMilliunits: UInt32
         public let bitmask: Int
         /// True when the profile failed the oracle sanity check (bad carb ratio / target / ISF) → 0 dose.
@@ -45,7 +45,7 @@ public enum BenchBolusPlanner {
         public let fromCarbsUnits: Double
         public let fromBGUnits: Double
         public let fromIOBUnits: Double
-        public let oracleTotalUnits: Double   // the oracle getTotal() before the 0.05 U snap / bench cap
+        public let oracleTotalUnits: Double  // the oracle getTotal() before the 0.05 U snap / bench cap
     }
 
     /// The oracle's `BolusCalcUnits.doublePrecision`: `BigDecimal.valueOf(v).setScale(2, HALF_UP)`.
@@ -84,22 +84,31 @@ public enum BenchBolusPlanner {
     /// `benchCapMilliunits` bounds the bench dose as defense-in-depth on saline; the bench harness passes
     /// a tight 2.0 U bound, while the calculator itself defaults to the app's absolute 25 U ceiling so the
     /// cap never silently alters a computed dose in tests.
-    public static func plan(carbsGrams: Double?, bgMgdl: Int?, profile: Profile,
-                            benchCapMilliunits: UInt32 = 25000) -> Plan {
+    public static func plan(
+        carbsGrams: Double?, bgMgdl: Int?, profile: Profile,
+        benchCapMilliunits: UInt32 = 25000
+    ) -> Plan {
         // --- addedFromCarbs: each component doublePrecision-rounded first ---
         var fromCarbs = 0.0
         var carbSanityFail = false
         if let carbs = carbsGrams {
-            if profile.carbRatioGramsPerUnit > 0 { fromCarbs = dp(carbs / profile.carbRatioGramsPerUnit) }
-            else { carbSanityFail = true }
+            if profile.carbRatioGramsPerUnit > 0 {
+                fromCarbs = dp(carbs / profile.carbRatioGramsPerUnit)
+            } else {
+                carbSanityFail = true
+            }
         }
         // --- addedFromGlucose: SIGNED (below-target reduces the dose) ---
         var fromBG = 0.0
         var bgSanityFail = false
         if let bg = bgMgdl {
-            if profile.targetBgMgdl < 40 || profile.targetBgMgdl > 400 { bgSanityFail = true }
-            else if profile.isfMgdlPerUnit <= 0 { bgSanityFail = true }
-            else { fromBG = dp(Double(bg - profile.targetBgMgdl) / Double(profile.isfMgdlPerUnit)) }
+            if profile.targetBgMgdl < 40 || profile.targetBgMgdl > 400 {
+                bgSanityFail = true
+            } else if profile.isfMgdlPerUnit <= 0 {
+                bgSanityFail = true
+            } else {
+                fromBG = dp(Double(bg - profile.targetBgMgdl) / Double(profile.isfMgdlPerUnit))
+            }
         }
         // --- addedFromIOB: only positive IOB reduces the dose ---
         let fromIOB = profile.iobUnits > 0 ? dp(-profile.iobUnits) : 0.0
@@ -108,9 +117,9 @@ public enum BenchBolusPlanner {
         var total = fromCarbs
         if fromBG >= 0 {
             let corr = fromBG + fromIOB
-            if corr > 0 { total += corr }   // POSITIVE_BG_CORRECTION (else IOB cancels it → add nothing)
+            if corr > 0 { total += corr }  // POSITIVE_BG_CORRECTION (else IOB cancels it → add nothing)
         } else {
-            let corr = fromBG + fromIOB     // below target: negative correction reduces the dose
+            let corr = fromBG + fromIOB  // below target: negative correction reduces the dose
             if total + corr > 0 { total += corr } else { total = 0.0 }
         }
         total = dp(total)
@@ -131,24 +140,27 @@ public enum BenchBolusPlanner {
         let correctionMU = totalMU - foodMU
 
         let hasCarbs = (carbsGrams ?? 0) > 0 && fromCarbs > 0 && !sanityFailed
-        let bits = InitiateBolusRequest.typeBitmask(hasCarbs: hasCarbs,
-                                                    hasCorrection: correctionMU > 0,
-                                                    isExtended: false)
+        let bits = InitiateBolusRequest.typeBitmask(
+            hasCarbs: hasCarbs,
+            hasCorrection: correctionMU > 0,
+            isExtended: false)
         // IOB metadata (milliunits), clamped to 1_000_000 and non-trapping: a non-finite IOB → 0.
         let iobRaw = profile.iobUnits > 0 ? dp(profile.iobUnits) : 0
         let iobMU = iobRaw.isFinite ? UInt32(min(max(0, iobRaw) * 1000, 1_000_000).rounded()) : 0
-        return Plan(totalMilliunits: totalMU, foodMilliunits: foodMU, correctionMilliunits: correctionMU,
-                    carbGrams: safeCarbInt(carbsGrams), bgMgdl: max(0, bgMgdl ?? 0),
-                    iobMilliunits: iobMU, bitmask: bits, sanityFailed: sanityFailed,
-                    fromCarbsUnits: fromCarbs, fromBGUnits: fromBG, fromIOBUnits: fromIOB,
-                    oracleTotalUnits: oracleTotal)
+        return Plan(
+            totalMilliunits: totalMU, foodMilliunits: foodMU, correctionMilliunits: correctionMU,
+            carbGrams: safeCarbInt(carbsGrams), bgMgdl: max(0, bgMgdl ?? 0),
+            iobMilliunits: iobMU, bitmask: bits, sanityFailed: sanityFailed,
+            fromCarbsUnits: fromCarbs, fromBGUnits: fromBG, fromIOBUnits: fromIOB,
+            oracleTotalUnits: oracleTotal)
     }
 
     /// Build the full, validated `InitiateBolusRequest` for this plan (validating constructor), so
     /// the bench snapshots the ENTIRE planned request cargo.
     public static func request(for plan: Plan, bolusID: Int) throws -> InitiateBolusRequest {
-        try InitiateBolusRequest(validating: plan.totalMilliunits, bolusID: bolusID, bolusTypeBitmask: plan.bitmask,
-                                 foodVolume: plan.foodMilliunits, correctionVolume: plan.correctionMilliunits,
-                                 bolusCarbs: plan.carbGrams, bolusBG: plan.bgMgdl, bolusIOB: plan.iobMilliunits)
+        try InitiateBolusRequest(
+            validating: plan.totalMilliunits, bolusID: bolusID, bolusTypeBitmask: plan.bitmask,
+            foodVolume: plan.foodMilliunits, correctionVolume: plan.correctionMilliunits,
+            bolusCarbs: plan.carbGrams, bolusBG: plan.bgMgdl, bolusIOB: plan.iobMilliunits)
     }
 }
