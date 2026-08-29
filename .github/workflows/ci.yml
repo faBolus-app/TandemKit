@@ -92,7 +92,8 @@ jobs:
         if: steps.rules.outputs.available == 'true'
         run: |
           pipx install semgrep || pip install --user semgrep
-          semgrep --config /tmp/deslop.yml --metrics=off --error=false Sources Tests
+          # No --error: semgrep exits 0 with findings by default, which is what "advisory" means here.
+          semgrep --config /tmp/deslop.yml --metrics=off Sources Tests
 
   # SBOM / license-provenance check (P16 §3.1). Independent of the oracle job so it can NEVER affect
   # the build. Non-blocking-if-risky: continue-on-error keeps a heuristic provenance false-positive
