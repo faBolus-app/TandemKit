@@ -1,9 +1,12 @@
 import Testing
 @testable import TandemMessages
 
-/// Byte-exact parity for the legacy (V1 / 16-char) pairing responses on AUTHORIZATION (opcodes 17 and 19).
-/// Vectors are the upstream oracle's own canonical frames, so these run without the JVM and are not
-/// gated on `OracleRunner.isAvailable`. `ResponseParser` validates CRC-16 before dispatch.
+/// Byte-exact parity for the legacy (V1 / 16-char) pairing responses on AUTHORIZATION (opcodes 17
+/// and 19). The vectors are the upstream oracle's OWN canonical test frames — jwoglom
+/// `CentralChallengeResponseTest.testTconnectAppFirstPumpReplyMessage_legacyAuth` and
+/// `PumpChallengeResponseTest.testTconnectAppChallengeResponseMessage{Success,Failure}_legacyAuth`.
+/// Because they are oracle-emitted, these run without the JVM and are not gated on
+/// `OracleRunner.isAvailable`. `ResponseParser` validates CRC-16 over the frame before dispatch.
 @Suite struct LegacyPairingParityTests {
     /// Reassemble oracle packet hex into a single frame (drop the 2-byte packet header), mirroring
     /// `ResponseParityTests.frame`.
