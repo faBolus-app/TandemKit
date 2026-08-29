@@ -97,9 +97,18 @@ private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8]
     }
 }
 
-/// History-log types the oracle can't cross-check. Upstream `HistoryLog.parseBase` reads typeId from
-/// a signed byte and adds 512 for values in 128–255, mis-decoding this range. Swift reads typeId as
-/// unsigned, so these can only be Swift-dispatch-verified here.
+/// History-log types the oracle can't cross-check — and NOT a stale-JAR problem: the vendored jar was
+/// verified byte-identical to a fresh build of the pinned oracle commit, so rebuilding it changes
+/// nothing. Do not try that first.
+///
+/// Every typeId here is in 128–255, and upstream `HistoryLog.parseBase` reads the typeId from a SIGNED
+/// byte and adds 512 for negative values, mis-decoding the whole range: most read as "unknown" and a
+/// couple collide with other types (230→486, 191→447). Swift reads the typeId as a clean unsigned
+/// value, so this port is actually *more* correct than the reference — which is why these can only be
+/// Swift-dispatch-verified here rather than byte-compared.
+///
+/// Promoting them to byte-exact parity requires an UPSTREAM `parse()` fix in a newer pumpx2 plus a
+/// submodule re-pin. It is not reachable from this repo alone.
 @Suite struct HistoryLogSwiftDispatchTests {
     static let cases: [(Int, String)] = [
         (171, "CgmAlertActivatedHistoryLog"),
