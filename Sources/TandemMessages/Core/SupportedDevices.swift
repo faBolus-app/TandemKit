@@ -1,6 +1,6 @@
 import Foundation
 
-/// Pump family a message is legal to send to. Mirrors upstream `KnownDeviceModel`.
+/// Pump family a message is legal to send to. Mirrors upstream
 /// `com.jwoglom.pumpx2.pump.messages.models.KnownDeviceModel` — the enum the upstream `@MessageProps`
 /// `supportedDevices=` tags resolve to. Kept minimal to the models the port actually classifies;
 /// add cases here as upstream adds device models.
@@ -64,8 +64,12 @@ public extension ApiVersion {
 
 /// Bootstrap-read allowlist key. Keyed by **(Characteristic, opCode)** — never a raw opcode —
 /// because opcodes collide across characteristics: `0xA4` is both `LastBolusStatusV2Request`
-/// (`.currentStatus`, unrestricted read) and `SetTempRateRequest` (`.control`, Mobi-only delivery).
-/// Distinct Hashable values even though the raw byte matches.
+/// (`.currentStatus`, an unrestricted read) and `SetTempRateRequest` (`.control`, Mobi-only, with
+/// `modifiesInsulinDelivery: true`). That second one is why a raw-opcode key would be unsafe and not
+/// merely ambiguous: allowlisting the READ byte would allowlist a DELIVERY command. The compound key
+/// cannot confuse them by construction — the read is `(.currentStatus, 0xA4)`, the delivery command
+/// `(.control, 0xA4)`, distinct Hashable values even though the raw byte matches. Pinned by
+/// faBolus's `PumpDeliveryOpcodeScopeGuardTests` (that suite lives in the app repo, not here).
 public struct SendGateAllowlistKey: Hashable, Sendable {
     public let characteristic: Characteristic
     public let opCode: UInt8

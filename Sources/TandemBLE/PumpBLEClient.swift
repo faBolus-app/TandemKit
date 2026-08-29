@@ -884,7 +884,8 @@ public final class PumpBLEClient: NSObject {
     /// - Empty bitmap (all-zero or undersized): dispatch nothing, clear nothing — mirrors upstream's
     ///   `if (!rawEvents.isEmpty())` gate.
     /// - Non-empty: always dispatch the typed event.
-    /// - Clear (`[0,0,0,0]` `.withResponse` to `.qualifyingEvents`) fires only when no delivery-class
+    /// - Clear (`[0,0,0,0]` `.withResponse` to `.qualifyingEvents`, per upstream
+    ///   `TandemBluetoothHandler.clearQualifyingEvents`) fires only when no delivery-class
     ///   (`serialized`) transaction is in flight. If one is, defer — fire-and-forget, no retry;
     ///   the next non-empty bitmap clears again.
     func handleQualifyingEventsFrame(_ frame: [UInt8], clear: () -> Void) {
