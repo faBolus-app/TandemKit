@@ -1,0 +1,86 @@
+# SwiftLint — advisory only. It reports; it does not gate a merge.
+#
+# `.swift-format` is the formatter of record. Every rule below that swift-format also owns is left
+# ENABLED on purpose (trailing_comma, comma, statement_position, switch_case_alignment,
+# vertical_parameter_alignment, trailing_newline, …): swift-format drives them to zero, so a
+# nonzero count here means someone edited a file without running the formatter. Only rules that
+# genuinely CONTRADICT swift-format's output are disabled — see `disabled_rules`.
+#
+# This is safety-critical pump-protocol code. Two standing rules for triaging output:
+#   1. Never rename a wire field, an opcode constant, or a public API to satisfy a linter.
+#   2. Metric rules (file/type/function length, complexity, parameter count) describe message
+#      constructors and the BLE client. They are warnings. Do not restructure delivery code to
+#      silence them without a dedicated, tested change.
+#
+# Run: swiftlint lint --quiet Sources Tests
+
+excluded:
+  - .build
+  - vendor
+  - integrations
+  - bench-coverage
+  - docs
+  - scripts
+
+disabled_rules:
+  # swift-format moves `{` onto its own line after a multi-line condition; SwiftLint wants it
+  # trailing. swift-format wins.
+  - opening_brace
+  # Same conflict for wrapped closure signatures.
+  - closure_parameter_position
+  # A trailing comment on a code line is how this codebase records wire provenance and safety
+  # caveats; blocking on comment length would push that information out of the source.
+  - todo
+
+line_length:
+  # p99 of this tree is ~126 columns and long lines are overwhelmingly code + a trailing
+  # provenance comment, which swift-format will not relocate. 140 flags genuine outliers only.
+  warning: 140
+  error: 400
+  ignores_urls: true
+  ignores_comments: true
+
+identifier_name:
+  # Short names are idiomatic here (`i`, `raw`, `mu`, `sg1`) and protocol identifiers carry
+  # deliberate underscores.
+  min_length:
+    warning: 1
+    error: 1
+  # Pump API-version cases mirror Tandem's own numbering and are public API consumed by faBolus
+  # (`minApi: .v2_5`). Renaming them would be a breaking change for a style rule.
+  allowed_symbols: ["_"]
+
+type_name:
+  min_length:
+    warning: 1
+    error: 1
+  max_length:
+    warning: 60
+    error: 80
+
+# Metric rules: warn, never error. These describe wire-message constructors and PumpBLEClient.
+file_length:
+  warning: 800
+  error: 4000
+type_body_length:
+  warning: 500
+  error: 3000
+function_body_length:
+  warning: 80
+  error: 500
+cyclomatic_complexity:
+  warning: 15
+  error: 60
+function_parameter_count:
+  # `InitiateBolusRequest.init` takes 9-11 parameters because the wire cargo has that many fields.
+  warning: 8
+  error: 20
+large_tuple:
+  warning: 3
+  error: 6
+nesting:
+  type_level: 3
+
+# `Bytes.readString` uses the non-failable `String(decoding:as:)` deliberately: a pump string with
+# invalid UTF-8 must decode lossily rather than vanish. Hardened in PR #21; do not "fix" it.
+optional_data_string_conversion: warning
