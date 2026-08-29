@@ -23,7 +23,9 @@ public final class EcJpakeContext {
 
     deinit { cjpake_free(ctx) }
 
-    private func write(_ fn: (OpaquePointer, UnsafeMutablePointer<UInt8>, Int, UnsafeMutablePointer<Int>) -> Int32) throws -> [UInt8] {
+    private func write(_ fn: (OpaquePointer, UnsafeMutablePointer<UInt8>, Int, UnsafeMutablePointer<Int>) -> Int32)
+        throws -> [UInt8]
+    {
         var out = [UInt8](repeating: 0, count: 1024)
         var olen = 0
         let rc = out.withUnsafeMutableBufferPointer { b in fn(ctx, b.baseAddress!, b.count, &olen) }
@@ -87,10 +89,12 @@ public final class JpakeAuth {
 
     /// Writes round one and splits it into the 1a/1b request messages.
     public func makeRound1Requests() throws -> (Jpake1aRequest, Jpake1bRequest) {
-        let round1 = try ec!.writeRoundOne()   // 330 bytes for secp256r1
+        let round1 = try ec!.writeRoundOne()  // 330 bytes for secp256r1
         let mid = round1.count / 2
-        return (Jpake1aRequest(appInstanceId: appInstanceId, centralChallenge: Array(round1[0..<mid])),
-                Jpake1bRequest(appInstanceId: appInstanceId, centralChallenge: Array(round1[mid...])))
+        return (
+            Jpake1aRequest(appInstanceId: appInstanceId, centralChallenge: Array(round1[0..<mid])),
+            Jpake1bRequest(appInstanceId: appInstanceId, centralChallenge: Array(round1[mid...]))
+        )
     }
 
     /// Feeds the pump's round one (1a challenge ++ 1b challenge) into the context.
@@ -125,8 +129,9 @@ public final class JpakeAuth {
         self.authKey = Crypto.hkdf(nonce: serverNonce3, keyMaterial: derivedSecret)
         self.clientNonce4 = randomNonce ?? Self.randomBytes(8)
         let hashDigest = Crypto.hmacSha256(data: clientNonce4, key: authKey)
-        return Jpake4KeyConfirmationRequest(appInstanceId: appInstanceId, nonce: clientNonce4,
-                                            reserved: [UInt8](repeating: 0, count: 8), hashDigest: hashDigest)
+        return Jpake4KeyConfirmationRequest(
+            appInstanceId: appInstanceId, nonce: clientNonce4,
+            reserved: [UInt8](repeating: 0, count: 8), hashDigest: hashDigest)
     }
 
     /// Verifies the server's round-4 confirmation HMAC.

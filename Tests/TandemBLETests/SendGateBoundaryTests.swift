@@ -83,7 +83,7 @@ import TandemMessages
     /// under the default `.readOnly` policy is still refused by `writeBlocked` (authorization is checked
     /// first), proving the gate is additive to — not a replacement for — the existing send interlock.
     @MainActor @Test func writePolicyInterlockStillPrecedesGate() {
-        let client = PumpBLEClient.forUnitTest()                       // default .readOnly
+        let client = PumpBLEClient.forUnitTest()  // default .readOnly
         client.setDeviceContext(model: .mobi, apiVersion: .mobi_v3_5, trusted: true)
         #expect(throws: PumpBLEClient.ClientError.writeBlocked(policy: .readOnly, opcode: 0xCE)) {
             try client.send(self.mobiOnlyMessage())
@@ -95,7 +95,7 @@ import TandemMessages
     /// unrestricted message just because the target is untrusted.
     @MainActor @Test func unrestrictedMessageStillFailsOpenOnUnidentifiedTarget() {
         let client = PumpBLEClient.forUnitTest()
-        client.writePolicy = .allowBenignControl   // permits this message's .benign risk
+        client.writePolicy = .allowBenignControl  // permits this message's .benign risk
         // deliberately no setDeviceContext — model/api/trust stay nil/false (unidentified, untrusted)
         #expect(throws: PumpBLEClient.ClientError.notReady) {
             try client.send(DismissNotificationRequest(kind: .alert, notificationId: 1))
@@ -105,12 +105,12 @@ import TandemMessages
     /// The write-policy interlock still precedes the identity gate even when identity is untrusted —
     /// a denying policy throws `.writeBlocked` first, never `.identityNotEstablished`.
     @MainActor @Test func writePolicyInterlockStillPrecedesGateEvenWhenUntrusted() {
-        let unidentified = PumpBLEClient.forUnitTest()                 // default .readOnly, no device context
+        let unidentified = PumpBLEClient.forUnitTest()  // default .readOnly, no device context
         #expect(throws: PumpBLEClient.ClientError.writeBlocked(policy: .readOnly, opcode: 0xCE)) {
             try unidentified.send(self.mobiOnlyMessage())
         }
 
-        let untrustedMobi = PumpBLEClient.forUnitTest()                // default .readOnly
+        let untrustedMobi = PumpBLEClient.forUnitTest()  // default .readOnly
         untrustedMobi.setDeviceContext(model: .mobi, apiVersion: .mobi_v3_5, trusted: false)
         #expect(throws: PumpBLEClient.ClientError.writeBlocked(policy: .readOnly, opcode: 0xCE)) {
             try untrustedMobi.send(self.mobiOnlyMessage())
@@ -128,10 +128,10 @@ import TandemMessages
         EnterFillTubingModeRequest(), FillCannulaRequest(),
         CreateIDPRequest(), DeleteIDPRequest(), RenameIDPRequest(),
         SetIDPSegmentRequest(), SetIDPSettingsRequest(),
-        SetSleepScheduleRequest(),
+        SetSleepScheduleRequest()
     ]
     private static let modelRestrictedReadMessages: [any Message] = [
-        CgmStatusV2Request(), UnknownMobiOpcode110Request(),
+        CgmStatusV2Request(), UnknownMobiOpcode110Request()
     ]
 
     /// Every model-restricted control/delivery message, and the 2 model-restricted reads, is refused
@@ -142,8 +142,9 @@ import TandemMessages
             let client = PumpBLEClient.forUnitTest()
             client.writePolicy = .allowNonDelivery
             // deliberately no setDeviceContext — model/api/trust stay nil/false (unidentified)
-            #expect(client.identityGateError(for: message) == .identityNotEstablished(opcode: message.opCode),
-                    "\(type(of: message)) (opcode \(message.opCode)) must be gated on an untrusted identity")
+            #expect(
+                client.identityGateError(for: message) == .identityNotEstablished(opcode: message.opCode),
+                "\(type(of: message)) (opcode \(message.opCode)) must be gated on an untrusted identity")
         }
     }
 
@@ -152,8 +153,9 @@ import TandemMessages
     @MainActor @Test func modelRestrictedReadsAreGatedOnUntrustedIdentityUnderSB() {
         for message in Self.modelRestrictedReadMessages {
             let client = PumpBLEClient.forUnitTest()
-            #expect(client.identityGateError(for: message) == .identityNotEstablished(opcode: message.opCode),
-                    "\(type(of: message)) (opcode \(message.opCode)) must be gated on an untrusted identity under S-B")
+            #expect(
+                client.identityGateError(for: message) == .identityNotEstablished(opcode: message.opCode),
+                "\(type(of: message)) (opcode \(message.opCode)) must be gated on an untrusted identity under S-B")
         }
     }
 
@@ -171,9 +173,10 @@ import TandemMessages
             SendGateAllowlistKey(characteristic: .currentStatus, opCode: LastBolusStatusV2Request.props.opCode)
         ]
         // The DELIVERY side, at the SAME raw opcode but a DIFFERENT characteristic, is still refused.
-        #expect(client.identityGateError(for: SetTempRateRequest()) ==
-                    .identityNotEstablished(opcode: SetTempRateRequest.props.opCode),
-                "allowlisting the (.currentStatus, 0xA4) read key must never exempt the (.control, 0xA4) delivery command")
+        #expect(
+            client.identityGateError(for: SetTempRateRequest())
+                == .identityNotEstablished(opcode: SetTempRateRequest.props.opCode),
+            "allowlisting the (.currentStatus, 0xA4) read key must never exempt the (.control, 0xA4) delivery command")
     }
 
     /// A model-restricted read whose compound key is injected into the debug override, with
@@ -187,8 +190,9 @@ import TandemMessages
         client.bootstrapAllowlistOverrideForTesting = [key]
 
         #expect(readMessage.operationRisk == .read)
-        #expect(client.identityGateError(for: readMessage) == nil,
-                "an allowlisted (Characteristic, opCode) key must fail OPEN for a .read-risk message")
+        #expect(
+            client.identityGateError(for: readMessage) == nil,
+            "an allowlisted (Characteristic, opCode) key must fail OPEN for a .read-risk message")
 
         // The production allowlist itself stays empty — only the test override is non-empty.
         #expect(SendGateBootstrapAllowlist.entries.isEmpty)
@@ -197,8 +201,9 @@ import TandemMessages
         // refused: SetTempRateRequest's own key is (.control, 0xA4) — different from readMessage's
         // (.currentStatus, 0xBE) — so it is not exempted by this override at all, reinforcing that the
         // allowlist can only ever name one exact (characteristic, opCode) pair, never a bare opcode.
-        #expect(client.identityGateError(for: SetTempRateRequest()) ==
-                    .identityNotEstablished(opcode: SetTempRateRequest.props.opCode))
+        #expect(
+            client.identityGateError(for: SetTempRateRequest())
+                == .identityNotEstablished(opcode: SetTempRateRequest.props.opCode))
     }
 
     /// An awaited send that is identity-refused leaves no pending coordinator entry — the pre-write
@@ -210,7 +215,8 @@ import TandemMessages
         await #expect(throws: PumpBLEClient.ClientError.identityNotEstablished(opcode: 0xCE)) {
             try await client.sendAwaitingResponse(self.mobiOnlyMessage(), deadline: 5)
         }
-        #expect(client.transactions.inFlightCount == 0,
-                "a pre-write identity refusal must never register a pending transaction")
+        #expect(
+            client.transactions.inFlightCount == 0,
+            "a pre-write identity refusal must never register a pending transaction")
     }
 }

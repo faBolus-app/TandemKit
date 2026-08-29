@@ -4,13 +4,13 @@ import Foundation
 /// Signed. Port of `request/control/CancelBolusRequest` (opcode 0xA0 / -96, size 4 + HMAC).
 public struct CancelBolusRequest: Message {
     public static let props = MessageProps(
-        opCode: 0xA0,               // -96 as unsigned
+        opCode: 0xA0,  // -96 as unsigned
         size: 4,
         signed: true,
         type: .request,
         characteristic: .control,
-        responseOpCode: 0xA1,       // CancelBolusResponse
-        minApi: .v2_5               // upstream API_V2_5
+        responseOpCode: 0xA1,  // CancelBolusResponse
+        minApi: .v2_5  // upstream API_V2_5
     )
 
     public var cargo: [UInt8]

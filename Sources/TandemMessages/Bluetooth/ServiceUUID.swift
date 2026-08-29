@@ -15,6 +15,6 @@ public enum ServiceUUID {
 
     /// Characteristics we subscribe to notifications on (subset the pump exposes).
     public static let notificationCharacteristics: [Characteristic] = [
-        .currentStatus, .qualifyingEvents, .historyLog, .authorization, .control, .controlStream,
+        .currentStatus, .qualifyingEvents, .historyLog, .authorization, .control, .controlStream
     ]
 }

@@ -28,9 +28,11 @@ public struct BenchSessionConfig: Sendable, Equatable {
     /// `PUMPX2_DELIVER_SALINE=1` — the only flag that unblocks a delivery write.
     public var deliveryEnabled: Bool
 
-    public init(model: PumpModel, apiVersion: ApiVersion, firmwareLabel: String,
-                pairingScheme: BenchPairingScheme, cartridgePresent: Bool, cgmPresent: Bool,
-                salineAttested: Bool, deliveryEnabled: Bool) {
+    public init(
+        model: PumpModel, apiVersion: ApiVersion, firmwareLabel: String,
+        pairingScheme: BenchPairingScheme, cartridgePresent: Bool, cgmPresent: Bool,
+        salineAttested: Bool, deliveryEnabled: Bool
+    ) {
         self.model = model
         self.apiVersion = apiVersion
         self.firmwareLabel = firmwareLabel
@@ -44,7 +46,10 @@ public struct BenchSessionConfig: Sendable, Equatable {
     /// Stable model token for keys/labels (`PumpModel` has no rawValue).
     public var modelName: String { BenchSessionConfig.name(for: model) }
     public static func name(for model: PumpModel) -> String {
-        switch model { case .tslim: return "tslim"; case .mobi: return "mobi" }
+        switch model {
+        case .tslim: return "tslim"
+        case .mobi: return "mobi"
+        }
     }
 
     /// A one-line human label for this session's config.
@@ -147,7 +152,9 @@ public enum BenchCoverage {
             case .pending(let reason):
                 return .gap("reversible affordance pending — \(reason)")
             case .viaPrimaryPair(let primary):
-                return .gap("restore-half of the \(primary) reversible pair — recorded when that pair runs behind the saline gate")
+                return .gap(
+                    "restore-half of the \(primary) reversible pair — recorded when that pair runs behind the saline gate"
+                )
             case .drivable:
                 if cmd.requiresCGM && !cfg.cgmPresent {
                     return .deferred("needs a CGM-present session (PUMP_CGM_PRESENT=1)")
@@ -160,8 +167,9 @@ public enum BenchCoverage {
                 return .deferred("needs a cartridge (saline) session on \(cfg.modelName)")
             }
             if !(cfg.salineAttested && cfg.deliveryEnabled) {
-                return .deferred("needs a saline-attested delivery session "
-                    + "(PUMP_SALINE_ATTESTED=1 + PUMPX2_DELIVER_SALINE=1)")
+                return .deferred(
+                    "needs a saline-attested delivery session "
+                        + "(PUMP_SALINE_ATTESTED=1 + PUMPX2_DELIVER_SALINE=1)")
             }
             if cmd.requiresCGM && !cfg.cgmPresent {
                 return .deferred("needs a CGM-present session (PUMP_CGM_PRESENT=1)")
@@ -169,7 +177,7 @@ public enum BenchCoverage {
             return .exercise(.delivery)
 
         case .pairing:
-            return .exercise(.pairing) // unreachable (handled above); keeps the switch exhaustive
+            return .exercise(.pairing)  // unreachable (handled above); keeps the switch exhaustive
         }
     }
 
@@ -203,11 +211,20 @@ public struct BenchCoverageCell: Sendable, Codable, Equatable {
     public var session: String
     public var timestamp: String
 
-    public init(model: String, firmware: String, cartridge: Bool, cgm: Bool, command: String,
-                lane: BenchLane, state: BenchCellState, note: String, session: String, timestamp: String) {
-        self.model = model; self.firmware = firmware; self.cartridge = cartridge; self.cgm = cgm
-        self.command = command; self.lane = lane; self.state = state; self.note = note
-        self.session = session; self.timestamp = timestamp
+    public init(
+        model: String, firmware: String, cartridge: Bool, cgm: Bool, command: String,
+        lane: BenchLane, state: BenchCellState, note: String, session: String, timestamp: String
+    ) {
+        self.model = model
+        self.firmware = firmware
+        self.cartridge = cartridge
+        self.cgm = cgm
+        self.command = command
+        self.lane = lane
+        self.state = state
+        self.note = note
+        self.session = session
+        self.timestamp = timestamp
     }
 
     /// The composite key this cell occupies in the matrix (the five axes).
@@ -224,8 +241,10 @@ public struct BenchCoverageMatrix: Sendable, Codable {
     /// keyed by `key(model:firmware:cartridge:cgm:command:)`.
     public var cells: [String: BenchCoverageCell]
 
-    public init(schemaVersion: Int = BenchCoverageMatrix.currentSchemaVersion,
-                cells: [String: BenchCoverageCell] = [:]) {
+    public init(
+        schemaVersion: Int = BenchCoverageMatrix.currentSchemaVersion,
+        cells: [String: BenchCoverageCell] = [:]
+    ) {
         self.schemaVersion = schemaVersion
         self.cells = cells
     }
@@ -245,7 +264,7 @@ public struct BenchCoverageMatrix: Sendable, Codable {
         case .gap: return 3
         case .notApplicable: return 2
         case .deferred: return 1
-        default: return 0   // untested
+        default: return 0  // untested
         }
     }
 
@@ -255,7 +274,7 @@ public struct BenchCoverageMatrix: Sendable, Codable {
     /// PASS records a fix); between two placeholders the more-informative one wins, then latest.
     public static func shouldReplace(_ old: BenchCoverageCell, with new: BenchCoverageCell) -> Bool {
         let newReal = isReal(new.state), oldReal = isReal(old.state)
-        if newReal != oldReal { return newReal }               // real beats placeholder
+        if newReal != oldReal { return newReal }  // real beats placeholder
         if newReal && oldReal { return new.timestamp >= old.timestamp }
         let rn = placeholderRank(new.state), ro = placeholderRank(old.state)
         if rn != ro { return rn > ro }
@@ -305,8 +324,9 @@ public struct BenchCoverageMatrix: Sendable, Codable {
             // Best (strongest) cell: pass > fail > gap > notApplicable > deferred > untested.
             let ranked = group.sorted { rank($0.state) > rank($1.state) }
             let top = ranked[0]
-            return Rollup(model: top.model, firmware: top.firmware, command: top.command,
-                          lane: top.lane, best: top.state, note: top.note)
+            return Rollup(
+                model: top.model, firmware: top.firmware, command: top.command,
+                lane: top.lane, best: top.state, note: top.note)
         }.sorted { ($0.model, $0.firmware, $0.command) < ($1.model, $1.firmware, $1.command) }
     }
 
@@ -402,8 +422,12 @@ public struct BenchCoverageMatrix: Sendable, Codable {
 
     private func symbol(_ s: BenchCellState) -> String {
         switch s {
-        case .pass: return "✅"; case .fail: return "❌"; case .gap: return "🚫"
-        case .notApplicable: return "➖"; case .deferred: return "⏳"; case .untested: return "•"
+        case .pass: return "✅"
+        case .fail: return "❌"
+        case .gap: return "🚫"
+        case .notApplicable: return "➖"
+        case .deferred: return "⏳"
+        case .untested: return "•"
         }
     }
     private func escape(_ s: String) -> String { s.replacingOccurrences(of: "|", with: "\\|") }

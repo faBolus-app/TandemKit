@@ -32,7 +32,7 @@ public struct ApiVersionResponse: ResponseMessage {
 public struct NonControlIQIOBResponse: ResponseMessage {
     public static let props = MessageProps(opCode: 39, size: 12, type: .response, characteristic: .currentStatus)
     public var cargo: [UInt8]
-    public private(set) var iob: UInt32 = 0                 // milliunits
+    public private(set) var iob: UInt32 = 0  // milliunits
     public private(set) var timeRemainingSeconds: UInt32 = 0
     public private(set) var totalIOB: UInt32 = 0
     public init() { cargo = [] }
@@ -93,7 +93,8 @@ public struct LastBGResponse: ResponseMessage {
 
 /// Ack for a suspend-pumping command (signed). `response/control/SuspendPumpingResponse` (op 0x9D, 1B).
 public struct SuspendPumpingResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0x9D, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 0x9D, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
@@ -102,7 +103,10 @@ public struct SuspendPumpingResponse: ResponseMessage {
         // fail CLOSED on a short buffer — never default to status 0 (== accepted). Unreachable
         // via ResponseParser (length-guarded + HMAC-verified first), but a direct caller must not decode
         // an empty/truncated frame as an ACCEPTED suspend.
-        guard raw.count >= Self.props.size else { status = 1; return }
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
         status = Int(raw[0])
     }
     public mutating func parse(_ raw: [UInt8]) { self = SuspendPumpingResponse(cargo: raw) }
@@ -112,7 +116,8 @@ public struct SuspendPumpingResponse: ResponseMessage {
 
 /// Ack for a resume-pumping command (signed). `response/control/ResumePumpingResponse` (op 0x9B, 1B).
 public struct ResumePumpingResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0x9B, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 0x9B, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
@@ -121,7 +126,10 @@ public struct ResumePumpingResponse: ResponseMessage {
         // fail CLOSED on a short buffer — never default to status 0 (== accepted). Unreachable
         // via ResponseParser (length-guarded + HMAC-verified first), but a direct caller must not decode
         // an empty/truncated frame as an ACCEPTED resume.
-        guard raw.count >= Self.props.size else { status = 1; return }
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
         status = Int(raw[0])
     }
     public mutating func parse(_ raw: [UInt8]) { self = ResumePumpingResponse(cargo: raw) }
@@ -132,7 +140,8 @@ public struct ResumePumpingResponse: ResponseMessage {
 /// Ack for a set-temp-rate command (signed). `response/control/SetTempRateResponse` (op 0xA5, 4B).
 /// `tempRateId` cross-references the `TempRateActivatedHistoryLog` event.
 public struct SetTempRateResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xA5, size: 4, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 0xA5, size: 4, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status = 0
     public private(set) var tempRateId = 0
@@ -143,7 +152,10 @@ public struct SetTempRateResponse: ResponseMessage {
         // tempRateId's partial (length-3) read, or an empty/truncated buffer defaults status to 0 (== accepted).
         // Unreachable via ResponseParser (length-guarded + HMAC-verified first), but a direct caller must
         // not decode an empty/truncated frame as an ACCEPTED temp-rate change.
-        guard raw.count >= Self.props.size else { status = 1; return }
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
         status = Int(raw[0])
         tempRateId = Bytes.readShort(raw, 1)
     }
@@ -155,7 +167,8 @@ public struct SetTempRateResponse: ResponseMessage {
 /// Ack for a stop-temp-rate command (signed). `response/control/StopTempRateResponse` (op 0xA7, 3B).
 /// `tempRateId` cross-references the `TempRateCompletedHistoryLog` event.
 public struct StopTempRateResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xA7, size: 3, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 0xA7, size: 3, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status = 0
     public private(set) var tempRateId = 0
@@ -166,7 +179,10 @@ public struct StopTempRateResponse: ResponseMessage {
         // (== accepted) for a delivery-affecting stop-temp-rate. Unreachable via ResponseParser
         // (length-guarded + HMAC-verified), but a direct caller must not read an ACCEPTED stop from an
         // empty/truncated frame. Mirrors the already-hardened SetTempRateResponse.
-        guard raw.count >= Self.props.size else { status = 1; return }
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
         status = Int(raw[0])
         tempRateId = Bytes.readShort(raw, 1)
     }
@@ -177,47 +193,87 @@ public struct StopTempRateResponse: ResponseMessage {
 
 /// Acks for the cartridge-change / fill-tubing / fill-cannula workflow (signed CONTROL, status@0).
 public struct EnterChangeCartridgeModeResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0x91, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 0x91, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
+        status = Int(raw[0])
+    }
     public mutating func parse(_ raw: [UInt8]) { self = EnterChangeCartridgeModeResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
 public struct ExitChangeCartridgeModeResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0x93, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 0x93, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
+        status = Int(raw[0])
+    }
     public mutating func parse(_ raw: [UInt8]) { self = ExitChangeCartridgeModeResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
 public struct EnterFillTubingModeResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0x95, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 0x95, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
+        status = Int(raw[0])
+    }
     public mutating func parse(_ raw: [UInt8]) { self = EnterFillTubingModeResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
 public struct ExitFillTubingModeResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0x97, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 0x97, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
+        status = Int(raw[0])
+    }
     public mutating func parse(_ raw: [UInt8]) { self = ExitFillTubingModeResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
 public struct FillCannulaResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0x99, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 0x99, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
+        status = Int(raw[0])
+    }
     public mutating func parse(_ raw: [UInt8]) { self = FillCannulaResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
@@ -225,7 +281,8 @@ public struct FillCannulaResponse: ResponseMessage {
 /// Ack for prime-tubing-suspend (signed CONTROL). `PrimeTubingSuspendResponse` (op 0xEF, 3B).
 /// statusCode@0, reserve@2.
 public struct PrimeTubingSuspendResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xEF, size: 3, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 0xEF, size: 3, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var statusCode = 0
     public private(set) var reserve = 0
@@ -234,7 +291,10 @@ public struct PrimeTubingSuspendResponse: ResponseMessage {
         cargo = raw
         // fail CLOSED on a short buffer — never decode statusCode 0 (== accepted) from a
         // truncated/empty prime-tubing-suspend ack.
-        guard raw.count >= Self.props.size else { statusCode = 1; return }
+        guard raw.count >= Self.props.size else {
+            statusCode = 1
+            return
+        }
         statusCode = Int(raw[0])
         reserve = Int(raw[2])
     }
@@ -244,143 +304,247 @@ public struct PrimeTubingSuspendResponse: ResponseMessage {
 
 /// Ack for set-max-bolus-limit (signed CONTROL). `SetMaxBolusLimitResponse` (op 0x87, 1B).
 public struct SetMaxBolusLimitResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0x87, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 0x87, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
+        status = Int(raw[0])
+    }
     public mutating func parse(_ raw: [UInt8]) { self = SetMaxBolusLimitResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
 
 /// Ack for set-max-basal-limit (signed CONTROL). `SetMaxBasalLimitResponse` (op 0x89, 1B).
 public struct SetMaxBasalLimitResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0x89, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 0x89, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
+        status = Int(raw[0])
+    }
     public mutating func parse(_ raw: [UInt8]) { self = SetMaxBasalLimitResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
 
 /// Ack for set-low-insulin-alert (signed CONTROL). `SetLowInsulinAlertResponse` (op 0xDF, 1B).
 public struct SetLowInsulinAlertResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xDF, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 0xDF, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
+        status = Int(raw[0])
+    }
     public mutating func parse(_ raw: [UInt8]) { self = SetLowInsulinAlertResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
 
 /// Ack for set-auto-off-alert (signed CONTROL). `SetAutoOffAlertResponse` (op 0xE1, 1B).
 public struct SetAutoOffAlertResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xE1, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 0xE1, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
+        status = Int(raw[0])
+    }
     public mutating func parse(_ raw: [UInt8]) { self = SetAutoOffAlertResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
 
 /// Ack for set-modes (signed CONTROL). `SetModesResponse` (op 0xCD, 1B).
 public struct SetModesResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xCD, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 0xCD, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
+        status = Int(raw[0])
+    }
     public mutating func parse(_ raw: [UInt8]) { self = SetModesResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
 
 /// Ack for set-active-IDP (signed CONTROL). `SetActiveIDPResponse` (op 0xED, 1B).
 public struct SetActiveIDPResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xED, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 0xED, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
+        status = Int(raw[0])
+    }
     public mutating func parse(_ raw: [UInt8]) { self = SetActiveIDPResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
 
 /// Ack for play-sound / find-my-pump (signed CONTROL). `PlaySoundResponse` (op 0xF5, 1B).
 public struct PlaySoundResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xF5, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 0xF5, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
+        status = Int(raw[0])
+    }
     public mutating func parse(_ raw: [UInt8]) { self = PlaySoundResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
 
 /// Ack for set-pump-sounds (signed CONTROL). `SetPumpSoundsResponse` (op 0xE5, 1B).
 public struct SetPumpSoundsResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xE5, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 0xE5, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
+        status = Int(raw[0])
+    }
     public mutating func parse(_ raw: [UInt8]) { self = SetPumpSoundsResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
 
 /// Ack for change-time-date (signed CONTROL). `ChangeTimeDateResponse` (op 0xD7, 1B).
 public struct ChangeTimeDateResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xD7, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 0xD7, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
+        status = Int(raw[0])
+    }
     public mutating func parse(_ raw: [UInt8]) { self = ChangeTimeDateResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
 
 /// Ack for a remote carb entry (signed CONTROL). `RemoteCarbEntryResponse` (op 0xF3, 1B).
 public struct RemoteCarbEntryResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xF3, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 0xF3, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
+        status = Int(raw[0])
+    }
     public mutating func parse(_ raw: [UInt8]) { self = RemoteCarbEntryResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
 
 /// Ack for a remote BG entry (signed CONTROL). `RemoteBgEntryResponse` (op 0xB7, 1B).
 public struct RemoteBgEntryResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xB7, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 0xB7, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
+        status = Int(raw[0])
+    }
     public mutating func parse(_ raw: [UInt8]) { self = RemoteBgEntryResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
 
 /// Ack for start-G6-sensor-session (signed CONTROL). `StartDexcomG6SensorSessionResponse` (op 0xB3, 1B).
 public struct StartDexcomG6SensorSessionResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xB3, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 0xB3, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
+        status = Int(raw[0])
+    }
     public mutating func parse(_ raw: [UInt8]) { self = StartDexcomG6SensorSessionResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
 
 /// Ack for stop-CGM-sensor-session (signed CONTROL). `StopDexcomCGMSensorSessionResponse` (op 0xB5, 1B).
 public struct StopDexcomCGMSensorSessionResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xB5, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 0xB5, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
+        status = Int(raw[0])
+    }
     public mutating func parse(_ raw: [UInt8]) { self = StopDexcomCGMSensorSessionResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
@@ -388,7 +552,8 @@ public struct StopDexcomCGMSensorSessionResponse: ResponseMessage {
 /// Ack for set-sensor-type (signed CONTROL). `SetSensorTypeResponse` (op 0xC1, 2B).
 /// status@0, statusAcknowledgement@1.
 public struct SetSensorTypeResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xC1, size: 2, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 0xC1, size: 2, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status = 0
     public private(set) var statusAcknowledgement = 0
@@ -397,7 +562,10 @@ public struct SetSensorTypeResponse: ResponseMessage {
         cargo = raw
         // fail CLOSED on a short buffer — never decode status 0 (== accepted) from a
         // truncated/empty set-sensor-type ack.
-        guard raw.count >= Self.props.size else { status = 1; return }
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
         status = Int(raw[0])
         statusAcknowledgement = Int(raw[1])
     }
@@ -407,11 +575,19 @@ public struct SetSensorTypeResponse: ResponseMessage {
 
 /// Ack for set-G7-pairing-code (signed CONTROL). `SetDexcomG7PairingCodeResponse` (op 0xFD, 2B).
 public struct SetDexcomG7PairingCodeResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xFD, size: 2, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 0xFD, size: 2, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
+        status = Int(raw[0])
+    }
     public mutating func parse(_ raw: [UInt8]) { self = SetDexcomG7PairingCodeResponse(cargo: raw) }
     public var accepted: Bool { status == 0 }
 }
@@ -419,7 +595,8 @@ public struct SetDexcomG7PairingCodeResponse: ResponseMessage {
 /// Ack for a cancel-bolus command (a.k.a. BolusTermination) — signed.
 /// `response/control/CancelBolusResponse` (op 0xA1, 5B). statusId@0, bolusId short@1, reasonId@3.
 public struct CancelBolusResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xA1, size: 5, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 0xA1, size: 5, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var statusId = 0
     public private(set) var bolusId = 0
@@ -431,7 +608,11 @@ public struct CancelBolusResponse: ResponseMessage {
         // so a fully-empty cargo would otherwise decode "your bolus was cancelled" from ZERO pump bytes.
         // Set BOTH statusId and reasonId to a non-success sentinel so `wasCancelled` can never be true from
         // a truncated/empty frame (unreachable via ResponseParser, but a direct caller must fail closed).
-        guard raw.count >= Self.props.size else { statusId = 1; reasonId = 1; return }
+        guard raw.count >= Self.props.size else {
+            statusId = 1
+            reasonId = 1
+            return
+        }
         statusId = Int(raw[0])
         bolusId = Bytes.readShort(raw, 1)
         reasonId = Int(raw[3])
@@ -444,11 +625,19 @@ public struct CancelBolusResponse: ResponseMessage {
 /// Ack for releasing a pending bolus permission (signed). Closes out the potential bolus in the
 /// history logs. `response/control/BolusPermissionReleaseResponse` (op 0xF1, 1B). status@0.
 public struct BolusPermissionReleaseResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 0xF1, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 0xF1, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status = 0
     public init() { cargo = [] }
-    public init(cargo raw: [UInt8]) { cargo = raw; guard raw.count >= Self.props.size else { status = 1; return }; status = Int(raw[0]) }
+    public init(cargo raw: [UInt8]) {
+        cargo = raw
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
+        status = Int(raw[0])
+    }
     public mutating func parse(_ raw: [UInt8]) { self = BolusPermissionReleaseResponse(cargo: raw) }
     /// status 0 = SUCCESS.
     public var released: Bool { status == 0 }
@@ -634,8 +823,8 @@ public struct IDPSettingsResponse: ResponseMessage {
     public private(set) var idpId = 0
     public private(set) var name = ""
     public private(set) var numberOfProfileSegments = 0
-    public private(set) var insulinDuration = 0             // minutes
-    public private(set) var maxBolus = 0                    // milliunits
+    public private(set) var insulinDuration = 0  // minutes
+    public private(set) var maxBolus = 0  // milliunits
     public private(set) var carbEntry = false
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
@@ -661,11 +850,11 @@ public struct IDPSegmentResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var idpId = 0
     public private(set) var segmentIndex = 0
-    public private(set) var profileStartTime = 0            // minutes past midnight
-    public private(set) var profileBasalRate = 0            // milliunits/hr
-    public private(set) var profileCarbRatio = 0            // 1000-increments
-    public private(set) var profileTargetBG = 0             // mg/dL
-    public private(set) var profileISF = 0                  // mg/dL per unit
+    public private(set) var profileStartTime = 0  // minutes past midnight
+    public private(set) var profileBasalRate = 0  // milliunits/hr
+    public private(set) var profileCarbRatio = 0  // 1000-increments
+    public private(set) var profileTargetBG = 0  // mg/dL
+    public private(set) var profileISF = 0  // mg/dL per unit
     public private(set) var idpStatusId = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
@@ -762,14 +951,14 @@ public struct ProfileStatusResponse: ResponseMessage {
     public static let props = MessageProps(opCode: 63, size: 8, type: .response, characteristic: .currentStatus)
     public var cargo: [UInt8]
     public private(set) var numberOfProfiles = 0
-    public private(set) var idpSlotIds: [Int] = []        // all six raw slot ids (may be -1)
+    public private(set) var idpSlotIds: [Int] = []  // all six raw slot ids (may be -1)
     public private(set) var activeSegmentIndex = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
         guard raw.count >= 8 else { return }
         numberOfProfiles = Int(Int8(bitPattern: raw[0]))
-        idpSlotIds = (1...6).map { Int(Int8(bitPattern: raw[$0])) }   // -1 sentinel for empty slots
+        idpSlotIds = (1...6).map { Int(Int8(bitPattern: raw[$0])) }  // -1 sentinel for empty slots
         activeSegmentIndex = Int(Int8(bitPattern: raw[7]))
     }
     public mutating func parse(_ raw: [UInt8]) { self = ProfileStatusResponse(cargo: raw) }
@@ -808,10 +997,10 @@ public struct ProfileStatusResponse: ResponseMessage {
 public struct CurrentActiveIdpValuesResponse: ResponseMessage {
     public static let props = MessageProps(opCode: 0x97, size: 10, type: .response, characteristic: .currentStatus)
     public var cargo: [UInt8]
-    public private(set) var currentCarbRatio = 0            // 1000-increments (10000 = 10 g/U)
-    public private(set) var currentTargetBg = 0             // mg/dL (uint16 LE @4; capture-backed, bench-gated)
-    public private(set) var currentInsulinDuration = 0      // minutes
-    public private(set) var currentIsf = 0                  // mg/dL per unit
+    public private(set) var currentCarbRatio = 0  // 1000-increments (10000 = 10 g/U)
+    public private(set) var currentTargetBg = 0  // mg/dL (uint16 LE @4; capture-backed, bench-gated)
+    public private(set) var currentInsulinDuration = 0  // minutes
+    public private(set) var currentIsf = 0  // mg/dL per unit
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
@@ -831,7 +1020,7 @@ public struct CurrentActiveIdpValuesResponse: ResponseMessage {
 public struct GlobalMaxBolusSettingsResponse: ResponseMessage {
     public static let props = MessageProps(opCode: 0x8D, size: 4, type: .response, characteristic: .currentStatus)
     public var cargo: [UInt8]
-    public private(set) var maxBolus = 0                    // milliunits
+    public private(set) var maxBolus = 0  // milliunits
     public private(set) var maxBolusDefault = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
@@ -849,7 +1038,7 @@ public struct GlobalMaxBolusSettingsResponse: ResponseMessage {
 public struct BasalLimitSettingsResponse: ResponseMessage {
     public static let props = MessageProps(opCode: 0x8B, size: 8, type: .response, characteristic: .currentStatus)
     public var cargo: [UInt8]
-    public private(set) var basalLimit = 0                  // milliunits/hr
+    public private(set) var basalLimit = 0  // milliunits/hr
     public private(set) var basalLimitDefault = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
@@ -931,12 +1120,12 @@ public struct HomeScreenMirrorResponse: ResponseMessage {
     /// for an unrecognized icon id, because inventing a direction is worse than showing none.
     public var cgmTrendArrow: String {
         switch cgmTrendIcon {
-        case .doubleUp:   return "⇈"
-        case .up:         return "↑"
-        case .upRight:    return "↗"
-        case .flat:       return "→"
-        case .downRight:  return "↘"
-        case .down:       return "↓"
+        case .doubleUp: return "⇈"
+        case .up: return "↑"
+        case .upRight: return "↗"
+        case .flat: return "→"
+        case .downRight: return "↘"
+        case .down: return "↓"
         case .doubleDown: return "⇊"
         case .noArrow, .none: return ""
         }
@@ -975,7 +1164,10 @@ public struct CurrentBatteryV1Response: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        if raw.count >= 2 { currentBatteryAbc = Int(raw[0]); currentBatteryIbc = Int(raw[1]) }
+        if raw.count >= 2 {
+            currentBatteryAbc = Int(raw[0])
+            currentBatteryIbc = Int(raw[1])
+        }
     }
     public mutating func parse(_ raw: [UInt8]) { self = CurrentBatteryV1Response(cargo: raw) }
     public var batteryPercent: Int { currentBatteryIbc }
@@ -985,7 +1177,7 @@ public struct CurrentBatteryV1Response: ResponseMessage {
 public struct ControlIQIOBResponse: ResponseMessage {
     public static let props = MessageProps(opCode: 109, size: 17, type: .response, characteristic: .currentStatus)
     public var cargo: [UInt8]
-    public private(set) var mudaliarIOB: UInt32 = 0        // milliunits
+    public private(set) var mudaliarIOB: UInt32 = 0  // milliunits
     public private(set) var timeRemainingSeconds: UInt32 = 0
     public private(set) var mudaliarTotalIOB: UInt32 = 0
     public private(set) var swan6hrIOB: UInt32 = 0
@@ -1035,7 +1227,7 @@ public struct CurrentBolusStatusResponse: ResponseMessage {
 public struct InsulinStatusResponse: ResponseMessage {
     public static let props = MessageProps(opCode: 37, size: 4, type: .response, characteristic: .currentStatus)
     public var cargo: [UInt8]
-    public private(set) var currentInsulinAmount: Int = 0   // units remaining
+    public private(set) var currentInsulinAmount: Int = 0  // units remaining
     public private(set) var isEstimate: Int = 0
     public private(set) var insulinLowAmount: Int = 0
     public init() { cargo = [] }
@@ -1056,7 +1248,7 @@ public struct CurrentBatteryV2Response: ResponseMessage {
     public static let props = MessageProps(opCode: 145, size: 11, type: .response, characteristic: .currentStatus)
     public var cargo: [UInt8]
     public private(set) var currentBatteryAbc: Int = 0
-    public private(set) var currentBatteryIbc: Int = 0      // battery percent
+    public private(set) var currentBatteryIbc: Int = 0  // battery percent
     public private(set) var chargingStatus: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
@@ -1078,9 +1270,9 @@ public struct CurrentEgvGuiDataV2Response: ResponseMessage {
     public static let props = MessageProps(opCode: 193, size: 8, type: .response, characteristic: .currentStatus)
     public var cargo: [UInt8]
     public private(set) var bgReadingTimestampSeconds: UInt32 = 0
-    public private(set) var cgmReading: Int = 0        // mg/dL
+    public private(set) var cgmReading: Int = 0  // mg/dL
     public private(set) var egvStatusId: Int = 0
-    public private(set) var trendRate: Int = 0         // signed (Int8)
+    public private(set) var trendRate: Int = 0  // signed (Int8)
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
@@ -1144,14 +1336,14 @@ public enum EgvTrend {
         // |r| >= 3 is "rapid" in BOTH directions. It previously was not: -3.0 matched the single-arrow
         // band while +3.0 fell through to the catch-all double-up.
         switch r {
-        case ...(-3):      return "⇊"   // falling rapidly
-        case (-3)..<(-2):  return "↓"   // falling
-        case (-2)..<(-1):  return "↘"   // falling slightly
-        case (-1)...1:     return "→"   // steady
-        case 1..<2:        return "↗"   // rising slightly
-        case 2..<3:        return "↑"   // rising
-        case 3...:         return "⇈"   // rising rapidly
-        default:           return nil   // unreachable for a finite rate; never guess
+        case ...(-3): return "⇊"  // falling rapidly
+        case (-3)..<(-2): return "↓"  // falling
+        case (-2)..<(-1): return "↘"  // falling slightly
+        case (-1)...1: return "→"  // steady
+        case 1..<2: return "↗"  // rising slightly
+        case 2..<3: return "↑"  // rising
+        case 3...: return "⇈"  // rising rapidly
+        default: return nil  // unreachable for a finite rate; never guess
         }
     }
 }
@@ -1207,8 +1399,8 @@ public struct LastBolusStatusV2Response: ResponseMessage {
     public private(set) var status: Int = 0
     public private(set) var bolusId: Int = 0
     public private(set) var timestamp: UInt32 = 0
-    public private(set) var deliveredVolume: UInt32 = 0     // milliunits
-    public private(set) var requestedVolume: UInt32 = 0     // milliunits
+    public private(set) var deliveredVolume: UInt32 = 0  // milliunits
+    public private(set) var requestedVolume: UInt32 = 0  // milliunits
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
@@ -1246,11 +1438,11 @@ public struct BolusCalcDataSnapshotResponse: ResponseMessage {
     public private(set) var correctionFactor: Int = 0
     public private(set) var iob: UInt32 = 0
     public private(set) var cartridgeRemainingInsulin: Int = 0
-    public private(set) var targetBg: Int = 0                // mg/dL
-    public private(set) var isf: Int = 0                     // correction factor, mg/dL per unit
+    public private(set) var targetBg: Int = 0  // mg/dL
+    public private(set) var isf: Int = 0  // correction factor, mg/dL per unit
     public private(set) var carbEntryEnabled: Bool = false
-    public private(set) var carbRatio: UInt32 = 0            // see carbRatioGramsPerUnit
-    public private(set) var maxBolusAmount: Int = 0          // milliunits
+    public private(set) var carbRatio: UInt32 = 0  // see carbRatioGramsPerUnit
+    public private(set) var maxBolusAmount: Int = 0  // milliunits
     /// The configured hourly bolus ceiling, or 0 if unconfigured. Oracle @20 (uint32).
     public private(set) var maxBolusHourlyTotal: UInt32 = 0
     /// true if the maximum bolus has been exceeded for the interval. Oracle @24. LAYOUT +
@@ -1288,7 +1480,8 @@ public struct BolusCalcDataSnapshotResponse: ResponseMessage {
 /// Bolus permission grant. `response/control/BolusPermissionResponse` (opcode 163, 6 bytes).
 /// `status == 0` = granted; `bolusId` is used for InitiateBolus/Cancel.
 public struct BolusPermissionResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 163, size: 6, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 163, size: 6, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status: Int = 0
     public private(set) var bolusId: Int = 0
@@ -1299,7 +1492,10 @@ public struct BolusPermissionResponse: ResponseMessage {
         // fail CLOSED on a short buffer — never default to status 0 (== granted). Unreachable via
         // ResponseParser (length-guarded + HMAC-verified first), but a direct caller must neither
         // trap (precondition on raw[0]) nor decode a truncated frame as a GRANTED bolus permission.
-        guard raw.count >= Self.props.size else { status = 1; return }
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
         status = Int(raw[0])
         bolusId = Bytes.readShort(raw, 1)
         nackReasonId = Int(raw[5])
@@ -1313,7 +1509,8 @@ public struct BolusPermissionResponse: ResponseMessage {
 
 /// Initiate-bolus ack. `response/control/InitiateBolusResponse` (opcode 159, 6 bytes).
 public struct InitiateBolusResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 159, size: 6, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 159, size: 6, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status: Int = 0
     public private(set) var bolusId: Int = 0
@@ -1324,7 +1521,10 @@ public struct InitiateBolusResponse: ResponseMessage {
         // fail CLOSED on a short buffer — never default to status 0 (== accepted). Unreachable via
         // ResponseParser (length-guarded + HMAC-verified first), but a direct caller must neither
         // trap (precondition on raw[0]) nor decode a truncated frame as an ACCEPTED bolus.
-        guard raw.count >= Self.props.size else { status = 1; return }
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
         status = Int(raw[0])
         bolusId = Bytes.readShort(raw, 1)
         statusTypeId = Int(raw[5])
@@ -1340,7 +1540,8 @@ public struct InitiateBolusResponse: ResponseMessage {
 
 /// Control response. Ported from ActivateShelfModeResponse.java (opcode raw -69).
 public struct ActivateShelfModeResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 187, size: 0, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 187, size: 0, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
@@ -1352,7 +1553,8 @@ public struct ActivateShelfModeResponse: ResponseMessage {
 
 /// Control response. Ported from AdditionalBolusResponse.java (opcode raw -5).
 public struct AdditionalBolusResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 251, size: 5, signed: true, type: .response, characteristic: .control, modifiesInsulinDelivery: true)
+    public static let props = MessageProps(
+        opCode: 251, size: 5, signed: true, type: .response, characteristic: .control, modifiesInsulinDelivery: true)
     public var cargo: [UInt8]
     public private(set) var status: Int = 0
     public private(set) var bolusId: Int = 0
@@ -1370,7 +1572,8 @@ public struct AdditionalBolusResponse: ResponseMessage {
 
 /// Control response. Ported from CgmHighLowAlertResponse.java (opcode raw -61).
 public struct CgmHighLowAlertResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 195, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 195, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status: Int = 0
     public init() { cargo = [] }
@@ -1384,7 +1587,8 @@ public struct CgmHighLowAlertResponse: ResponseMessage {
 
 /// Control response. Ported from CgmOutOfRangeAlertResponse.java (opcode raw -57).
 public struct CgmOutOfRangeAlertResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 199, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 199, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status: Int = 0
     public init() { cargo = [] }
@@ -1398,7 +1602,8 @@ public struct CgmOutOfRangeAlertResponse: ResponseMessage {
 
 /// Control response. Ported from CgmRiseFallAlertResponse.java (opcode raw -59).
 public struct CgmRiseFallAlertResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 197, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 197, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status: Int = 0
     public init() { cargo = [] }
@@ -1412,7 +1617,8 @@ public struct CgmRiseFallAlertResponse: ResponseMessage {
 
 /// Control response. Ported from ChangeControlIQSettingsResponse.java (opcode raw -53).
 public struct ChangeControlIQSettingsResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 203, size: 3, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 203, size: 3, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status: Int = 0
     public init() { cargo = [] }
@@ -1426,7 +1632,8 @@ public struct ChangeControlIQSettingsResponse: ResponseMessage {
 
 /// Control response. Ported from CreateIDPResponse.java (opcode raw -25).
 public struct CreateIDPResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 231, size: 2, signed: true, type: .response, characteristic: .control, modifiesInsulinDelivery: true)
+    public static let props = MessageProps(
+        opCode: 231, size: 2, signed: true, type: .response, characteristic: .control, modifiesInsulinDelivery: true)
     public var cargo: [UInt8]
     public private(set) var status: Int = 0
     public private(set) var newIdpId: Int = 0
@@ -1442,7 +1649,8 @@ public struct CreateIDPResponse: ResponseMessage {
 
 /// Control response. Ported from DeleteIDPResponse.java (opcode raw -81).
 public struct DeleteIDPResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 175, size: 2, signed: true, type: .response, characteristic: .control, modifiesInsulinDelivery: true)
+    public static let props = MessageProps(
+        opCode: 175, size: 2, signed: true, type: .response, characteristic: .control, modifiesInsulinDelivery: true)
     public var cargo: [UInt8]
     public private(set) var status: Int = 0
     public private(set) var deletedIdpId: Int = 0
@@ -1458,7 +1666,8 @@ public struct DeleteIDPResponse: ResponseMessage {
 
 /// Control response. Ported from DisconnectPumpResponse.java (opcode raw -65).
 public struct DisconnectPumpResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 191, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 191, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status: Int = 0
     public init() { cargo = [] }
@@ -1472,7 +1681,8 @@ public struct DisconnectPumpResponse: ResponseMessage {
 
 /// Control response. Ported from FactoryResetBResponse.java.
 public struct FactoryResetBResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 125, size: 0, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 125, size: 0, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
@@ -1484,7 +1694,8 @@ public struct FactoryResetBResponse: ResponseMessage {
 
 /// Control response. Ported from FactoryResetResponse.java (opcode raw -23).
 public struct FactoryResetResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 233, size: 0, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 233, size: 0, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
@@ -1496,7 +1707,8 @@ public struct FactoryResetResponse: ResponseMessage {
 
 /// Control response. Ported from RenameIDPResponse.java (opcode raw -87).
 public struct RenameIDPResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 169, size: 2, signed: true, type: .response, characteristic: .control, modifiesInsulinDelivery: true)
+    public static let props = MessageProps(
+        opCode: 169, size: 2, signed: true, type: .response, characteristic: .control, modifiesInsulinDelivery: true)
     public var cargo: [UInt8]
     public private(set) var status: Int = 0
     public private(set) var numberOfProfiles: Int = 0
@@ -1512,7 +1724,8 @@ public struct RenameIDPResponse: ResponseMessage {
 
 /// Control response. Ported from SendTipsControlGenericTestResponse.java.
 public struct SendTipsControlGenericTestResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 119, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 119, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status: Int = 0
     public init() { cargo = [] }
@@ -1526,7 +1739,8 @@ public struct SendTipsControlGenericTestResponse: ResponseMessage {
 
 /// Control response. Ported from SetBgReminderResponse.java (opcode raw -39).
 public struct SetBgReminderResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 217, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 217, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status: Int = 0
     public init() { cargo = [] }
@@ -1540,7 +1754,8 @@ public struct SetBgReminderResponse: ResponseMessage {
 
 /// Control response. Ported from SetG6TransmitterIdResponse.java (opcode raw -79).
 public struct SetG6TransmitterIdResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 177, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 177, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status: Int = 0
     public init() { cargo = [] }
@@ -1554,7 +1769,8 @@ public struct SetG6TransmitterIdResponse: ResponseMessage {
 
 /// Control response. Ported from SetIDPSegmentResponse.java (opcode raw -85).
 public struct SetIDPSegmentResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 171, size: 2, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 171, size: 2, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status: Int = 0
     public private(set) var unknown: Int = 0
@@ -1570,7 +1786,8 @@ public struct SetIDPSegmentResponse: ResponseMessage {
 
 /// Control response. Ported from SetIDPSettingsResponse.java (opcode raw -83).
 public struct SetIDPSettingsResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 173, size: 2, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 173, size: 2, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status: Int = 0
     public init() { cargo = [] }
@@ -1584,7 +1801,8 @@ public struct SetIDPSettingsResponse: ResponseMessage {
 
 /// Control response. Ported from SetMissedMealBolusReminderResponse.java (opcode raw -37).
 public struct SetMissedMealBolusReminderResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 219, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 219, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status: Int = 0
     public init() { cargo = [] }
@@ -1598,7 +1816,8 @@ public struct SetMissedMealBolusReminderResponse: ResponseMessage {
 
 /// Control response. Ported from SetPumpAlertSnoozeResponse.java (opcode raw -43).
 public struct SetPumpAlertSnoozeResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 213, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 213, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status: Int = 0
     public init() { cargo = [] }
@@ -1612,7 +1831,8 @@ public struct SetPumpAlertSnoozeResponse: ResponseMessage {
 
 /// Control response. Ported from SetQuickBolusSettingsResponse.java (opcode raw -45).
 public struct SetQuickBolusSettingsResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 211, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 211, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status: Int = 0
     public init() { cargo = [] }
@@ -1626,7 +1846,8 @@ public struct SetQuickBolusSettingsResponse: ResponseMessage {
 
 /// Control response. Ported from SetSiteChangeReminderResponse.java (opcode raw -35).
 public struct SetSiteChangeReminderResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 221, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 221, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status: Int = 0
     public init() { cargo = [] }
@@ -1640,7 +1861,8 @@ public struct SetSiteChangeReminderResponse: ResponseMessage {
 
 /// Control response. Ported from SetSleepScheduleResponse.java (opcode raw -49).
 public struct SetSleepScheduleResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 207, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 207, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status: Int = 0
     public init() { cargo = [] }
@@ -1654,7 +1876,8 @@ public struct SetSleepScheduleResponse: ResponseMessage {
 
 /// Control response. Ported from StreamDataPreflightResponse.java (opcode raw -125).
 public struct StreamDataPreflightResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 131, size: 3, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 131, size: 3, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status: Int = 0
     public private(set) var statusTypeId: Int = 0
@@ -1672,7 +1895,8 @@ public struct StreamDataPreflightResponse: ResponseMessage {
 
 /// Control response. Ported from UserInteractionResponse.java (opcode raw -123).
 public struct UserInteractionResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 133, size: 1, signed: true, type: .response, characteristic: .control)
+    public static let props = MessageProps(
+        opCode: 133, size: 1, signed: true, type: .response, characteristic: .control)
     public var cargo: [UInt8]
     public private(set) var status: Int = 0
     public init() { cargo = [] }
@@ -1695,7 +1919,10 @@ public struct ErrorResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        if raw.count >= 2 { requestCodeId = Int(raw[0]); errorCodeId = Int(raw[1]) }
+        if raw.count >= 2 {
+            requestCodeId = Int(raw[0])
+            errorCodeId = Int(raw[1])
+        }
     }
     public mutating func parse(_ raw: [UInt8]) { self = ErrorResponse(cargo: raw) }
     /// errorCodeId 3 = INVALID_PARAMETER (then requestCodeId is the opcode that failed).
@@ -1906,7 +2133,8 @@ public struct CgmSupportPackageStatusResponse: ResponseMessage {
 
 /// Read response. Ported from CommonSoftwareInfoResponse.java (opcode raw -113).
 public struct CommonSoftwareInfoResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 143, size: 60, variableSize: true, type: .response, characteristic: .currentStatus)
+    public static let props = MessageProps(
+        opCode: 143, size: 60, variableSize: true, type: .response, characteristic: .currentStatus)
     public var cargo: [UInt8]
     public private(set) var appSoftwareVersion: String = ""
     public private(set) var appSoftwarePartNumber: Int = 0
@@ -1956,7 +2184,7 @@ public struct ControlIQSleepScheduleResponse: ResponseMessage {
     public init(cargo raw: [UInt8]) {
         cargo = raw
         guard raw.count >= 24 else { return }
-        schedules = [0, 6, 12, 18].map { SleepSchedule(raw, $0) }   // 4 slots × 6 bytes
+        schedules = [0, 6, 12, 18].map { SleepSchedule(raw, $0) }  // 4 slots × 6 bytes
     }
     public mutating func parse(_ raw: [UInt8]) { self = ControlIQSleepScheduleResponse(cargo: raw) }
 }
@@ -2093,7 +2321,8 @@ public struct GetSavedG7PairingCodeResponse: ResponseMessage {
 
 /// Read response. Ported from HighestAamResponse.java.
 public struct HighestAamResponse: ResponseMessage {
-    public static let props = MessageProps(opCode: 121, size: 11, variableSize: true, type: .response, characteristic: .currentStatus)
+    public static let props = MessageProps(
+        opCode: 121, size: 11, variableSize: true, type: .response, characteristic: .currentStatus)
     public var cargo: [UInt8]
     public private(set) var aamId: Int = 0
     public private(set) var faultId: Int = 0

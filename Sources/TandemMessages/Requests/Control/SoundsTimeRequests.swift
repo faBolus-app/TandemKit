@@ -8,7 +8,7 @@ public struct PlaySoundRequest: Message {
     public static let props = MessageProps(
         opCode: 0xF4, size: 0, signed: true, type: .request,
         characteristic: .control, risk: .benign, responseOpCode: 0xF5,
-        minApi: .benchConservativeUnverifiedFloor)   // find-my-pump; minApi = CONSERVATIVE/UNVERIFIED (bench, >2.5 only)
+        minApi: .benchConservativeUnverifiedFloor)  // find-my-pump; minApi = CONSERVATIVE/UNVERIFIED (bench, >2.5 only)
     public var cargo: [UInt8]
     public init() { cargo = [] }
     public mutating func parse(_ raw: [UInt8]) { cargo = [] }
@@ -21,7 +21,7 @@ public struct SetPumpSoundsRequest: Message {
     public static let props = MessageProps(
         opCode: 0xE4, size: 9, signed: true, type: .request,
         characteristic: .control, responseOpCode: 0xE5,
-        minApi: .benchConservativeUnverifiedFloor)   // CONSERVATIVE/UNVERIFIED bench floor (T-1, >2.5 only)
+        minApi: .benchConservativeUnverifiedFloor)  // CONSERVATIVE/UNVERIFIED bench floor (T-1, >2.5 only)
     public var cargo: [UInt8]
     public private(set) var quickBolusAnnunRaw = 0
     public private(set) var generalAnnunRaw = 0
@@ -32,9 +32,11 @@ public struct SetPumpSoundsRequest: Message {
     public private(set) var cgmAlertAnnunB = 0
     public private(set) var changeBitmaskRaw = 0
     public init() { cargo = [] }
-    public init(quickBolusAnnunRaw: Int, generalAnnunRaw: Int, reminderAnnunRaw: Int,
-                alertAnnunRaw: Int, alarmAnnunRaw: Int, cgmAlertAnnunA: Int, cgmAlertAnnunB: Int,
-                changeBitmaskRaw: Int) {
+    public init(
+        quickBolusAnnunRaw: Int, generalAnnunRaw: Int, reminderAnnunRaw: Int,
+        alertAnnunRaw: Int, alarmAnnunRaw: Int, cgmAlertAnnunA: Int, cgmAlertAnnunB: Int,
+        changeBitmaskRaw: Int
+    ) {
         self.quickBolusAnnunRaw = quickBolusAnnunRaw
         self.generalAnnunRaw = generalAnnunRaw
         self.reminderAnnunRaw = reminderAnnunRaw
@@ -43,19 +45,25 @@ public struct SetPumpSoundsRequest: Message {
         self.cgmAlertAnnunA = cgmAlertAnnunA
         self.cgmAlertAnnunB = cgmAlertAnnunB
         self.changeBitmaskRaw = changeBitmaskRaw
-        self.cargo = [0, UInt8(quickBolusAnnunRaw & 0xFF), UInt8(generalAnnunRaw & 0xFF),
-                      UInt8(reminderAnnunRaw & 0xFF), UInt8(alertAnnunRaw & 0xFF),
-                      UInt8(alarmAnnunRaw & 0xFF), UInt8(cgmAlertAnnunA & 0xFF),
-                      UInt8(cgmAlertAnnunB & 0xFF), UInt8(changeBitmaskRaw & 0xFF)]
+        self.cargo = [
+            0, UInt8(quickBolusAnnunRaw & 0xFF), UInt8(generalAnnunRaw & 0xFF),
+            UInt8(reminderAnnunRaw & 0xFF), UInt8(alertAnnunRaw & 0xFF),
+            UInt8(alarmAnnunRaw & 0xFF), UInt8(cgmAlertAnnunA & 0xFF),
+            UInt8(cgmAlertAnnunB & 0xFF), UInt8(changeBitmaskRaw & 0xFF)
+        ]
     }
     public mutating func parse(_ raw: [UInt8]) {
         let body = removeSignedRequestHmacBytes(raw)
         cargo = body
         guard body.count >= 9 else { return }
-        quickBolusAnnunRaw = Int(body[1]); generalAnnunRaw = Int(body[2])
-        reminderAnnunRaw = Int(body[3]); alertAnnunRaw = Int(body[4])
-        alarmAnnunRaw = Int(body[5]); cgmAlertAnnunA = Int(body[6])
-        cgmAlertAnnunB = Int(body[7]); changeBitmaskRaw = Int(body[8])
+        quickBolusAnnunRaw = Int(body[1])
+        generalAnnunRaw = Int(body[2])
+        reminderAnnunRaw = Int(body[3])
+        alertAnnunRaw = Int(body[4])
+        alarmAnnunRaw = Int(body[5])
+        cgmAlertAnnunA = Int(body[6])
+        cgmAlertAnnunB = Int(body[7])
+        changeBitmaskRaw = Int(body[8])
     }
 }
 
@@ -65,7 +73,7 @@ public struct ChangeTimeDateRequest: Message {
     public static let props = MessageProps(
         opCode: 0xD6, size: 4, signed: true, type: .request,
         characteristic: .control, responseOpCode: 0xD7,
-        minApi: .benchConservativeUnverifiedFloor)   // CONSERVATIVE/UNVERIFIED bench floor (T-1, >2.5 only)
+        minApi: .benchConservativeUnverifiedFloor)  // CONSERVATIVE/UNVERIFIED bench floor (T-1, >2.5 only)
     public var cargo: [UInt8]
     public private(set) var tandemEpochTime: UInt32 = 0
     public init() { cargo = [] }

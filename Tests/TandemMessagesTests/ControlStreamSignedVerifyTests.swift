@@ -14,8 +14,10 @@ import Testing
     /// Build a signed CONTROL_STREAM frame: `[op, txId, length] + cargo + pumpTimeSinceReset(4) + mac(20) + crc(2)`,
     /// where `mac` is a real HMAC-SHA1 over everything preceding it under `key` — mirroring exactly what
     /// `ResponseParser.parse` recomputes and compares.
-    private func signedFrame(op: UInt8, cargo: [UInt8], pumpTimeSinceReset: [UInt8] = [0, 0, 0, 0],
-                              signingKey: [UInt8]) -> [UInt8] {
+    private func signedFrame(
+        op: UInt8, cargo: [UInt8], pumpTimeSinceReset: [UInt8] = [0, 0, 0, 0],
+        signingKey: [UInt8]
+    ) -> [UInt8] {
         let payloadBeforeMac = cargo + pumpTimeSinceReset
         let length = UInt8(payloadBeforeMac.count + 20)
         let header: [UInt8] = [op, 0x01, length]
@@ -37,8 +39,8 @@ import Testing
         let op = DetectingCartridgeStateStreamResponse.props.opCode
         var frame = signedFrame(op: op, cargo: [50, 0], signingKey: key)
         var body = Array(frame[0..<(frame.count - 2)])
-        body[3] = body[3] == 50 ? 51 : 50   // tamper cargo[0] (percentComplete) after signing
-        frame = reCrc(body)                  // attacker fixes the CRC (non-cryptographic)
+        body[3] = body[3] == 50 ? 51 : 50  // tamper cargo[0] (percentComplete) after signing
+        frame = reCrc(body)  // attacker fixes the CRC (non-cryptographic)
         #expect(throws: ResponseParser.ParseError.signatureInvalid(opcode: op)) {
             _ = try ResponseParser.parse(frame: frame, characteristic: .controlStream, authenticationKey: key)
         }

@@ -11,13 +11,13 @@ public struct SetMaxBolusLimitRequest: Message {
     public static let props = MessageProps(
         opCode: 0x86, size: 2, signed: true, type: .request,
         characteristic: .control, responseOpCode: 0x87,
-        minApi: .benchConservativeUnverifiedFloor)   // CONSERVATIVE/UNVERIFIED bench floor (T-1, >2.5 only)
+        minApi: .benchConservativeUnverifiedFloor)  // CONSERVATIVE/UNVERIFIED bench floor (T-1, >2.5 only)
 
     /// Matches pumpX2's own unconditionally-enforced floor/ceiling (`SetMaxBolusLimitRequest.java`
     /// MIN/MAX_BOLUS_LIMIT_MILLIUNITS), but the app team has not independently bench-confirmed it, so it is
     /// treated CONSERVATIVE/UNVERIFIED pending bench, like the minApi floors.
-    public static let minMaxBolusMilliunits = 1_000     // 1.0 U — CONSERVATIVE/UNVERIFIED (T-1)
-    public static let maxMaxBolusMilliunits = 25_000    // 25.0 U — matches Interlocks.absoluteMaxUnits
+    public static let minMaxBolusMilliunits = 1_000  // 1.0 U — CONSERVATIVE/UNVERIFIED (T-1)
+    public static let maxMaxBolusMilliunits = 25_000  // 25.0 U — matches Interlocks.absoluteMaxUnits
 
     /// Reject out-of-range args by throwing BEFORE the byte-encode.
     public enum ValidationError: Error, Equatable, LocalizedError {
@@ -25,7 +25,8 @@ public struct SetMaxBolusLimitRequest: Message {
         // Human-readable message for a caller surfacing `error.localizedDescription`.
         public var errorDescription: String? {
             switch self {
-            case .maxBolusMilliunitsOutOfRange(let mu): return "Max bolus limit \(Double(mu) / 1000) U is out of range — must be 1.0 to 25.0 U."
+            case .maxBolusMilliunitsOutOfRange(let mu):
+                return "Max bolus limit \(Double(mu) / 1000) U is out of range — must be 1.0 to 25.0 U."
             }
         }
     }
@@ -52,12 +53,12 @@ public struct SetMaxBasalLimitRequest: Message {
     public static let props = MessageProps(
         opCode: 0x88, size: 4, signed: true, type: .request,
         characteristic: .control, responseOpCode: 0x89,
-        minApi: .benchConservativeUnverifiedFloor)   // CONSERVATIVE/UNVERIFIED bench floor (T-1, >2.5 only)
+        minApi: .benchConservativeUnverifiedFloor)  // CONSERVATIVE/UNVERIFIED bench floor (T-1, >2.5 only)
 
     /// Matches pumpX2's own unconditionally-enforced floor/ceiling (`SetMaxBasalLimitRequest.java`
     /// MIN/MAX_BASAL_LIMIT_MILLIUNITS), CONSERVATIVE/UNVERIFIED pending bench.
-    public static let minMaxHourlyBasalMilliunits: UInt32 = 1_000    // 1.0 U/hr — CONSERVATIVE/UNVERIFIED (T-1)
-    public static let maxMaxHourlyBasalMilliunits: UInt32 = 15_000   // 15.0 U/hr
+    public static let minMaxHourlyBasalMilliunits: UInt32 = 1_000  // 1.0 U/hr — CONSERVATIVE/UNVERIFIED (T-1)
+    public static let maxMaxHourlyBasalMilliunits: UInt32 = 15_000  // 15.0 U/hr
 
     /// Reject out-of-range args by throwing BEFORE the byte-encode.
     public enum ValidationError: Error, Equatable, LocalizedError {
@@ -65,7 +66,8 @@ public struct SetMaxBasalLimitRequest: Message {
         // Human-readable message for a caller surfacing `error.localizedDescription`.
         public var errorDescription: String? {
             switch self {
-            case .maxHourlyBasalMilliunitsOutOfRange(let mu): return "Max basal limit \(Double(mu) / 1000) U/hr is out of range — must be 1.0 to 15.0 U/hr."
+            case .maxHourlyBasalMilliunitsOutOfRange(let mu):
+                return "Max basal limit \(Double(mu) / 1000) U/hr is out of range — must be 1.0 to 15.0 U/hr."
             }
         }
     }
@@ -74,7 +76,8 @@ public struct SetMaxBasalLimitRequest: Message {
     public private(set) var maxHourlyBasalMilliunits: UInt32 = 0
     public init() { cargo = [] }
     public init(maxHourlyBasalMilliunits: UInt32) throws {
-        guard (Self.minMaxHourlyBasalMilliunits...Self.maxMaxHourlyBasalMilliunits).contains(maxHourlyBasalMilliunits) else {
+        guard (Self.minMaxHourlyBasalMilliunits...Self.maxMaxHourlyBasalMilliunits).contains(maxHourlyBasalMilliunits)
+        else {
             throw ValidationError.maxHourlyBasalMilliunitsOutOfRange(maxHourlyBasalMilliunits)
         }
         self.maxHourlyBasalMilliunits = maxHourlyBasalMilliunits

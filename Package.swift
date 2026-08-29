@@ -9,13 +9,13 @@ let package = Package(
     platforms: [
         .iOS(.v16),
         .watchOS(.v9),
-        .macOS(.v13), // for command-line tests + the harness
+        .macOS(.v13)  // for command-line tests + the harness
     ],
     products: [
         .library(name: "TandemMessages", targets: ["TandemMessages"]),
         .library(name: "TandemAuth", targets: ["TandemAuth"]),
         .library(name: "TandemBLE", targets: ["TandemBLE"]),
-        .executable(name: "TandemBenchHarness", targets: ["TandemBenchHarness"]),
+        .executable(name: "TandemBenchHarness", targets: ["TandemBenchHarness"])
     ],
     targets: [
         // Portable protocol: framing, opcodes, message models, packetization.
@@ -40,7 +40,7 @@ let package = Package(
                 // `-DMBEDTLS_CONFIG_FILE="mbedtls_config_min.h"` (quotes retained for the `#include`), so
                 // the minimal-config selection is byte-for-byte unchanged. The header-search paths stay —
                 // they resolve inside the package root (vendor/mbedtls is a submodule SwiftPM fetches).
-                .define("MBEDTLS_CONFIG_FILE", to: "\"mbedtls_config_min.h\""),
+                .define("MBEDTLS_CONFIG_FILE", to: "\"mbedtls_config_min.h\"")
             ]
         ),
 
@@ -76,7 +76,7 @@ let package = Package(
                     "-Xlinker", "-sectcreate",
                     "-Xlinker", "__TEXT",
                     "-Xlinker", "__info_plist",
-                    "-Xlinker", "Sources/TandemBenchHarness/Info.plist",
+                    "-Xlinker", "Sources/TandemBenchHarness/Info.plist"
                 ])
             ]
         ),
@@ -95,6 +95,6 @@ let package = Package(
         .testTarget(
             name: "TandemHardwareTests",
             dependencies: ["TandemMessages", "TandemAuth", "TandemBLE"]
-        ),
+        )
     ]
 )
