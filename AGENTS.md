@@ -46,7 +46,10 @@ oracle-parity test.**
   prints the version it used. swift-format's output is version-dependent, so CI pins Homebrew's build
   (`brew install swift-format`); override with `SWIFT_FORMAT=/path/to/swift-format`. The committed
   `.swift-format` turns off every rule except `DoNotUseSemicolons`, so it reflows whitespace but does
-  not rewrite code.
+  not rewrite code. Leave the rules off: `GroupNumericLiterals` would punch underscores through the
+  capability bitmasks in `Responses.swift` (`has(8388608)` -> `has(8_388_608)`, hiding that each one
+  is a single bit), and `NoAccessLevelOnExtensionDeclaration` would explode every `public extension`
+  into per-member modifiers.
 - `swiftlint lint --quiet` is advisory. Read `.swiftlint.yml` first: the metric rules fire on
   wire-message constructors, and `case foo = "foo"` records a wire contract. Never rename a wire
   field to satisfy a linter.
