@@ -17,9 +17,13 @@ public struct ActivateShelfModeRequest: Message {
 
 /// Disconnects the pump BLE session (opcode 0xBE → 0xBF). Empty cargo. Dangerous.
 public struct DisconnectPumpRequest: Message {
+    // Device gating (F2, debug `pump-software-4-0-unknown-version`): Mobi restriction moved onto the MODEL
+    // axis. A t:slim X2 at the observed API 4.0 sits above the entire `ApiVersion` table, so the
+    // `.mobi_v3_5` floor alone no longer refused a `.destructive` command on a t:slim. Claim inherited from
+    // upstream's MOBI_API_V3_5 tag; fails SAFE. Metadata-only (no wire bytes, OracleParity unaffected).
     public static let props = MessageProps(
         opCode: 0xBE, size: 0, signed: true, type: .request, characteristic: .control, risk: .destructive,
-        responseOpCode: 0xBF, minApi: .mobi_v3_5)
+        responseOpCode: 0xBF, supportedDevices: [.mobi], minApi: .mobi_v3_5)
     public var cargo: [UInt8]
     public init() { cargo = [] }
     public mutating func parse(_ raw: [UInt8]) { cargo = [] }

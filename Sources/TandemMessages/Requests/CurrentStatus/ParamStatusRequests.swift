@@ -115,6 +115,14 @@ public struct PumpFeaturesV2Request: Message {
 
 /// Active auto-adjustment-mode bits (opcode 0x92 → 0x93). Upstream's default cargo is EMPTY.
 public struct ActiveAamBitsRequest: Message {
+    // Must stay device-UNgated (`supportedDevices == nil`), asserted by `MessagePropsGatingTests`'
+    // `aamReadsCarryTheControlIQEraFloor()`: AAM is API-gated because a Control-IQ t:slim at a high-enough
+    // API may legitimately support it. Debug `pump-software-4-0-unknown-version` (F2) tried a `[.mobi]` tag
+    // here and reverted it. Same residual exposure as its op-120 sibling `HighestAamRequest`: on the t:slim
+    // X2 observed at API 4.0 this floor no longer bites (lower-bound-only comparison, version above the
+    // whole table) and `PumpKnownUnsupportedReads` is keyed on the literal "2.5", so both protections are
+    // inert for this opcode on that firmware; nothing currently schedules it. Needs fail-CLOSED version
+    // classification, not a device tag.
     public static let props = MessageProps(
         opCode: 0x92, size: 1, type: .request, characteristic: .currentStatus, responseOpCode: 0x93, minApi: .mobi_v3_5)
     public var cargo: [UInt8]

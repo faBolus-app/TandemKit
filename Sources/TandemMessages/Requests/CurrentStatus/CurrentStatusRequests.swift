@@ -212,7 +212,18 @@ public struct LastBolusStatusRequest: EmptyCurrentStatusRequest {
     public init(emptyCargo: Void = ()) { cargo = [] }
 }
 public struct LastBolusStatusV3Request: EmptyCurrentStatusRequest {
-    public static let props = statusProps(0xBA, minApi: .mobi_v3_5)
+    // Device gating (F2, debug `pump-software-4-0-unknown-version`): Mobi restriction moved onto the MODEL
+    // axis, because a t:slim X2 reported API 4.0 (above the whole table) and the `.mobi_v3_5` floor is
+    // lower-bound-only, so it stopped refusing this on a t:slim.
+    //
+    // ⚠️ WEAKEST of the five inherited claims — REVISIT before relying on it. "V3" is an era marker, not
+    // evidence of a device family: a t:slim X2 at API 4.0 may well answer op-0xBA. Debug session
+    // `tslim-reservoir-battery-zero` was handed this opcode as a CANDIDATE FIX PATH (the app sends no
+    // `*V3Request` at all, and the V1/V2-era reads it depends on are being durably rejected by this
+    // firmware). This tag turns an accidental permit into a DECLARED prohibition, so if that session wants
+    // to send 0xBA to a t:slim it must re-open this line rather than treat it as settled. Failing SAFE
+    // (no-send) is the correct default until a capture proves acceptance — it is not a proven restriction.
+    public static let props = statusProps(0xBA, supportedDevices: [.mobi], minApi: .mobi_v3_5)
     public var cargo: [UInt8] = []
     public init(emptyCargo: Void = ()) { cargo = [] }
 }
@@ -290,6 +301,20 @@ public struct HighestAamRequest: EmptyCurrentStatusRequest {
     // in `PumpKnownUnsupportedReads`. Metadata-only (does not affect wire bytes, so OracleParity is
     // unchanged); fail-open on a nil apiVersion is preserved, so the floor bites only once
     // a call site supplies a KNOWN below-floor apiVersion — the app-side static suppression is the live fix.
+    // Debug `pump-software-4-0-unknown-version` (F2) considered tagging this `supportedDevices: [.mobi]`
+    // and deliberately did NOT — and neither should anything else. `MessagePropsGatingTests`'
+    // `aamReadsCarryTheControlIQEraFloor()` asserts `supportedDevices == nil` here on purpose: AAM is
+    // API-gated, NOT device-gated, because a Control-IQ t:slim at a high-enough API may legitimately
+    // support it. Unlike the genuinely upstream-MOBI_ONLY messages, the floor above is THIS repo's own
+    // Control-IQ-era proxy, so there is no upstream device-family claim to restore.
+    //
+    // RESIDUAL EXPOSURE (recorded, not fixed): a real t:slim X2 reported API 4.0 — above the entire
+    // `ApiVersion` table — and because the comparison is lower-bound-only, this floor no longer bites on
+    // that pump. The app-side `PumpKnownUnsupportedReads` is keyed on the literal "2.5", so it returns
+    // empty there too. BOTH protections are therefore inert for op-120 on that firmware. The only reason
+    // this is not live is that nothing schedules it: `alertRead()` does not send it and it was removed from
+    // the read burst. The real fix is version classification that fails CLOSED on an unclassifiable
+    // version, not a device tag.
     public static let props = statusProps(120, minApi: .mobi_v3_5)
     public var cargo: [UInt8] = []
     public init(emptyCargo: Void = ()) { cargo = [] }

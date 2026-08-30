@@ -121,9 +121,15 @@ public struct AdditionalBolusRequest: Message {
 
 /// Sets the Dexcom G6 transmitter id (opcode 0xB0 → 0xB1). 16-byte cargo: 6-char string + 10 zero pad.
 public struct SetG6TransmitterIdRequest: Message {
+    // Device gating (F2, debug `pump-software-4-0-unknown-version`): the Mobi restriction is carried on the
+    // MODEL axis, not left to the `.mobi_v3_5` floor as a de-facto proxy for it. A real t:slim X2 reported
+    // API 4.0 — above the whole `ApiVersion` table — and since `isSupported` is lower-bound-only, the floor
+    // alone stopped refusing this on a t:slim. The device-family claim is INHERITED from upstream pumpX2's
+    // MOBI_API_V3_5 tagging, not independently proven; it fails SAFE (no-send). Metadata-only: no wire
+    // bytes change, OracleParity unaffected.
     public static let props = MessageProps(
         opCode: 0xB0, size: 16, signed: true, type: .request, characteristic: .control, responseOpCode: 0xB1,
-        minApi: .mobi_v3_5)
+        supportedDevices: [.mobi], minApi: .mobi_v3_5)
     public var cargo: [UInt8]
     public private(set) var txId = ""
     public init() { cargo = [] }
