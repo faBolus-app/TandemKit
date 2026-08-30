@@ -78,7 +78,7 @@ import TandemMessages
         let fifoPredicate = "$0.expectedCharacteristic == characteristic && $0.expectedOpCode == opCode"
         #expect(
             source.contains(fifoPredicate),
-            "the .opcodeFIFO predicate diverged from the pre-D2 FIFO match — REVERT-TRIGGER (D-03)")
+            "the .opcodeFIFO predicate diverged from the pre-txId-correlation FIFO match — REVERT-TRIGGER")
         // The predicate must sit inside the .opcodeFIFO case region, ahead of the .txIdMatch case.
         if let fifoCaseStart = source.range(of: "case .opcodeFIFO:"),
             let txCaseStart = source.range(of: "case .txIdMatch:")
@@ -102,11 +102,11 @@ import TandemMessages
         // The untouched currentStatus variant (ErrorResponse.props default characteristic is .currentStatus).
         #expect(
             source.contains("add(ErrorResponse.self)"),
-            "the pre-existing .currentStatus op-77 registration must remain untouched (D-08)")
+            "the pre-existing .currentStatus op-77 registration must remain untouched")
         // The additive control-variant key.
         #expect(
             source.contains("add(ErrorResponse.self, on: .control)"),
-            "the additive op-77-on-.control registration must be present (D-08)")
+            "the additive op-77-on-.control registration must be present")
         // Exactly one .control override for ErrorResponse — no shadowing / no duplicate key.
         let controlKeyCount = source.components(separatedBy: "add(ErrorResponse.self, on: .control)").count - 1
         #expect(
@@ -156,7 +156,7 @@ import TandemMessages
         }
         #expect(
             body.contains("transactions.correlationMode = .opcodeFIFO"),
-            "failClosed must reset correlationMode to the FIFO reference mode on every link change (D-04 #2)")
+            "failClosed must reset correlationMode to the FIFO reference mode on every link change")
         // Exactly eight CALL SITES (true/false variants; the definition uses `Bool` and is not counted).
         // The seventh is `establishmentTimedOut()`; the eighth is `handleWriteResult`'s error branch.
         let trueCalls = source.components(separatedBy: "failClosed(resumePending: true)").count - 1

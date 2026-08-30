@@ -125,11 +125,11 @@ import TandemMessages
             "a notify-only loss revokes readiness to .discovering (re-declarable), not a full teardown")
         #expect(
             client.writePolicy == .allowDelivery,
-            "14-WR-02: a notify-only loss must NOT reset writePolicy — the gate is writePolicy + serialization, not state"
+            "a notify-only loss must NOT reset writePolicy — the gate is writePolicy + serialization, not state"
         )
         #expect(
             client.transactions.inFlightCount == 1,
-            "14-WR-02: a notify-only loss must NOT fail in-flight transactions (that would be an unbenched reliability change)"
+            "a notify-only loss must NOT fail in-flight transactions (that would be an unbenched reliability change)"
         )
         pending.cancel()  // cleanup: nothing resolves this pending tx by design, so cancel the awaiting task
     }
@@ -154,7 +154,7 @@ import TandemMessages
             "a notify loss revokes to the re-declarable `.discovering` (unchanged contract)")
         #expect(
             client.establishmentWatchdogArmedForTesting,
-            "a revoked `.discovering` MUST arm the establishment-watchdog backstop so it can never hang silently until force-quit (debug pump-drop-no-reconnect 2.1)"
+            "a revoked `.discovering` MUST arm the establishment-watchdog backstop so it can never hang silently until force-quit"
         )
     }
 
