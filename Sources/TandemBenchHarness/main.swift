@@ -232,7 +232,7 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     /// begin the signed permission→initiate flow (carbs → units, the way controlX2 does).
     func maybeComputeCarbBolus() {
         guard isCarbMode, !permissionSent, haveTime, let calc, let iobMU = iobMilliunits else { return }
-        // Oracle-faithful planner (round-2 P1): signed BG correction (below target REDUCES the dose),
+        // Oracle-faithful planner: signed BG correction (below target REDUCES the dose),
         // positive-IOB offset, two-decimal HALF_UP per component, zero floor, 0.05 U snap, bench cap.
         let profile = BenchBolusPlanner.Profile(
             carbRatioGramsPerUnit: calc.carbRatioGramsPerUnit,
@@ -442,7 +442,7 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     //
     // Everything below is EXECUTABLE-ONLY infrastructure that has NEVER been run against a real pump. It
     // must be validated on hardware before ANY weight is placed on its verdict: a legacy API-2.5 t:slim
-    // (P1b) AND a newer JPAKE pump (P2). It GATES NOTHING automatically — it only prints observations and
+    // AND a newer JPAKE pump. It GATES NOTHING automatically — it only prints observations and
     // PASS/FAIL for a human to read; nothing in the kit consumes its result. It does NOT enable
     // `.txIdMatch` (it never calls `setPumpFamily`), so the coordinator stays on the fail-closed
     // `.opcodeFIFO` default throughout. DELIVERY-CLASS SERIALIZATION STAYS IN FORCE regardless of
@@ -463,10 +463,10 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
 
     /// Sequential echo baseline → pipelined bijection → op-77 NACK echo.
     private func probeTxIdMatch() async {
-        print("\n--- Phase 2: txId correlation probes (Addendum G / P1a) ---")
+        print("\n--- Phase 2: txId correlation probes ---")
         // Prominent RUNTIME banner (mirrors the code-comment header above): this probe is UNVALIDATED.
-        print("  ⚠️ UNVALIDATED bench probe — never run on hardware. Validate on a legacy API-2.5 t:slim (P1b)")
-        print("     AND a JPAKE pump (P2). It GATES NOTHING, does NOT enable txIdMatch, and delivery-class")
+        print("  ⚠️ UNVALIDATED bench probe — never run on hardware. Validate on a legacy API-2.5 t:slim")
+        print("     AND a JPAKE pump. It GATES NOTHING, does NOT enable txIdMatch, and delivery-class")
         print("     serialization stays in force (all reads here are non-serialized; a bolus is never pipelined).")
 
         guard let rop = InsulinStatusRequest.props.responseOpCode else {
@@ -793,7 +793,7 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
             pairingScheme: scheme, firmwareTag: firmwareTag)
         print("  session: \(cfg.label)")
         print(
-            "  D-08 gate wired: connectedPumpModel=\(String(describing: client.connectedPumpModel)) "
+            "  device-context gate wired: connectedPumpModel=\(String(describing: client.connectedPumpModel)) "
                 + "negotiatedApi=\(client.negotiatedApiVersion.map { "\($0.major).\($0.minor)" } ?? "nil")")
 
         // Affordance (a): log the RAW CurrentActiveIdpValues cargo + byte-4 vs byte-5 targetBg decode.
@@ -1426,7 +1426,7 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         print("  🔬 currentTargetBg RAW cargo=\(Hex.encode(raw))")
         print(
             "     decoded targetBg: byte4(LE)=\(b4)  byte5(LE)=\(b5)  typed=\(r.currentTargetBg)  "
-                + "(D-07: byte-4 must equal the pump-set target; capture per pump-family+firmware)")
+                + "(byte-4 must equal the pump-set target; capture per pump-family+firmware)")
     }
 
     /// Affordance (c): OPT-IN no-cartridge bolus-rejection probe. Drives a 0.10 u bolus through BOTH
