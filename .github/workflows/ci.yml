@@ -27,6 +27,26 @@ jobs:
         working-directory: vendor/pumpx2-oracle
         run: ./gradlew :cliparser:shadowJar
 
+      - name: Assert the oracle JVM is >= 21
+        # cliparser.jar's Main.class is class-file major 58 (Java 14); a runner image that drops
+        # JDK 21 must fail LOUDLY here, not silently skip byte-parity downstream (D-07). Reads the
+        # SAME java the parity step passes as PUMPX2_JAVA below -- not a different `java` on PATH.
+        run: |
+          JAVA_BIN="${{ env.JAVA_HOME }}/bin/java"
+          VERSION_LINE=$("$JAVA_BIN" -version 2>&1 | head -1)
+          echo "oracle JVM: $VERSION_LINE"
+          RAW=$(echo "$VERSION_LINE" | sed -E 's/^[^"]*"([0-9]+)(\.([0-9]+))?.*"?.*$/\1 \3/')
+          MAJOR=$(echo "$RAW" | awk '{print $1}')
+          LEGACY_MINOR=$(echo "$RAW" | awk '{print $2}')
+          if [ "$MAJOR" = "1" ] && [ -n "$LEGACY_MINOR" ]; then
+            MAJOR="$LEGACY_MINOR"
+          fi
+          if ! [ "$MAJOR" -ge 21 ] 2>/dev/null; then
+            echo "::error::Oracle JVM major version is '$MAJOR' (< 21) from: $VERSION_LINE. cliparser.jar is class-file major 58 and cannot load on a sub-21 JVM -- byte-parity would silently misreport as a parity failure or skip. Fix the JDK setup step, not this check."
+            exit 1
+          fi
+          echo "oracle JVM major $MAJOR >= 21 ✓"
+
       - name: swift build
         run: swift build
 
