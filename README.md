@@ -85,7 +85,7 @@ log). Every outgoing message is byte-exact against the `cliparser` oracle in CI.
 
 ## The app built on this
 
-[`faBolus`](https://github.com/faBolus-app/faBolus) is the iPhone / Apple Watch app that
+[`faBolus`](https://github.com/faBolus-app/faBolus) is the iPhone app that
 consumes TandemKit (the Garmin remote lives in
 [`faBolusGarmin`](https://github.com/faBolus-app/faBolusGarmin)). Its documentation — a
 no-experience-required build guide, usage, and customization — is the best starting point:
