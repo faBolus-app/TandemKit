@@ -54,10 +54,13 @@ oracle-parity test.**
   wire-message constructors, and `case foo = "foo"` records a wire contract. Never rename a wire
   field to satisfy a linter.
 - `semgrep --config <faBolus>/.semgrep/deslop.yml --metrics=off .` flags AI-process residue. The
-  ruleset lives in the faBolus repo; CI fetches it by raw URL. Advisory — a genuine oracle citation
-  (`HistoryLogResponse.java:35`) can look like a drifted line reference, and is a KEEP.
-- CI: `style` (format + SwiftLint, advisory), `semgrep` (advisory), the build/test job, and
-  `codeql.yml` on push. Only the build/test job gates.
+  ruleset lives in the faBolus repo; CI fetches it by raw URL. The report is advisory — a genuine
+  oracle citation (`HistoryLogResponse.java:35`) can look like a drifted line reference, and is a
+  KEEP — but the residue count is ratcheted: a second CI step fails if any residue rule rises above
+  its committed baseline (`.semgrep/baseline.json`).
+- CI: `style` (format + SwiftLint, advisory), `semgrep` (report advisory, residue ratcheted), the
+  build/test job, and `codeql.yml` on push. The build/test job and the semgrep residue ratchet
+  both gate.
 
 ## Consumed by
 `../faBolus` via SwiftPM. App-level UI and `AccessPolicy` live there; the wire format lives here.

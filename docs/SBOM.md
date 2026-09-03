@@ -34,6 +34,6 @@ Format per row: component · version/revision · SPDX license · source · how T
 
 ## Trademarks
 
-"faBolus" is a trademark of Tia Geri (code is MIT; the name is not licensed). Tandem, t:slim X2, Mobi,
+"faBolus" is a trademark of Zev Granowitz (code is MIT; the name is not licensed). Tandem, t:slim X2, Mobi,
 and Dexcom are trademarks of their respective owners; TandemKit is independent and unaffiliated. See
 [`../NOTICE.md`](../NOTICE.md) for the full attribution prose.

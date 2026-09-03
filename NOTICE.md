@@ -17,7 +17,7 @@ git submodule under `vendor/mbedtls` and dual-licensed **Apache-2.0 OR GPL-2.0-o
 submodule; their SPDX headers are retained.
 
 ## Trademarks
-TandemKit is part of the **faBolus™** project; faBolus™ is a trademark of Tia Geri.
+TandemKit is part of the **faBolus™** project; faBolus™ is a trademark of Zev Granowitz.
 
 Not affiliated with, endorsed by, or a product of **Tandem Diabetes Care** or **Dexcom**. Tandem,
 t:slim X2, Mobi, and Dexcom are trademarks of their respective owners.

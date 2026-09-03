@@ -3,7 +3,8 @@
 TandemKit is a **reusable Swift library** for the Tandem t:slim X2 / Mobi Bluetooth protocol — any
 project can depend on it (faBolus is one consumer). Contributions are welcome by **PR, not fork**:
 the goal is one well-tested library everyone builds on. All work is for **experimental use only**
-(in development, not FDA-cleared).
+(in development, not FDA-cleared). The delivery disposition is **NO-GO for real insulin
+delivery** — keep it so.
 
 ## The one hard rule: byte-exact vs the oracle
 Every outgoing (request) message and every parsed response must **byte-match** the upstream
