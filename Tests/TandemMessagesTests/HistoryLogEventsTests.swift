@@ -350,10 +350,12 @@ private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8]
 /// accept a 0U-delivered completed record — a cancelled-before-any-insulin bolus reports exactly that.
 @Suite struct BolusHistoryRecordTests {
     /// Builds a 26-byte `LID_BOLUS_COMPLETED` (typeId 20) record with the layout `HistoryLog.parseBolusRecord`
-    /// decodes: completionStatus = short@10, bolusId = short@12, iob = float@14, delivered = float@18.
+    /// decodes: completionStatus = short@10, bolusId = short@12, iob = float@14, delivered = float@18,
+    /// requested = float@22. `requestedUnits` defaults to mirror `deliveredUnits` so every existing call
+    /// site keeps its prior byte content unless a test cares about the two amounts differing.
     private func bolusRecord(
         pumpTimeSec: UInt32, seq: UInt32, completionStatusId: Int, bolusId: Int,
-        iobUnits: Double, deliveredUnits: Double
+        iobUnits: Double, deliveredUnits: Double, requestedUnits: Double? = nil
     ) -> [UInt8] {
         var tail = [UInt8](repeating: 0, count: 16)
         let cs = Bytes.firstTwoBytesLittleEndian(completionStatusId)
@@ -366,6 +368,8 @@ private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8]
         for i in 0..<4 { tail[4 + i] = iob[i] }  // offset 14
         let dv = Bytes.toFloat(Float(deliveredUnits))
         for i in 0..<4 { tail[8 + i] = dv[i] }  // offset 18
+        let rq = Bytes.toFloat(Float(requestedUnits ?? deliveredUnits))
+        for i in 0..<4 { tail[12 + i] = rq[i] }  // offset 22
         return record(typeId: HistoryLog.bolusCompletedTypeId, pumpTimeSec: pumpTimeSec, seq: seq, tail: tail)
     }
 
@@ -407,5 +411,28 @@ private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8]
     @Test func parseBolusRecordRejectsWrongTypeId() {
         let raw = record(typeId: 21, pumpTimeSec: 1, seq: 1)  // BolexCompletedHistoryLog, not BolusCompleted
         #expect(HistoryLog.parseBolusRecord(raw) == nil)
+    }
+
+    /// `insulinRequested` (float@22) must be exposed on the decoded record, mirroring
+    /// `BolusCompletedHistoryLog.insulinRequested`'s existing correct decode of the same field/offset.
+    @Test func parseBolusRecordExposesRequestedAmount() {
+        let raw = bolusRecord(
+            pumpTimeSec: 700, seq: 44, completionStatusId: 3, bolusId: 3001,
+            iobUnits: 1.0, deliveredUnits: 1.25, requestedUnits: 2.5)
+        let rec = try? #require(HistoryLog.parseBolusRecord(raw))
+        #expect(abs((rec?.deliveredUnits ?? -1) - 1.25) < 0.0001)
+        #expect(abs((rec?.insulinRequested ?? -1) - 2.5) < 0.0001)
+    }
+
+    /// The requested amount decodes independently of delivered — a partial-delivery record exposes
+    /// both faithfully rather than one echoing the other.
+    @Test func parseBolusRecordDecodesRequestedIndependentlyOfDelivered() {
+        let raw = bolusRecord(
+            pumpTimeSec: 701, seq: 45, completionStatusId: 5, bolusId: 3002,
+            iobUnits: 0.5, deliveredUnits: 0.75, requestedUnits: 3.0)
+        let rec = try? #require(HistoryLog.parseBolusRecord(raw))
+        #expect(abs((rec?.deliveredUnits ?? -1) - 0.75) < 0.0001)
+        #expect(abs((rec?.insulinRequested ?? -1) - 3.0) < 0.0001)
+        #expect(rec?.deliveredUnits != rec?.insulinRequested)
     }
 }

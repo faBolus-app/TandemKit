@@ -68,6 +68,11 @@ public struct BolusHistoryRecord: Sendable, Equatable {
     /// Insulin on board at the time of this bolus completion — lets us seed the IOB chart from
     /// history (the pump keeps no separate IOB-over-time log).
     public let iobUnits: Double
+    /// The amount the pump was asked to deliver, as reported by the pump itself (float@22).
+    /// Mirrors `BolusCompletedHistoryLog.insulinRequested`'s existing decode of the same field/offset.
+    /// Compare against `deliveredUnits` to tell a genuinely complete bolus from a partial one —
+    /// never infer that from `completionStatusId` alone.
+    public let insulinRequested: Double
     public let completionStatusId: Int
 }
 
@@ -113,7 +118,7 @@ public enum HistoryLog {
     /// history search, never a sentinel to discard. Only the upper bound (`< 100`, an implausible-
     /// units guard against a garbage/corrupted float) stays a fail-closed sanity check.
     static func parseBolusRecord(_ raw: [UInt8]) -> BolusHistoryRecord? {
-        guard raw.count >= recordSize else { return nil }
+        guard raw.count >= recordSize else { return nil }  // recordSize (26) covers byte 25, the last requested-amount byte
         let typeId = Bytes.readShort(raw, 0) & 0x0FFF
         guard typeId == bolusCompletedTypeId else { return nil }
         let delivered = Double(Bytes.readFloat(raw, 18))
@@ -124,6 +129,7 @@ public enum HistoryLog {
             bolusId: Bytes.readShort(raw, 12),
             deliveredUnits: delivered,
             iobUnits: Double(Bytes.readFloat(raw, 14)),
+            insulinRequested: Double(Bytes.readFloat(raw, 22)),
             completionStatusId: Bytes.readShort(raw, 10))
     }
 }
