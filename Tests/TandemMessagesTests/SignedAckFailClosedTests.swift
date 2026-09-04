@@ -126,4 +126,42 @@ struct SignedAckFailClosedTests {
         #expect(PrimeTubingSuspendResponse(cargo: [0, 0, 0]).accepted)
         #expect(!PrimeTubingSuspendResponse(cargo: [1, 0, 0]).accepted)
     }
+
+    // The four modifiesInsulinDelivery: true acks below have no `accepted` computed property; status
+    // itself is the accept/reject signal (status == 0 means accepted). Each opened `guard raw.count >=
+    // Self.props.size else { return }`, so a short buffer left `status` at its default 0 — decoding a
+    // truncated/empty frame as an accepted insulin-modifying write. Assert directly on `status`.
+
+    @Test func additionalBolusResponseShortBufferIsNotAccepted() {  // size 5
+        for short: [UInt8] in [[], [0], [0, 0], [0, 0, 0], [0, 0, 0, 0]] {
+            #expect(AdditionalBolusResponse(cargo: short).status != 0)
+        }
+        // Full-length, status-0 buffer still decodes accepted (no regression).
+        #expect(AdditionalBolusResponse(cargo: [0, 0, 0, 0, 0]).status == 0)
+        #expect(AdditionalBolusResponse(cargo: [1, 0, 0, 0, 0]).status != 0)
+    }
+
+    @Test func createIDPResponseShortBufferIsNotAccepted() {  // size 2
+        for short: [UInt8] in [[], [0]] {
+            #expect(CreateIDPResponse(cargo: short).status != 0)
+        }
+        #expect(CreateIDPResponse(cargo: [0, 0]).status == 0)
+        #expect(CreateIDPResponse(cargo: [1, 0]).status != 0)
+    }
+
+    @Test func deleteIDPResponseShortBufferIsNotAccepted() {  // size 2
+        for short: [UInt8] in [[], [0]] {
+            #expect(DeleteIDPResponse(cargo: short).status != 0)
+        }
+        #expect(DeleteIDPResponse(cargo: [0, 0]).status == 0)
+        #expect(DeleteIDPResponse(cargo: [1, 0]).status != 0)
+    }
+
+    @Test func renameIDPResponseShortBufferIsNotAccepted() {  // size 2
+        for short: [UInt8] in [[], [0]] {
+            #expect(RenameIDPResponse(cargo: short).status != 0)
+        }
+        #expect(RenameIDPResponse(cargo: [0, 0]).status == 0)
+        #expect(RenameIDPResponse(cargo: [1, 0]).status != 0)
+    }
 }

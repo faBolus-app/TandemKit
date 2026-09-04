@@ -1546,7 +1546,6 @@ public struct ActivateShelfModeResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        guard raw.count >= 0 else { return }
     }
     public mutating func parse(_ raw: [UInt8]) { self = ActivateShelfModeResponse(cargo: raw) }
 }
@@ -1562,7 +1561,13 @@ public struct AdditionalBolusResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        guard raw.count >= 5 else { return }
+        // fail CLOSED on a short buffer — never default to status 0 (== accepted) for a
+        // delivery-affecting bolus ack. Unreachable via ResponseParser (length-guarded + HMAC-verified
+        // first), but a direct caller must not decode an empty/truncated frame as accepted.
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
         status = Int(raw[0])
         bolusId = Bytes.readShort(raw, 1)
         reserve = Bytes.readShort(raw, 3)
@@ -1640,7 +1645,13 @@ public struct CreateIDPResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        guard raw.count >= 2 else { return }
+        // fail CLOSED on a short buffer — never default to status 0 (== accepted) for a
+        // delivery-affecting IDP create. Unreachable via ResponseParser (length-guarded +
+        // HMAC-verified first), but a direct caller must not decode an empty/truncated frame as accepted.
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
         status = Int(raw[0])
         newIdpId = Int(raw[1])
     }
@@ -1657,7 +1668,13 @@ public struct DeleteIDPResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        guard raw.count >= 2 else { return }
+        // fail CLOSED on a short buffer — never default to status 0 (== accepted) for a
+        // delivery-affecting IDP delete. Unreachable via ResponseParser (length-guarded +
+        // HMAC-verified first), but a direct caller must not decode an empty/truncated frame as accepted.
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
         status = Int(raw[0])
         deletedIdpId = Int(raw[1])
     }
@@ -1687,7 +1704,6 @@ public struct FactoryResetBResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        guard raw.count >= 0 else { return }
     }
     public mutating func parse(_ raw: [UInt8]) { self = FactoryResetBResponse(cargo: raw) }
 }
@@ -1700,7 +1716,6 @@ public struct FactoryResetResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        guard raw.count >= 0 else { return }
     }
     public mutating func parse(_ raw: [UInt8]) { self = FactoryResetResponse(cargo: raw) }
 }
@@ -1715,7 +1730,13 @@ public struct RenameIDPResponse: ResponseMessage {
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        guard raw.count >= 2 else { return }
+        // fail CLOSED on a short buffer — never default to status 0 (== accepted) for a
+        // delivery-affecting IDP rename. Unreachable via ResponseParser (length-guarded +
+        // HMAC-verified first), but a direct caller must not decode an empty/truncated frame as accepted.
+        guard raw.count >= Self.props.size else {
+            status = 1
+            return
+        }
         status = Int(raw[0])
         numberOfProfiles = Int(raw[1])
     }

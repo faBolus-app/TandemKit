@@ -193,7 +193,16 @@ def emit(props, cls, assignments, fields, todos):
     if is_response:
         out.append("    public init(cargo raw: [UInt8]) {")
         out.append("        cargo = raw")
-        out.append(f"        guard raw.count >= {props['size']} else {{ return }}")
+        # Fail CLOSED on a short buffer: when the struct has a `status` field, a bare `return`
+        # here would leave it at its default 0 (== accepted) — decoding a truncated/empty frame
+        # as an accepted ack. Set status to a non-zero (rejected) value before returning.
+        if "status" in fields:
+            out.append(f"        guard raw.count >= {props['size']} else {{")
+            out.append("            status = 1")
+            out.append("            return")
+            out.append("        }")
+        else:
+            out.append(f"        guard raw.count >= {props['size']} else {{ return }}")
         for a in assignments:
             out.append(f"        {a}")
         for t in todos:
@@ -230,7 +239,16 @@ def emit_history(props, cls, assignments, fields, todos):
     out.append("    public init() { cargo = [] }")
     out.append("    public init(cargo raw: [UInt8]) {")
     out.append("        cargo = raw")
-    out.append(f"        guard raw.count >= {props['size']} else {{ return }}")
+    # Fail CLOSED on a short buffer: when the struct has a `status` field, a bare `return`
+    # here would leave it at its default 0 (== accepted) — decoding a truncated/empty record
+    # as an accepted ack. Set status to a non-zero (rejected) value before returning.
+    if "status" in fields:
+        out.append(f"        guard raw.count >= {props['size']} else {{")
+        out.append("            status = 1")
+        out.append("            return")
+        out.append("        }")
+    else:
+        out.append(f"        guard raw.count >= {props['size']} else {{ return }}")
     out.append("        pumpTimeSec = Bytes.readUint32(raw, 2)")
     out.append("        sequenceNum = Bytes.readUint32(raw, 6)")
     for a in assignments:
