@@ -51,11 +51,11 @@ enum OracleRunner {
     /// `cliparser.jar`'s `Main.class` is class-file major 58 (Java 14); a JDK below 21 cannot
     /// load it. Below this requirement `isAvailable` must be false, not merely "jar exists and
     /// java is executable" — a present-but-wrong JVM must read as UNAVAILABLE, never as a
-    /// byte-parity mismatch (D-01, D-02).
+    /// byte-parity mismatch.
     static let minimumJavaMajor = 21
 
     /// Parses the major version out of `java -version` text (written to stderr). Pure, so it can
-    /// be unit-tested with literal inputs independent of any real JVM (D-03 anti-vacuity).
+    /// be unit-tested with literal inputs independent of any real JVM (anti-vacuity).
     /// Handles the legacy `"1.8.0_x"` shape (-> 8) as well as modern `"21.0.12.1"` (-> 21).
     static func parseJavaMajorVersion(from output: String) -> Int? {
         guard let openQuote = output.firstIndex(of: "\""),
@@ -70,7 +70,7 @@ enum OracleRunner {
         return firstNum
     }
 
-    /// The version-requirement boundary, named so it can be asserted non-vacuously (D-03): a
+    /// The version-requirement boundary, named so it can be asserted non-vacuously: a
     /// wrong JVM must be detectable, not just "some JVM found".
     static func isSupportedJavaMajor(_ major: Int) -> Bool {
         major >= minimumJavaMajor
@@ -101,7 +101,7 @@ enum OracleRunner {
     /// True when the JDK, the built oracle JAR, AND a JVM major version >= `minimumJavaMajor` are
     /// all present. Used to gate oracle tests so a checkout without a built oracle (or with only
     /// a too-old JVM) still runs the rest of the suite instead of misreporting byte-parity
-    /// failures (D-01, D-02).
+    /// failures.
     static var isAvailable: Bool {
         guard FileManager.default.fileExists(atPath: jarPath),
             FileManager.default.isExecutableFile(atPath: javaPath),

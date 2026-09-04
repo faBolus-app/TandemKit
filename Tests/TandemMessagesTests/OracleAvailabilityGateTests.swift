@@ -38,7 +38,7 @@ import Foundation
         #expect(encoded == names.count, "every curated safety message must encode against the oracle")
     }
 
-    /// D-03 anti-vacuity: `oracleRequiredUnlessDevModeOptOut` above short-circuits on
+    /// Anti-vacuity: `oracleRequiredUnlessDevModeOptOut` above short-circuits on
     /// `isAvailable == true`, so on a JDK-21 host it never exercises the below-21 branch at all.
     /// These two cases assert the pure version-decision logic directly with concrete literal
     /// inputs, so they run (and can fail) on EVERY host regardless of which JVM is installed.
