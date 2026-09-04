@@ -29,10 +29,14 @@ public struct ExitChangeCartridgeModeRequest: Message {
 
 /// Enters fill-tubing mode (opcode 0x94 → 0x95). Dispenses insulin to prime tubing.
 public struct EnterFillTubingModeRequest: Message {
+    // The device-family claim is INHERITED for documentation-consistency with sibling
+    // FillCannulaRequest, not independently proven against the upstream annotation (upstream's
+    // own @MessageProps carries no MOBI_ONLY tag). It fails SAFE (no-send). Metadata-only: no
+    // wire bytes change, OracleParity unaffected.
     public static let props = MessageProps(
         opCode: 0x94, size: 0, signed: true, type: .request,
         characteristic: .control, modifiesInsulinDelivery: true, responseOpCode: 0x95,
-        supportedDevices: [.mobi])  // upstream MOBI_ONLY — documentation-consistency with sibling FillCannulaRequest (not on the wire → oracle-parity neutral)
+        supportedDevices: [.mobi])
     public var cargo: [UInt8]
     public init() { cargo = [] }
     public mutating func parse(_ raw: [UInt8]) { cargo = [] }

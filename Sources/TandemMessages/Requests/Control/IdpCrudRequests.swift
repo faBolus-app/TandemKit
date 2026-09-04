@@ -81,9 +81,13 @@ public struct RenameIDPRequest: Message {
 
 /// Sets one IDP time-segment's parameters (opcode 0xAA → 0xAB). 17-byte cargo.
 public struct SetIDPSegmentRequest: Message {
+    // The device-family claim is INHERITED for consistency with sibling IDP-CRUD requests, not
+    // independently proven against the upstream annotation (upstream's own @MessageProps carries
+    // no MOBI_ONLY tag). It fails SAFE (no-send). Metadata-only: no wire bytes change,
+    // OracleParity unaffected.
     public static let props = MessageProps(
         opCode: 0xAA, size: 17, signed: true, type: .request, characteristic: .control, responseOpCode: 0xAB,
-        supportedDevices: [.mobi])  // upstream MOBI_ONLY — consistency with sibling IDP-CRUD requests (not on the wire → oracle-parity neutral)
+        supportedDevices: [.mobi])
     public var cargo: [UInt8]
     public init() { cargo = [] }
     public init(
@@ -107,9 +111,13 @@ public struct SetIDPSegmentRequest: Message {
 /// Sets IDP-level settings — insulin duration, carb entry (opcode 0xAC → 0xAD). 6-byte cargo:
 /// idpId + profileIndex + LE uint16 profileInsulinDuration + profileCarbEntry + changeTypeId.
 public struct SetIDPSettingsRequest: Message {
+    // The device-family claim is INHERITED for consistency with sibling IDP-CRUD requests, not
+    // independently proven against the upstream annotation (upstream's own @MessageProps carries
+    // no MOBI_ONLY tag). It fails SAFE (no-send). Metadata-only: no wire bytes change,
+    // OracleParity unaffected.
     public static let props = MessageProps(
         opCode: 0xAC, size: 6, signed: true, type: .request, characteristic: .control, responseOpCode: 0xAD,
-        supportedDevices: [.mobi])  // upstream MOBI_ONLY — consistency with sibling IDP-CRUD requests (not on the wire → oracle-parity neutral)
+        supportedDevices: [.mobi])
     public var cargo: [UInt8]
     public init() { cargo = [] }
     public init(idpId: Int, profileIndex: Int, profileInsulinDuration: Int, profileCarbEntry: Int, changeTypeId: Int) {

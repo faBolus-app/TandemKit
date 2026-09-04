@@ -216,7 +216,7 @@ public struct LastBolusStatusV3Request: EmptyCurrentStatusRequest {
     // axis, because a t:slim X2 reported API 4.0 (above the whole table) and the `.mobi_v3_5` floor is
     // lower-bound-only, so it stopped refusing this on a t:slim.
     //
-    // ⚠️ WEAKEST of the five inherited claims — REVISIT before relying on it. "V3" is an era marker, not
+    // ⚠️ WEAKEST of the six inherited claims — REVISIT before relying on it. "V3" is an era marker, not
     // evidence of a device family: a t:slim X2 at API 4.0 may well answer op-0xBA. Debug session
     // `tslim-reservoir-battery-zero` was handed this opcode as a CANDIDATE FIX PATH (the app sends no
     // `*V3Request` at all, and the V1/V2-era reads it depends on are being durably rejected by this
