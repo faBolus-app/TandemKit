@@ -23,6 +23,26 @@ public protocol PairingCoordinating: AnyObject {
     func handle(frame: [UInt8])
 }
 
+extension PairingCoordinating {
+    /// Validates the CRC-16 trailer, then the declared length, of a reassembled inbound
+    /// `[opcode, txId, len, cargo…, crc0, crc1]` frame from the AUTHORIZATION characteristic, and
+    /// returns its cargo bytes (`frame[3..<3+len]`) only when both checks pass. Reuses the same
+    /// `Bytes.calculateCRC16` implementation the rest of the pairing path uses, so there is never a
+    /// second CRC implementation in an auth-critical path. Returns `nil` on any malformed frame
+    /// (too short, a bad CRC, or a declared length that does not match the buffer) so every
+    /// conformer's `handle(frame:)` fails closed before reaching a decoder or advancing its state
+    /// machine.
+    func validatedFrameCargo(_ frame: [UInt8]) -> [UInt8]? {
+        guard frame.count >= 5 else { return nil }
+        let body = Array(frame[0..<(frame.count - 2)])
+        let trailingCRC = Array(frame[(frame.count - 2)...])
+        guard Bytes.calculateCRC16(body) == trailingCRC else { return nil }
+        let len = Int(frame[2])
+        guard 3 + len == frame.count - 2 else { return nil }
+        return Array(frame[3..<(3 + len)])
+    }
+}
+
 extension PairingCoordinator: PairingCoordinating {}
 
 /// Drives the LEGACY (V1 / 16-char pairing code) authorization handshake over a message transport,
@@ -91,9 +111,8 @@ public final class LegacyPairingCoordinator: PairingCoordinating {
     }
 
     public func handle(frame: [UInt8]) {
-        guard frame.count >= 5 else { return fail(PairingError.malformedResponse) }
+        guard let cargo = validatedFrameCargo(frame) else { return fail(PairingError.malformedResponse) }
         let opcode = frame[0]
-        let cargo = Self.frameCargo(frame)
         switch (step, opcode) {
         case (.sentCentral, 17):  // CentralChallengeResponse
             let resp = CentralChallengeResponse(cargo: cargo)
@@ -134,15 +153,5 @@ public final class LegacyPairingCoordinator: PairingCoordinating {
     private func fail(_ error: Error) {
         step = .failed
         onError?(error)
-    }
-
-    /// Extract cargo `[3 ..< 3+len]` from a `[opcode, txId, len, cargo…, crc0, crc1]` frame,
-    /// mirroring `PairingCoordinator.frameCargo` (the coordinator parses AUTHORIZATION frames
-    /// inline; the BLE layer already validated the CRC).
-    private static func frameCargo(_ frame: [UInt8]) -> [UInt8] {
-        let len = Int(frame[2])
-        let end = min(3 + len, frame.count - 2)  // exclude the 2-byte CRC
-        guard end >= 3 else { return [] }
-        return Array(frame[3..<end])
     }
 }

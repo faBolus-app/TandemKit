@@ -7,8 +7,12 @@ import TandemMessages
 /// CentralChallenge→PumpChallenge exchange, the HMAC-SHA1 argument order, the pairing-code-as-signing-
 /// key rule, fail-closed rejection, and the no-resume (full re-challenge) behavior.
 @Suite struct LegacyPairingCoordinatorTests {
+    /// Build an inbound frame [opcode, txId, len, cargo…, crc(2)]. `handle(frame:)` now validates
+    /// CRC + declared length (shared via `PairingCoordinating`), so this helper must emit a real
+    /// `Bytes.calculateCRC16` trailer — a dummy `[0, 0]` CRC would fail closed.
     private func frame(_ opcode: UInt8, _ cargo: [UInt8]) -> [UInt8] {
-        [opcode, 0, UInt8(cargo.count)] + cargo + [0, 0]  // [opcode, txId, len, cargo…, crc(2 dummy)]
+        let body: [UInt8] = [opcode, 0, UInt8(cargo.count)] + cargo
+        return body + Bytes.calculateCRC16(body)
     }
     private func withAppId(_ payload: [UInt8]) -> [UInt8] { [0, 0] + payload }  // appInstanceId = 0
 
