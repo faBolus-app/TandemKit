@@ -8,8 +8,10 @@ public protocol ResponseMessage: Message {
 }
 
 /// Pump API version (major/minor). `response/currentStatus/ApiVersionResponse` (opcode 33, 4 bytes).
-/// The API version identifies the pump family — t:slim X2 is 2.x–3.4, **Mobi is 3.5+** (mirrors
-/// jwoglom `KnownApiVersion`), so this is a first-class pump-model signal.
+/// The API version identifies the pump family — t:slim X2 is 2.x–3.4, Mobi is 3.5–3.8 — via the
+/// explicit table on `family`, so this is a first-class pump-model signal. No upstream twin exists
+/// for this classification; it is a local addition (upstream's `ApiVersionResponse.java` carries no
+/// such field).
 public struct ApiVersionResponse: ResponseMessage {
     public static let props = MessageProps(opCode: 33, size: 4, type: .response, characteristic: .currentStatus)
     public var cargo: [UInt8]
@@ -24,8 +26,42 @@ public struct ApiVersionResponse: ResponseMessage {
         }
     }
     public mutating func parse(_ raw: [UInt8]) { self = ApiVersionResponse(cargo: raw) }
-    /// True when the pump is a Tandem Mobi (API 3.5+); t:slim X2 is 2.x–3.4.
-    public var isMobi: Bool { majorVersion > 3 || (majorVersion == 3 && minorVersion >= 5) }
+
+    /// Pump family classified from the negotiated version.
+    public enum Family: Sendable, Equatable {
+        case tslim
+        case mobi
+        /// Outside the known table below — including a version newer than every known entry.
+        /// Never inferred as the widest/newest family; a pump this codebase cannot classify must
+        /// stay unclassified rather than being treated as the newest thing it knows about.
+        case unknown
+    }
+
+    /// The exact (major, minor) → family table, mirroring upstream `KnownApiVersion`'s
+    /// enumeration. A version absent from this table — in either direction — resolves to
+    /// `.unknown` via `family`'s default, never to `.mobi` or `.tslim` by comparison.
+    private static let knownFamilies: [ApiVersion: Family] = [
+        .v2_1: .tslim,
+        .v2_5: .tslim,
+        .v3: .tslim,
+        .v3_2: .tslim,
+        .v3_4: .tslim,
+        .mobi_v3_5: .mobi,
+        .mobi_v3_6: .mobi,
+        .mobi_v3_8: .mobi,
+    ]
+
+    /// Family classification for this response's negotiated version. `.unknown` for any version
+    /// not in `knownFamilies` — an out-of-table major (e.g. a t:slim X2 negotiating API 4.0) can
+    /// therefore never be persisted as `.mobi`.
+    public var family: Family {
+        Self.knownFamilies[ApiVersion(major: majorVersion, minor: minorVersion)] ?? .unknown
+    }
+
+    /// True only when `family == .mobi`. An out-of-table version (e.g. API 4.0, above every known
+    /// entry) is `.unknown`, so this is false for it — it is never true "because it's newer than
+    /// everything in the table".
+    public var isMobi: Bool { family == .mobi }
 }
 
 /// IOB read for non-Control-IQ pumps. `response/currentStatus/NonControlIQIOBResponse` (op 39, 12B).

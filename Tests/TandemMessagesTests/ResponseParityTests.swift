@@ -477,3 +477,41 @@ import Testing
         }
     }
 }
+
+/// `ApiVersionResponse.isMobi` must classify strictly from the known (major, minor) table, never
+/// from "newer than everything I know about". A pump reporting a version above the whole table is
+/// unknown, not Mobi — an unknown pump must never be persisted as a Mobi (which would force a
+/// disconnect + forgetPairing on a genuine t:slim). Direct-cargo construction, so this suite runs
+/// unconditionally rather than depending on the oracle being available.
+@Suite struct ApiVersionFamilyClassificationTests {
+
+    private func apiVersion(major: Int, minor: Int) -> ApiVersionResponse {
+        ApiVersionResponse(cargo: [UInt8(major), 0, UInt8(minor), 0])
+    }
+
+    @Test func outOfTableMajorIsNotMobi() {
+        // The owner's own t:slim X2 negotiated API 4.0 (cargo [04 00 00 00]) — above every entry in
+        // the known table. It must classify as unknown, never Mobi.
+        #expect(!apiVersion(major: 4, minor: 0).isMobi)
+    }
+
+    @Test func knownMobiVersionsStillClassifyAsMobi() {
+        #expect(apiVersion(major: 3, minor: 5).isMobi)
+        #expect(apiVersion(major: 3, minor: 6).isMobi)
+        #expect(apiVersion(major: 3, minor: 8).isMobi)
+    }
+
+    @Test func knownTslimVersionsAreNotMobi() {
+        #expect(!apiVersion(major: 2, minor: 1).isMobi)
+        #expect(!apiVersion(major: 2, minor: 5).isMobi)
+        #expect(!apiVersion(major: 3, minor: 0).isMobi)
+        #expect(!apiVersion(major: 3, minor: 2).isMobi)
+        #expect(!apiVersion(major: 3, minor: 4).isMobi)
+    }
+
+    @Test func futureSentinelIsNotMobi() {
+        // (99, 99) is the API_FUTURE sentinel — above the table, same as any other out-of-table
+        // version, and must classify the same way: unknown, not Mobi.
+        #expect(!apiVersion(major: 99, minor: 99).isMobi)
+    }
+}
