@@ -1302,7 +1302,57 @@ public struct CurrentBatteryV2Response: ResponseMessage {
 
 /// Current CGM reading + trend (GUI data, V2). `response/currentStatus/CurrentEgvGuiDataV2Response`
 /// (opcode 193, 8 bytes). `cgmReading` is mg/dL; `trendRate` is a signed rate (sign → arrow).
-public struct CurrentEgvGuiDataV2Response: ResponseMessage {
+/// Backing fields shared by the V1 (`CurrentEGVGuiDataResponse`) and V2 (`CurrentEgvGuiDataV2Response`)
+/// EGV reads, which carry identical cargo semantics. Carries the five computed properties that used
+/// to be duplicated byte-for-byte across both structs, so they cannot drift again — the rationale
+/// behind each one is on its own doc comment in the extension below.
+public protocol EgvGuiData {
+    var cgmReading: Int { get }  // mg/dL
+    var egvStatusId: Int { get }
+    var trendRate: Int { get }  // signed, 0.1 mg/dL/min units
+}
+
+public extension EgvGuiData {
+    /// `trendRate` is a signed byte in 0.1 mg/dL/min units (matches the pump's ±12.7 range).
+    var trendRateMgDlPerMin: Double { Double(trendRate) / 10.0 }
+
+    /// `true` when `trendRate` is a **sentinel** rather than a real rate.
+    ///
+    /// Dexcom-family encodings reserve the extreme signed-byte values for "rate unavailable"; this
+    /// project's own G6 decoder guards for exactly that (`DexcomG6Kit.GlucoseRxMessage`:
+    /// `guard glucose.trend > Int8.min, glucose.trend < Int8.max`). Without this guard `0x7f` decodes
+    /// as +12.7 mg/dL/min and reads as a rapid rise — the mechanism behind the reported "app shows
+    /// double-up when the pump shows no arrow" defect.
+    ///
+    /// Unverified against a pump capture: the sentinel value is inferred from the sibling Dexcom
+    /// decoder and from the upstream reference, not confirmed on hardware.
+    var trendRateIsUnavailable: Bool {
+        trendRate >= Int(Int8.max) || trendRate <= Int(Int8.min)
+    }
+
+    /// The trend rate, or `nil` when the pump has no usable rate — either the EGV frame itself is not
+    /// valid (`hasValidReading` is false for status INVALID/UNAVAILABLE) or the rate is a sentinel.
+    var trendRateIfKnown: Double? {
+        guard hasValidReading, !trendRateIsUnavailable else { return nil }
+        return trendRateMgDlPerMin
+    }
+
+    /// A trend arrow derived client-side from `trendRate`, or `nil` when the rate is unknown.
+    ///
+    /// **Prefer `HomeScreenMirrorResponse.cgmTrendArrow`** — the pump's own home-screen icon, which by
+    /// construction agrees with the pump display and can say "no arrow". This derivation has to guess
+    /// Tandem's bucket boundaries, so it can disagree with the pump. Retained only so a caller that has
+    /// not yet polled `HomeScreenMirrorRequest` has something to fall back on, and it returns `nil`
+    /// rather than a fabricated direction whenever the rate is not known.
+    var trendArrow: String? { EgvTrend.arrow(forRate: trendRateIfKnown) }
+
+    /// EGV status per upstream: 0=INVALID, 1=VALID, 2=LOW, 3=HIGH, 4=UNAVAILABLE.
+    var hasValidReading: Bool {
+        (egvStatusId == 1 || egvStatusId == 2 || egvStatusId == 3) && cgmReading > 0 && cgmReading < 600
+    }
+}
+
+public struct CurrentEgvGuiDataV2Response: ResponseMessage, EgvGuiData {
     public static let props = MessageProps(opCode: 193, size: 8, type: .response, characteristic: .currentStatus)
     public var cargo: [UInt8]
     public private(set) var bgReadingTimestampSeconds: UInt32 = 0
@@ -1321,47 +1371,12 @@ public struct CurrentEgvGuiDataV2Response: ResponseMessage {
         trendRate = Int(Int8(bitPattern: raw[7]))
     }
     public mutating func parse(_ raw: [UInt8]) { self = CurrentEgvGuiDataV2Response(cargo: raw) }
-    /// `trendRate` is a signed byte in 0.1 mg/dL/min units (matches the pump's ±12.7 range).
-    public var trendRateMgDlPerMin: Double { Double(trendRate) / 10.0 }
-    /// `true` when `trendRate` is a **sentinel** rather than a real rate.
-    ///
-    /// Dexcom-family encodings reserve the extreme signed-byte values for "rate unavailable"; this
-    /// project's own G6 decoder guards for exactly that (`DexcomG6Kit.GlucoseRxMessage`:
-    /// `guard glucose.trend > Int8.min, glucose.trend < Int8.max`). Without this guard `0x7f` decodes
-    /// as +12.7 mg/dL/min and reads as a rapid rise — the mechanism behind the reported "app shows
-    /// double-up when the pump shows no arrow" defect.
-    ///
-    /// Unverified against a pump capture: the sentinel value is inferred from the sibling Dexcom
-    /// decoder and from the upstream reference, not confirmed on hardware.
-    public var trendRateIsUnavailable: Bool {
-        trendRate >= Int(Int8.max) || trendRate <= Int(Int8.min)
-    }
-
-    /// The trend rate, or `nil` when the pump has no usable rate — either the EGV frame itself is not
-    /// valid (`hasValidReading` is false for status INVALID/UNAVAILABLE) or the rate is a sentinel.
-    public var trendRateIfKnown: Double? {
-        guard hasValidReading, !trendRateIsUnavailable else { return nil }
-        return trendRateMgDlPerMin
-    }
-
-    /// A trend arrow derived client-side from `trendRate`, or `nil` when the rate is unknown.
-    ///
-    /// **Prefer `HomeScreenMirrorResponse.cgmTrendArrow`** — the pump's own home-screen icon, which by
-    /// construction agrees with the pump display and can say "no arrow". This derivation has to guess
-    /// Tandem's bucket boundaries, so it can disagree with the pump. Retained only so a caller that has
-    /// not yet polled `HomeScreenMirrorRequest` has something to fall back on, and it returns `nil`
-    /// rather than a fabricated direction whenever the rate is not known.
-    public var trendArrow: String? { EgvTrend.arrow(forRate: trendRateIfKnown) }
-    /// EGV status per upstream: 0=INVALID, 1=VALID, 2=LOW, 3=HIGH, 4=UNAVAILABLE.
-    public var hasValidReading: Bool {
-        (egvStatusId == 1 || egvStatusId == 2 || egvStatusId == 3) && cgmReading > 0 && cgmReading < 600
-    }
 }
 
 /// Shared trend-arrow derivation for the V1/V2 EGV responses, which carry identical `trendRate`
 /// semantics. Extracted so the two cannot drift — the bucket boundaries are a guess at Tandem's own,
 /// and having one copy per response struct is exactly how the previously-fixed asymmetric-band defect
-/// (see `CurrentEgvGuiDataV2Response.trendArrow`) got introduced.
+/// (see `EgvGuiData.trendArrow`) got introduced.
 public enum EgvTrend {
     /// A trend arrow derived client-side from a known trend rate (0.1 mg/dL/min units, already
     /// validated), or `nil` when the rate is not known — never a fabricated direction.
@@ -2268,7 +2283,7 @@ public struct CreateHistoryLogResponse: ResponseMessage {
 /// `.planning/debug/pump-pairing-loop.md` (on-device capture #6) and `TandemBackend.resolveQueuedRead`,
 /// which substitutes the V1 request for the V2 one on those pumps. The parity helpers below mirror the
 /// V2 struct's exactly so both responses can feed one shared consumer path.
-public struct CurrentEGVGuiDataResponse: ResponseMessage {
+public struct CurrentEGVGuiDataResponse: ResponseMessage, EgvGuiData {
     public static let props = MessageProps(opCode: 35, size: 8, type: .response, characteristic: .currentStatus)
     public var cargo: [UInt8]
     public private(set) var bgReadingTimestampSeconds: Int = 0
@@ -2286,32 +2301,14 @@ public struct CurrentEGVGuiDataResponse: ResponseMessage {
         // raw[7];` — Java's `byte` sign-extends into the int field) and the V2 twin. This was
         // previously `Int(raw[7])`, an unsigned read: a falling rate of -0.1 mg/dL/min (0xFF) decoded
         // as +25.5, i.e. every FALLING trend rendered as RAPIDLY RISING. That is the same defect class
-        // the V2 struct's own `trendRateIsUnavailable` doc comment describes ("app shows double-up when
-        // the pump shows no arrow"), and it was latent only because nothing consumed this response yet.
+        // `EgvGuiData.trendRateIsUnavailable`'s doc comment describes ("app shows double-up when the
+        // pump shows no arrow"), and it was latent only because nothing consumed this response yet.
         trendRate = Int(Int8(bitPattern: raw[7]))
     }
     public mutating func parse(_ raw: [UInt8]) { self = CurrentEGVGuiDataResponse(cargo: raw) }
-
-    // MARK: - Parity helpers (mirror `CurrentEgvGuiDataV2Response`; see its doc comments for rationale)
-
-    /// `trendRate` is a signed byte in 0.1 mg/dL/min units.
-    public var trendRateMgDlPerMin: Double { Double(trendRate) / 10.0 }
-    /// `true` when `trendRate` is a **sentinel** ("rate unavailable") rather than a real rate.
-    public var trendRateIsUnavailable: Bool {
-        trendRate >= Int(Int8.max) || trendRate <= Int(Int8.min)
-    }
-    /// The trend rate, or `nil` when the pump has no usable rate.
-    public var trendRateIfKnown: Double? {
-        guard hasValidReading, !trendRateIsUnavailable else { return nil }
-        return trendRateMgDlPerMin
-    }
-    /// A trend arrow derived client-side from `trendRate`, or `nil` when the rate is unknown.
-    /// **Prefer `HomeScreenMirrorResponse.cgmTrendArrow`** — see `EgvTrend.arrow(forRate:)`.
-    public var trendArrow: String? { EgvTrend.arrow(forRate: trendRateIfKnown) }
-    /// EGV status per upstream: 0=INVALID, 1=VALID, 2=LOW, 3=HIGH, 4=UNAVAILABLE.
-    public var hasValidReading: Bool {
-        (egvStatusId == 1 || egvStatusId == 2 || egvStatusId == 3) && cgmReading > 0 && cgmReading < 600
-    }
+    // The five computed properties (trendRateMgDlPerMin, trendRateIsUnavailable, trendRateIfKnown,
+    // trendArrow, hasValidReading) come from `EgvGuiData` — identical semantics to the V2 twin,
+    // now a single shared implementation instead of two copies that could drift.
 }
 
 /// Read response. Ported from ExtendedBolusStatusResponse.java.
