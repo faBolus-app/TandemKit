@@ -143,6 +143,80 @@ import TandemMessages
     }
 }
 
+/// `LegacyPairingCoordinator.handle(frame:)` must fail closed on a CRC-invalid frame or a declared
+/// length that does not match the buffer (`3 + declaredLen == frame.count - 2`), mirroring
+/// `PairingCoordinatorFrameTests` — the guard the two coordinators share via
+/// `PairingCoordinating`. A well-formed frame is unaffected.
+@Suite struct LegacyPairingCoordinatorFrameTests {
+    /// A well-formed inbound frame carrying a REAL CRC16 trailer (mirrors
+    /// `PairingCoordinatorFrameTests.wellFormedFrame`).
+    private func wellFormedFrame(_ opcode: UInt8, _ cargo: [UInt8]) -> [UInt8] {
+        let body: [UInt8] = [opcode, 0, UInt8(cargo.count)] + cargo
+        return body + Bytes.calculateCRC16(body)
+    }
+    private func withAppId(_ payload: [UInt8]) -> [UInt8] { [0, 0] + payload }  // appInstanceId=0
+
+    private let hmacKey: [UInt8] = [0x84, 0x0c, 0x4e, 0x16, 0x87, 0x30, 0x46, 0xbc]
+    private let challengeHash = [UInt8](repeating: 0xAB, count: 20)
+
+    private func startedCoordinator() throws -> LegacyPairingCoordinator {
+        let coord = try LegacyPairingCoordinator(pairingCode: "abcd1234ijkl5678")
+        coord.onSendRequest = { _ in }  // swallow the outgoing CentralChallengeRequest
+        coord.start()
+        return coord
+    }
+
+    /// A frame whose trailing 2 bytes are not `Bytes.calculateCRC16(body)` must fail closed,
+    /// never reach `CentralChallengeResponse` parsing.
+    @Test func crcInvalidFrameFailsClosed() throws {
+        let coord = try startedCoordinator()
+        var failure: Error?
+        coord.onError = { failure = $0 }
+        coord.onPaired = { _, _ in Issue.record("must not pair on a CRC-invalid frame") }
+
+        let cargo = withAppId(challengeHash + hmacKey)
+        var frame = wellFormedFrame(17, cargo)
+        frame[frame.count - 1] ^= 0xFF  // corrupt the trailing CRC byte
+
+        coord.handle(frame: frame)
+
+        #expect(coord.step == .failed)
+        #expect(failure as? LegacyPairingCoordinator.PairingError == .malformedResponse)
+    }
+
+    /// A declared length that claims more cargo than is actually present (a "short body" relative
+    /// to its own header) must fail closed on the length guard — with a valid CRC over that
+    /// (mismatched) body, so this cannot be mistaken for the CRC check above.
+    @Test func declaredLengthExceedsActualBodyFailsClosed() throws {
+        let coord = try startedCoordinator()
+        var failure: Error?
+        coord.onError = { failure = $0 }
+        coord.onPaired = { _, _ in Issue.record("must not pair on a length-mismatched frame") }
+
+        let cargo = withAppId(challengeHash + hmacKey)
+        var body: [UInt8] = [17, 0, UInt8(cargo.count)] + cargo
+        body[2] = UInt8(cargo.count + 5)  // declares more cargo than is actually present
+        let frame = body + Bytes.calculateCRC16(body)  // CRC is valid over this (mismatched) body
+
+        coord.handle(frame: frame)
+
+        #expect(coord.step == .failed)
+        #expect(failure as? LegacyPairingCoordinator.PairingError == .malformedResponse)
+    }
+
+    /// A well-formed frame (valid CRC, exact declared length) is handled as before — no regression
+    /// to the V1 happy path.
+    @Test func wellFormedFrameAdvancesPairingNormally() throws {
+        let coord = try startedCoordinator()
+        coord.onError = { Issue.record("unexpected pairing error: \($0)") }
+
+        let cargo = withAppId(challengeHash + hmacKey)
+        coord.handle(frame: wellFormedFrame(17, cargo))
+
+        #expect(coord.step == .sentPump)
+    }
+}
+
 /// Code-type detection drives which coordinator (JPAKE vs legacy V1) a caller builds.
 @Suite struct PairingCodeDetectionTests {
     @Test func detectsShortAndLong() {
