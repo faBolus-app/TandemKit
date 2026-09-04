@@ -1,4 +1,5 @@
 import Foundation
+import TandemMessages
 
 // BenchCoverageMatrix — the PURE, testable, resumable coverage model for the saline-bench harness.
 //

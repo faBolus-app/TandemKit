@@ -22,6 +22,11 @@ let package = Package(
         // No platform dependencies — compiles everywhere.
         .target(name: "TandemMessages"),
 
+        // Saline-bench session-planning, JSON-schema emission, Markdown coverage-matrix rendering, and
+        // the bench-bolus simulator. NOT a product — this is bench-only machinery for the
+        // TandemBenchHarness executable and has no business in the shipped TandemMessages library.
+        .target(name: "TandemBench", dependencies: ["TandemMessages"]),
+
         // Vendored mbedTLS EC-JPAKE (secp256r1/SHA-256), pinned submodule at
         // vendor/mbedtls (v3.6.7, Apache-2.0). The needed mbedTLS .c files are symlinked into
         // mbedtls_lib/ (see scripts/link-mbedtls.sh) and compiled as separate TUs alongside
@@ -63,7 +68,7 @@ let package = Package(
         // Oracle/test CLI: connect → status → bolus → cancel.
         .executableTarget(
             name: "TandemBenchHarness",
-            dependencies: ["TandemMessages", "TandemAuth", "TandemBLE"],
+            dependencies: ["TandemMessages", "TandemBench", "TandemAuth", "TandemBLE"],
             // Not a SwiftPM resource — it's embedded into the binary via the linker flag below.
             exclude: ["Info.plist"],
             // Embed an Info.plist carrying NSBluetoothAlwaysUsageDescription into the executable's
@@ -85,6 +90,7 @@ let package = Package(
         .testTarget(name: "TandemMessagesTests", dependencies: ["TandemMessages"]),
         .testTarget(name: "TandemAuthTests", dependencies: ["TandemAuth"]),
         .testTarget(name: "TandemBLETests", dependencies: ["TandemBLE"]),
+        .testTarget(name: "TandemBenchTests", dependencies: ["TandemMessages", "TandemBench"]),
 
         // Tier-1 hardware bench harness (LOCAL / manual-only, never in public CI). The whole
         // suite is GATED on a real pump + env being present (`HardwareGate.connected`), mirroring

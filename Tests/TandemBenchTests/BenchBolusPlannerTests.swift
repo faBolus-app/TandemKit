@@ -1,6 +1,7 @@
 import Testing
 import Foundation
-@testable import TandemMessages
+import TandemMessages
+@testable import TandemBench
 
 /// The bench carb planner must match the Tandem oracle `BolusCalculator.parse()`: signed
 /// below-target correction (and its IOB interaction) and two-decimal component rounding. Dropping

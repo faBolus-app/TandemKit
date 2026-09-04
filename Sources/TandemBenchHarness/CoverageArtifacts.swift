@@ -1,5 +1,6 @@
 import Foundation
 import TandemMessages
+import TandemBench
 
 // CoverageArtifacts — persistence for the resumable bench coverage matrix (deliverable #5).
 //

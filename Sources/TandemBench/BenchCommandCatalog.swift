@@ -1,4 +1,5 @@
 import Foundation
+import TandemMessages
 
 // BenchCommandCatalog — the PURE, testable command surface for the saline-bench coverage harness.
 //

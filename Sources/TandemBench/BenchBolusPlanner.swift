@@ -1,4 +1,5 @@
 import Foundation
+import TandemMessages
 
 /// A **pure, testable** carb/correction bolus planner for the saline bench harness (audit round-2 P1).
 ///

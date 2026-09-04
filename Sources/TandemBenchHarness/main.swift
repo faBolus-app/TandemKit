@@ -1,6 +1,7 @@
 import Foundation
 import CoreBluetooth
 import TandemMessages
+import TandemBench
 import TandemAuth
 import TandemBLE
 

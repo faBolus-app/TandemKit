@@ -1,6 +1,7 @@
 import Testing
 import Foundation
-@testable import TandemMessages
+import TandemMessages
+@testable import TandemBench
 
 // Pure-logic tests for the saline-bench command-coverage harness (deliverable #6). These prove the parts
 // the executable coverage runner CANNOT prove under `swift test` (CoreBluetooth aborts there): command

@@ -1,4 +1,5 @@
 import Foundation
+import TandemMessages
 
 // BenchAffordanceCatalog — the PURE, testable description of HOW the saline-bench coverage runner can
 // drive each state-changing command *reversibly*, so a bench session can exercise the full delivery +
