@@ -17,8 +17,100 @@ import TandemMessages
         #expect(
             Set(names).count == names.count,
             "duplicate command names in the catalog: \(names.count) vs \(Set(names).count)")
-        // The full request surface is 128 types.
-        #expect(names.count == 128, "catalog drifted from the 128-request surface (got \(names.count))")
+    }
+
+    /// Locate the `TandemMessages` source root by walking up from this test file's own `#filePath`
+    /// until `Sources/TandemMessages` exists as a sibling. Deliberately NOT anchored to any one
+    /// subdirectory (e.g. `Requests/`) — that anchoring is exactly what let the prior guard miss a
+    /// request declared under `Responses/`.
+    private static func tandemMessagesRoot() -> URL? {
+        let fm = FileManager.default
+        var probe = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        for _ in 0..<8 {
+            let candidate = probe.appendingPathComponent("Sources/TandemMessages")
+            if fm.fileExists(atPath: candidate.path) { return candidate }
+            probe = probe.deletingLastPathComponent()
+        }
+        return nil
+    }
+
+    /// Every `.swift` file under the WHOLE `Sources/TandemMessages` tree, recursively — every
+    /// subdirectory, not just one.
+    private static func allSwiftFiles(under root: URL) -> [URL] {
+        let fm = FileManager.default
+        guard let enumerator = fm.enumerator(at: root, includingPropertiesForKeys: nil) else { return [] }
+        var files: [URL] = []
+        for case let url as URL in enumerator where url.pathExtension == "swift" {
+            files.append(url)
+        }
+        return files
+    }
+
+    /// The conformances that mark a type as a REQUEST (directly or via a request-family marker
+    /// protocol). A type conforming to one of these, and not also to `ResponseMessage`, is a request
+    /// by construction — this is what makes the resulting surface placement-immune: it is derived from
+    /// what the type declares itself to be, not from which folder its file happens to sit in.
+    private static let requestConformances: Set<String> = ["Message", "EmptyCurrentStatusRequest", "JpakeChallengeMessage"]
+
+    /// Parse a single source line for `public struct Name: Conformance, Conformance {` and return the
+    /// name IF the declared conformance list contains a request marker and not `ResponseMessage`. Line
+    /// comments are stripped first so a doc-comment mention is never mistaken for a real declaration.
+    private static func requestTypeName(inLine line: Substring) -> String? {
+        let code = line.range(of: "//").map { line[..<$0.lowerBound] } ?? line
+        guard let structRange = code.range(of: "public struct ") else { return nil }
+        let rest = code[structRange.upperBound...]
+        guard let colon = rest.firstIndex(of: ":") else { return nil }
+        let name = rest[rest.startIndex..<colon].trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty, name.allSatisfy({ $0.isLetter || $0.isNumber }) else { return nil }
+        let conformanceText = rest[rest.index(after: colon)...].split(separator: "{").first ?? ""
+        let conformances = conformanceText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        guard conformances.contains(where: { Self.requestConformances.contains($0) }) else { return nil }
+        guard !conformances.contains("ResponseMessage") else { return nil }
+        return name
+    }
+
+    /// The completeness guard, as a CLASS fix rather than an instance fix: derive the true request
+    /// surface by scanning the ENTIRE `Sources/TandemMessages` tree and classifying each declaration by
+    /// which protocol it conforms to — immune to directory placement, so a future request declared
+    /// anywhere (under `Responses/`, `Core/`, or a brand-new subdirectory) can no longer hide from this
+    /// guard the way the three op-72/op-74/op-184 requests did. Swift has no runtime API to enumerate
+    /// every protocol conformer of a value type, so this necessarily still reads source text — but,
+    /// unlike the guard it replaces, that reading is not scoped to any single subdirectory, and the
+    /// classification is conformance-driven (what the type says it is) rather than a hand-counted
+    /// literal.
+    @Test func requestSurfaceMatchesTheCatalogPlacementImmune() throws {
+        guard let root = Self.tandemMessagesRoot() else {
+            Issue.record("could not resolve Sources/TandemMessages from #filePath=\(#filePath)")
+            return
+        }
+        let files = Self.allSwiftFiles(under: root)
+        #expect(!files.isEmpty, "guard could not enumerate any TandemMessages sources from \(root.path)")
+
+        var scanned: Set<String> = []
+        for file in files {
+            guard let contents = try? String(contentsOf: file, encoding: .utf8) else { continue }
+            for rawLine in contents.split(separator: "\n", omittingEmptySubsequences: false) {
+                if let name = Self.requestTypeName(inLine: rawLine) {
+                    scanned.insert(name)
+                }
+            }
+        }
+        // Anti-vacuity: a scan that silently finds nothing must not read as "the catalog is complete".
+        #expect(scanned.count > 0, "the conformance scan found zero request declarations — the scan itself is broken")
+
+        let cataloged = Set(BenchCommandCatalog.messageTypes.map { String(describing: $0) })
+        let missingFromCatalog = scanned.subtracting(cataloged)
+        let extraInCatalog = cataloged.subtracting(scanned)
+        let missingMessage =
+            "request type(s) declared somewhere under Sources/TandemMessages but missing from "
+            + "BenchCommandCatalog.messageTypes — directory placement does not matter here: "
+            + "\(missingFromCatalog.sorted())"
+        #expect(missingFromCatalog.isEmpty, "\(missingMessage)")
+        let extraMessage =
+            "BenchCommandCatalog.messageTypes names a type the conformance scan did not find under "
+            + "Sources/TandemMessages (renamed or removed without updating the catalog): "
+            + "\(extraInCatalog.sorted())"
+        #expect(extraInCatalog.isEmpty, "\(extraMessage)")
     }
 
     /// The delivery-class surface is exactly 14: 3 UNIVERSAL + 11 Mobi-only (prior-research invariant).
