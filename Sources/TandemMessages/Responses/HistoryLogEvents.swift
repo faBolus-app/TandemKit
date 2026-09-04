@@ -184,9 +184,6 @@ public enum HistoryLogParser {
         return r
     }()
 
-    /// The number of distinct history-log event types currently decoded.
-    public static var decodedTypeCount: Int { factories.count }
-
     /// Parses one 26-byte record into a typed event, or `UnknownHistoryLog` if the typeId is
     /// unknown / the record is too short.
     public static func parse(record raw: [UInt8]) -> any HistoryLogEvent {

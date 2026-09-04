@@ -16,8 +16,6 @@ public enum Hex {
         return s
     }
 
-    public static func encode(_ data: Data) -> String { encode([UInt8](data)) }
-
     /// Decodes a hex string to bytes. Mirrors `decodeHex`; throws on odd length or bad chars.
     public static func decode(_ hex: String) throws -> [UInt8] {
         let chars = Array(hex.utf8)

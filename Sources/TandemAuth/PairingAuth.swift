@@ -28,7 +28,6 @@ public enum PairingAuth {
     public enum PairingError: Error, Equatable {
         case invalidLongPairingCode
         case invalidShortPairingCode
-        case invalidType
     }
 
     /// Validates + normalizes a pairing code to the given type's canonical form.

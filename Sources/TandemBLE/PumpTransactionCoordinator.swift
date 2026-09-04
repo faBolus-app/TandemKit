@@ -194,8 +194,6 @@ public final class PumpTransactionCoordinator {
         }
     }
 
-    /// Cancel every outstanding transaction as `.cancelled`.
-    public func cancelAll() { failAll(.cancelled) }
 
     private func resolve(id: UInt64, with result: Result<[UInt8], Error>) {
         guard let idx = pending.firstIndex(where: { $0.id == id }) else { return }  // already resolved → no-op

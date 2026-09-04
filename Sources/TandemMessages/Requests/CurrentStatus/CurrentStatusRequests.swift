@@ -14,9 +14,7 @@ public extension EmptyCurrentStatusRequest {
     init() { self.init(emptyCargo: ()) }
     mutating func parse(_ raw: [UInt8]) {
         // Request messages are only serialized; empty cargo is expected.
-        if raw.isEmpty { return }
-        precondition(raw.count == Self.props.size)
-        cargo = Bytes.dropFirst(raw, 3)
+        cargo = raw
     }
 }
 
