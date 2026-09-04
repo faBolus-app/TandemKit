@@ -17,8 +17,8 @@ import TandemMessages
         #expect(
             Set(names).count == names.count,
             "duplicate command names in the catalog: \(names.count) vs \(Set(names).count)")
-        // The full request surface under Sources/TandemMessages/Requests is 125 types.
-        #expect(names.count == 125, "catalog drifted from the 125-request surface (got \(names.count))")
+        // The full request surface is 128 types.
+        #expect(names.count == 128, "catalog drifted from the 128-request surface (got \(names.count))")
     }
 
     /// The delivery-class surface is exactly 14: 3 UNIVERSAL + 11 Mobi-only (prior-research invariant).

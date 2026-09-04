@@ -154,6 +154,7 @@ public enum BenchCommandCatalog {
         LastBolusStatusV2Request.self, ControlIQInfoV2Request.self, LastBGRequest.self,
         CurrentEgvGuiDataV2Request.self, PumpGlobalsRequest.self, PumpSettingsRequest.self,
         BolusCalcDataSnapshotRequest.self, AlertStatusRequest.self, AlarmStatusRequest.self,
+        CGMAlertStatusRequest.self, ReminderStatusRequest.self,
         MalfunctionStatusRequest.self, ProfileStatusRequest.self, CurrentActiveIdpValuesRequest.self,
         GlobalMaxBolusSettingsRequest.self, BasalLimitSettingsRequest.self, ControlIQInfoV1Request.self,
         PumpFeaturesV1Request.self, LoadStatusRequest.self, ExtendedBolusStatusV2Request.self,
@@ -178,6 +179,8 @@ public enum BenchCommandCatalog {
         CancelBolusRequest.self, AdditionalBolusRequest.self,
         // Remote entry (benign metadata)
         RemoteCarbEntryRequest.self, RemoteBgEntryRequest.self,
+        // Notification dismiss (signed; benign risk — clears an alert, no therapy effect)
+        DismissNotificationRequest.self,
         // Suspend / resume (Mobi-only delivery)
         SuspendPumpingRequest.self, ResumePumpingRequest.self,
         // Cartridge / tubing / cannula

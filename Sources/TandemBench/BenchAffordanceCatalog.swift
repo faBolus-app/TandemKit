@@ -276,6 +276,13 @@ public enum BenchAffordanceCatalog {
 
         // ── NON-DELIVERY signed writes — bespokePending (reversible, generic driver not yet wired) ──
         write(
+            "DismissNotificationRequest", .bespokePending, oracle: "AlertStatusRequest",
+            drive: .pending(
+                "needs a live notificationId/kind captured from an active alert/CGM-alert/reminder status "
+                    + "read first — no safe way to synthesize one without an existing notification"),
+            "PENDING: bespoke active-notification capture→dismiss mapping; catalog membership here is "
+                + "metadata only, not a claim about on-device reachability"),
+        write(
             "PrimeTubingSuspendRequest", .bespokePending,
             drive: .pending("only meaningful during an active tubing prime; drive within the fill-tubing workflow"),
             "PENDING: exercise within an active fill-tubing prime"),
