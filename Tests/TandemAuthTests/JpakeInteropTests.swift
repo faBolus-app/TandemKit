@@ -87,7 +87,72 @@ enum JpakeOracle {
         let brew = "/opt/homebrew/opt/openjdk@21/bin/java"
         return FileManager.default.isExecutableFile(atPath: brew) ? brew : "/usr/bin/java"
     }()
-    static var available: Bool { FileManager.default.fileExists(atPath: jar) }
+
+    /// `cliparser.jar`'s `Main.class` is class-file major 58 (Java 14); a JDK below 21 cannot
+    /// load it. Below this requirement `available` must be false, not merely "jar exists" — a
+    /// present-but-wrong JVM must read as UNAVAILABLE, never as an EC-JPAKE interop mismatch.
+    static let minimumJavaMajor = 21
+
+    /// Parses the major version out of `java -version` text (written to stderr). Pure, so it can
+    /// be unit-tested with literal inputs independent of any real JVM.
+    /// Handles the legacy `"1.8.0_x"` shape (-> 8) as well as modern `"21.0.12.1"` (-> 21).
+    static func parseJavaMajorVersion(from output: String) -> Int? {
+        guard let openQuote = output.firstIndex(of: "\""),
+            let closeQuote = output[output.index(after: openQuote)...].firstIndex(of: "\"")
+        else { return nil }
+        let versionToken = output[output.index(after: openQuote)..<closeQuote]
+        let components = versionToken.split(separator: ".")
+        guard let first = components.first, let firstNum = Int(first) else { return nil }
+        if firstNum == 1, components.count >= 2, let second = Int(components[1]) {
+            return second
+        }
+        return firstNum
+    }
+
+    /// The version-requirement boundary, named so it can be asserted non-vacuously: a wrong JVM
+    /// must be detectable, not just "some JVM found".
+    static func isSupportedJavaMajor(_ major: Int) -> Bool {
+        major >= minimumJavaMajor
+    }
+
+    /// Memoized (spawned at most once per process, matching `java`'s memoization) resolution of
+    /// `java -version`. Any spawn or parse failure resolves to `nil` — fail closed.
+    static let resolvedJavaMajorVersion: Int? = {
+        guard FileManager.default.isExecutableFile(atPath: java) else { return nil }
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: java)
+        proc.arguments = ["-version"]
+        let errPipe = Pipe()
+        proc.standardOutput = Pipe()
+        proc.standardError = errPipe
+        do {
+            try proc.run()
+        } catch {
+            return nil
+        }
+        // `java -version` writes to stderr, not stdout.
+        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+        proc.waitUntilExit()
+        guard proc.terminationStatus == 0 else { return nil }
+        return parseJavaMajorVersion(from: String(decoding: errData, as: UTF8.self))
+    }()
+
+    /// True when the JAR, an executable `java`, AND a JVM major version >= `minimumJavaMajor` are
+    /// all present. A present-but-too-old JVM must read as unavailable (the suite skips) rather
+    /// than run and misreport a spurious EC-JPAKE interop failure.
+    static var available: Bool {
+        guard FileManager.default.fileExists(atPath: jar),
+            FileManager.default.isExecutableFile(atPath: java),
+            let major = resolvedJavaMajorVersion
+        else { return false }
+        return isSupportedJavaMajor(major)
+    }
+
+    /// Self-describing reason the oracle is unavailable, mirroring `OracleRunner`'s diagnostic
+    /// shape, so a wrong/absent JVM names itself instead of silently skipping.
+    static var unavailableDiagnostic: String {
+        "jar=\(jar) java=\(java) resolvedJavaMajor=\(resolvedJavaMajorVersion.map(String.init) ?? "unknown") (need >= \(minimumJavaMajor))"
+    }
 
     /// The JSON object after the "PREFIX: " on a server line.
     private static func json(_ line: String) throws -> [String: Any] {
