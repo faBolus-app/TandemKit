@@ -9,8 +9,9 @@ public struct LinkState: Sendable {
     public internal(set) var target: PumpTarget?
     public internal(set) var power: BluetoothPower = .unknown
     /// Whether the app is in the foreground. Timers don't fire while iOS has the app suspended, so the
-    /// backoff ladder is timed only in the foreground.
-    public internal(set) var appActive = true
+    /// backoff ladder is timed only in the foreground. Starts false: an app relaunched in the background
+    /// may never be told, and assuming the background only costs a throttled retry being immediate.
+    public internal(set) var appActive = false
     public internal(set) var support = SupportMatrix()
     public internal(set) var ladder = ReconnectLadder()
     public internal(set) var telemetry = ConnectionTelemetry()
@@ -66,6 +67,9 @@ public struct ConnectionSpan: Sendable, Equatable {
 public struct ConnectionTelemetry: Sendable, Equatable {
     /// The latest closed connections, oldest first.
     public internal(set) var spans: [ConnectionSpan] = []
+    /// Pending connects issued; each ends in a connect, a failed connect, or still pending.
+    public internal(set) var connectAttempts = 0
+    public internal(set) var failedConnects = 0
     public internal(set) var connects = 0
     public internal(set) var disconnects = 0
     /// Summed from closed spans.
@@ -92,6 +96,8 @@ public struct Connection: Sendable {
     public internal(set) var present: Set<Characteristic> = []
     /// Subscriptions the pump confirmed.
     public internal(set) var subscribed: Set<Characteristic> = []
+    /// Present characteristics whose first subscription failed; requests on them are refused.
+    public internal(set) var unavailable: Set<Characteristic> = []
     var reassembly: [Characteristic: PacketReassembler] = [:]
     /// Next transaction id. pumpx2 starts every connection at 0.
     var nextTxId: UInt8 = 0
@@ -125,8 +131,8 @@ struct Pending: Sendable {
     /// Untested on this pump: it goes alone, after the link held (a probe for a read).
     var untested: Bool
     var attemptsLeft: Int
-    /// A retry after an op-77: it may go although probing has stopped on this connection.
-    var isRetry: Bool
+    /// The op-77 an earlier attempt drew, for a queued retry.
+    var previousError: ErrorResponse?
 }
 
 /// The one request on the wire.

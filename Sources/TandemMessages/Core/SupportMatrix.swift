@@ -170,6 +170,22 @@ public struct SupportMatrix: Sendable, Equatable, Codable {
         recorded[unit, default: [:]][key] = Array(kept.suffix(Self.observationsKept))
     }
 
+    /// This matrix with `other`'s recorded observations added: per unit and command, both sets of
+    /// observations in the order they were recorded, duplicates once, the latest `observationsKept`.
+    /// For a caller whose stored copy and the link's live copy may each hold something the other lacks.
+    public func merging(_ other: SupportMatrix) -> SupportMatrix {
+        var merged = self
+        for (unit, byKey) in other.recorded {
+            for (key, observations) in byKey {
+                var all = merged.recorded[unit]?[key] ?? []
+                for observation in observations where !all.contains(observation) { all.append(observation) }
+                all.sort { ($0.recordedAt ?? .distantPast) < ($1.recordedAt ?? .distantPast) }
+                merged.recorded[unit, default: [:]][key] = Array(all.suffix(Self.observationsKept))
+            }
+        }
+        return merged
+    }
+
     /// Forgets what this app recorded about `key` on `unit`, so the next request for it is a probe
     /// again. For a developer setting that retests a command (owner, 2026-10-31); the compiled-in class
     /// evidence stays.

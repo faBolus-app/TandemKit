@@ -62,7 +62,10 @@ private final class Step {
         case .cancel(let id): cancel(id)
         case .retest(let key): retest(key)
         case .power(let power): powerChanged(power)
-        case .restored(let peripherals): state.restored = peripherals
+        case .restored(let peripherals):
+            // iOS relaunches into the background for this.
+            state.restored = peripherals
+            state.appActive = false
         case .discovered(let id, let name, let rssi): discovered(id, name, rssi)
         case .peripheralUnavailable(let id): peripheralUnavailable(id)
         case .connected(let id, let name): connected(id, name)
@@ -72,6 +75,8 @@ private final class Step {
         case .subscription(let characteristic, let isNotifying, let failed):
             subscription(characteristic, isNotifying: isNotifying, failed: failed)
         case .deviceInformation(let modelNumber): state.connection?.identity.modelNumber = modelNumber
+        case .servicesInvalidated:
+            if state.connection != nil { dropped(.servicesInvalidated, exempt: false, cancel: true) }
         case .notified(let characteristic, let bytes): notified(characteristic, bytes)
         case .writeFailed(let characteristic, let txId): writeFailed(characteristic, txId: txId)
         case .authenticationRequest(let message): authenticationRequest(message)
@@ -124,14 +129,15 @@ private final class Step {
             setPhase(.failed(.unsupportedModel(model)))
             return
         }
-        // Already connected or reconnecting to this pump: take the new credentials, and keep the link,
-        // the ladder and the matrix the link has been recording (the caller's copy may be older), so
-        // calling connect again can't skip the backoff or forget a rejected command.
+        // Already connected or reconnecting to this pump: take the new credentials, keep the link and the
+        // ladder, and merge the caller's matrix into the one the link has been recording (either may be
+        // newer), so calling connect again can't skip the backoff or forget a rejected command.
         if state.target?.peripheralID == target.peripheralID {
             switch state.phase {
             case .idle, .failed, .exhausted, .scanning(forPairing: true): break
             default:
                 state.target = target
+                state.support = state.support.merging(matrix)
                 return
             }
         }
@@ -225,7 +231,9 @@ private final class Step {
             guard let model = identity.model else { return complete(request.id, .notSent(.identityUnknown)) }
             if !devices.contains(model) { return complete(request.id, .notSent(.unsupported)) }
         }
-        if !connection.present.contains(message.characteristic) {
+        if !connection.present.contains(message.characteristic)
+            || connection.unavailable.contains(message.characteristic)
+        {
             return complete(request.id, .notSent(.characteristicUnavailable))
         }
         let key = request.key
@@ -241,7 +249,7 @@ private final class Step {
         }
         let pending = Pending(
             request: request, untested: untested,
-            attemptsLeft: message.signed ? 0 : config.readRetries, isRetry: false)
+            attemptsLeft: message.signed ? 0 : config.readRetries)
         state.connection?.queue.append(pending)
         dispatch()
     }
@@ -249,9 +257,9 @@ private final class Step {
     func cancel(_ id: RequestID) {
         guard var connection = state.connection else { return }
         if let index = connection.queue.firstIndex(where: { $0.request.id == id }) {
-            connection.queue.remove(at: index)
+            let pending = connection.queue.remove(at: index)
             state.connection = connection
-            return complete(id, .notSent(.cancelled))
+            return finish(pending, notSent: .cancelled)
         }
         if let inFlight = connection.inFlight, inFlight.pending?.request.id == id, !inFlight.orphaned {
             // It's on the wire: keep the slot busy until its reply or deadline, so a late reply can't be
@@ -296,7 +304,9 @@ private final class Step {
         var refused: [RequestID: NotSentReason] = [:]
         for pending in connection.queue {
             let key = pending.request.key
-            if state.sittingOut.contains(key) {
+            if connection.unavailable.contains(pending.request.message.characteristic) {
+                refused[pending.request.id] = .characteristicUnavailable
+            } else if state.sittingOut.contains(key) {
                 refused[pending.request.id] = .sittingOut
             } else if state.support.entry(
                 for: key, unit: identity.unit, model: identity.model, apiVersion: identity.apiVersion
@@ -307,7 +317,7 @@ private final class Step {
         guard !refused.isEmpty else { return }
         state.connection?.queue = connection.queue.filter { refused[$0.request.id] == nil }
         for pending in connection.queue {
-            if let reason = refused[pending.request.id] { complete(pending.request.id, .notSent(reason)) }
+            if let reason = refused[pending.request.id] { finish(pending, notSent: reason) }
         }
     }
 
@@ -356,9 +366,9 @@ private final class Step {
         guard power == .poweredOn else {
             // didDisconnect doesn't reliably follow a power-off, so the connection closes here.
             if state.connection != nil { closeConnection(.bluetoothUnavailable(power)) }
-            // Off, unauthorized or unsupported ends every link iOS kept; unknown and resetting can come
-            // before poweredOn at launch, with the restored link still up.
-            if power != .unknown && power != .resetting { state.restored = [] }
+            // Any state but unknown (which only comes before the first update) ends the links iOS kept,
+            // and resetting, unauthorized and unsupported invalidate the peripheral objects as well.
+            if power != .unknown { state.restored = [] }
             cancelTimer(.backoff)
             if case .scanning = state.phase { cancelTimer(.scan) }
             switch state.phase {
@@ -397,6 +407,7 @@ private final class Step {
             return
         }
         transport(.connect(target.peripheralID))
+        state.telemetry.connectAttempts += 1
         setPhase(.connecting)
     }
 
@@ -421,6 +432,13 @@ private final class Step {
     }
 
     func connected(_ id: UUID, _ name: String?) {
+        if state.target == nil, let index = state.restored.firstIndex(where: { $0.peripheralID == id }) {
+            // A restored pending connect completed before the app named its target (the event iOS
+            // relaunched it for): keep it for the target to adopt.
+            state.restored[index].isConnected = true
+            if name != nil { state.restored[index].name = name }
+            return
+        }
         guard let target = state.target, id == target.peripheralID, state.connection == nil else {
             if state.connection?.peripheralID != id { transport(.cancelConnection(id)) }
             return
@@ -460,10 +478,14 @@ private final class Step {
 
     func connectFailed(_ id: UUID) {
         guard id == state.target?.peripheralID, state.connection == nil, state.phase == .connecting else { return }
+        state.telemetry.failedConnects += 1
         flap()
     }
 
     func disconnected(_ id: UUID, _ error: BluetoothError?) {
+        if let index = state.restored.firstIndex(where: { $0.peripheralID == id }) {
+            state.restored[index].isConnected = false  // never adopt a link that's gone
+        }
         guard let connection = state.connection, connection.peripheralID == id else { return }
         var reason = DisconnectReason.linkLost(error)
         var exempt = false
@@ -536,7 +558,7 @@ private final class Step {
     func closeConnection(_ reason: DisconnectReason) {
         guard let connection = state.connection else { return }
         state.connection = nil
-        for pending in connection.queue { complete(pending.request.id, .notSent(.connectionLost)) }
+        for pending in connection.queue { finish(pending, notSent: .connectionLost) }
         if let pending = connection.inFlight?.pending {
             if connection.inFlight?.orphaned == true {
                 cancelTimer(.request(pending.request.id))
@@ -571,17 +593,19 @@ private final class Step {
 
     func subscription(_ characteristic: Characteristic, isNotifying: Bool, failed: Bool) {
         guard let connection = state.connection else { return }
-        if failed {
+        if failed && !connection.subscribed.contains(characteristic) {
             // Failing while being restored: the resubscribe deadline decides.
             guard !connection.resubscribing.contains(characteristic) else { return }
-            // A first subscription that fails: an optional characteristic isn't waited for; a
-            // required one ends setup.
+            // A first subscription that fails: a required one ends setup; an optional one isn't waited
+            // for, and requests on it are refused rather than left waiting for a reply channel.
             if state.phase == .discovering, LinkReducer.requiredCharacteristics.contains(characteristic) {
-                dropped(.setupFailed, exempt: false, cancel: true)
+                return dropped(.setupFailed, exempt: false, cancel: true)
             }
-            return
+            state.connection?.unavailable.insert(characteristic)
+            return dispatch()
         }
-        if !isNotifying {
+        if failed || !isNotifying {
+            // A live subscription that reports a failure or stops notifying is a dead reply channel.
             state.connection?.subscribed.remove(characteristic)
             guard state.phase != .discovering, connection.subscribed.contains(characteristic) else { return }
             // A subscription can drop while the link stays up, with no disconnect. Re-subscribe, and
@@ -592,6 +616,7 @@ private final class Step {
             return
         }
         state.connection?.subscribed.insert(characteristic)
+        state.connection?.unavailable.remove(characteristic)
         if state.connection?.resubscribing.remove(characteristic) != nil,
             state.connection?.resubscribing.isEmpty == true
         {
@@ -667,8 +692,9 @@ private final class Step {
             let events = QualifyingEvent.decode(bytes)
             guard !events.isEmpty else { return }
             emit(.qualifyingEvents(events))
-            // Clear it, as upstream does, but not while a signed write is on the wire.
-            if connection.inFlight?.message.signed != true {
+            // Clear it, as upstream does, once the link is ready (before that only the handshake's
+            // writes go out), and not while a signed write is on the wire.
+            if state.phase == .ready, connection.inFlight?.message.signed != true {
                 transport(.write(.qualifyingEvents, [[0, 0, 0, 0]]))
             }
             return
@@ -697,8 +723,9 @@ private final class Step {
     }
 
     /// Whether `frame` answers the request on the wire: same characteristic, the expected reply or an
-    /// op-77, and on t:slim the echoed txId. With one request in flight the opcode alone is
-    /// enough elsewhere.
+    /// op-77, and the echoed txId. The txId is required even when the model is unknown: after a timeout
+    /// frees the slot, a late reply (an authenticated op-77 above all) must not answer the next request.
+    /// t:slim echoes it; whether Mobi does is unverified, and Mobi isn't connected to.
     func matches(_ frame: [UInt8], on characteristic: Characteristic, _ inFlight: InFlight, _ connection: Connection)
         -> Bool
     {
@@ -707,7 +734,7 @@ private final class Step {
         guard opCode == inFlight.message.props.responseOpCode || opCode == ErrorResponse.props.opCode else {
             return false
         }
-        return connection.identity.model != .tslim || frame[1] == inFlight.txId
+        return frame[1] == inFlight.txId
     }
 
     func reply(_ parsed: ResponseParser.Parsed, on characteristic: Characteristic) -> LinkReply {
@@ -721,10 +748,22 @@ private final class Step {
             frame: frame, characteristic: characteristic, authenticationKey: state.connection?.authKey ?? [])
         guard let pending = inFlight.pending else { return handshakeReplied(parsed) }
         if inFlight.orphaned {
-            // Its caller is gone, but what the reply means for the pump (probing, a drop to come) isn't.
-            if let error = parsed?.message as? ErrorResponse {
-                settle(after: error, pending: nil, untested: pending.untested, inFlight)
+            // Its caller is gone, but what the reply means for the pump (probing, a drop to come) isn't,
+            // and an authenticated answer to a cancelled signed write is the one definite outcome.
+            let late: RequestResult
+            if let parsed, !(parsed.message is UnverifiedErrorResponse),
+                !inFlight.message.signed || isFresh(parsed.signedPumpTime, inFlight)
+            {
+                if let error = parsed.message as? ErrorResponse {
+                    late = .pumpError(error)
+                    settle(after: error, pending: nil, untested: pending.untested, inFlight)
+                } else {
+                    late = .reply(reply(parsed, on: characteristic))
+                }
+            } else {
+                late = .unknown(.invalidReply)
             }
+            emit(.cancelledRequestAnswered(pending.request.id, late))
             return dispatch()
         }
         let id = pending.request.id
@@ -804,8 +843,8 @@ private final class Step {
     func stopProbing() {
         guard let connection = state.connection, !connection.probingStopped else { return }
         state.connection?.probingStopped = true
-        let stopped = connection.queue.filter { $0.untested && !$0.request.message.signed && !$0.isRetry }
-        state.connection?.queue.removeAll { $0.untested && !$0.request.message.signed && !$0.isRetry }
+        let stopped = connection.queue.filter { $0.untested && !$0.request.message.signed }
+        state.connection?.queue.removeAll { $0.untested && !$0.request.message.signed }
         for pending in stopped { complete(pending.request.id, .notSent(.probeStopped)) }
     }
 
@@ -824,17 +863,10 @@ private final class Step {
         case 0:
             // Undefined (P1 answers this way): ambiguous without a drop. A bounded retry, then the
             // command sits out the rest of the session.
-            if countUndefinedError(errorReply.key), !errorReply.signed, var pending = errorReply.pending {
-                pending.isRetry = true
-                retry = pending
-            }
+            if countUndefinedError(errorReply.key) { retry = retryable(errorReply) }
         default:
             // Transient (CRC, txId, buffer, auth): a bounded retry for a read.
-            if !errorReply.signed, var pending = errorReply.pending, pending.attemptsLeft > 0 {
-                pending.attemptsLeft -= 1
-                pending.isRetry = true
-                retry = pending
-            }
+            retry = retryable(errorReply)
         }
         if let retry {
             state.connection?.queue.insert(retry, at: 0)
@@ -842,6 +874,26 @@ private final class Step {
             complete(pending.request.id, .pumpError(errorReply.error))
         }
         dispatch()
+    }
+
+    /// The request again, if it may be retried: a supported read with attempts left. A probe isn't: the
+    /// first op-77 a probe draws ends probing on the connection, its own retry included.
+    func retryable(_ errorReply: ErrorReply) -> Pending? {
+        guard !errorReply.signed, !errorReply.untested, var pending = errorReply.pending, pending.attemptsLeft > 0
+        else { return nil }
+        pending.attemptsLeft -= 1
+        pending.previousError = errorReply.error
+        return pending
+    }
+
+    /// Ends a request that never went out this time. One that went out before and drew an op-77 (a
+    /// queued retry) reports that answer instead, since it did reach the pump.
+    func finish(_ pending: Pending, notSent reason: NotSentReason) {
+        if let previous = pending.previousError {
+            complete(pending.request.id, .pumpError(previous))
+        } else {
+            complete(pending.request.id, .notSent(reason))
+        }
     }
 
     /// Counts an undefined-code error for `key`; returns whether it's still within the retry budget.

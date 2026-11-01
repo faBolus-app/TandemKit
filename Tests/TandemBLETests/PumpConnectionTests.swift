@@ -29,6 +29,7 @@ import TandemMessages
         let connection = PumpConnection(transport: transport, clock: clock)
         let log = EventLog()
         connection.observer = { log.events.append($0) }
+        if !restoring { connection.setAppActive(true) }
         transport.start(restoring: restoring)
         return Rig(pump: pump, clock: clock, transport: transport, connection: connection, log: log)
     }

@@ -22,6 +22,11 @@ public final class CoreBluetoothTransport: NSObject, LinkTransport {
     private var characteristics: [Characteristic: CBCharacteristic] = [:]
     private var modelNumber: CBCharacteristic?
     private var wantsModelNumber = false
+    /// Peripherals whose cancellation hasn't been confirmed by a disconnect yet, and those to connect
+    /// again once it is: a connect issued in the same breath as a cancel waits for the cancel to finish,
+    /// so the two can't cross.
+    private var cancelling: Set<UUID> = []
+    private var connectAfterCancel: Set<UUID> = []
     /// The txId of each packet written and not yet acknowledged, per characteristic, oldest first.
     /// CoreBluetooth acknowledges writes with response in order but doesn't say which value it means.
     private var unacknowledged: [Characteristic: [UInt8]] = [:]
@@ -49,12 +54,19 @@ public final class CoreBluetoothTransport: NSObject, LinkTransport {
                 report?(.peripheralUnavailable(id))
                 return
             }
+            if cancelling.contains(id) {
+                connectAfterCancel.insert(id)
+                return
+            }
             peripheral.delegate = self
             // A pending connect has no timeout; CoreBluetooth completes it when the pump is in range, also
             // while the app is suspended.
             central.connect(peripheral, options: [CBConnectPeripheralOptionNotifyOnDisconnectionKey: true])
         case .cancelConnection(let id):
-            if let peripheral = peripherals[id] { central.cancelPeripheralConnection(peripheral) }
+            connectAfterCancel.remove(id)
+            guard let peripheral = peripherals[id] else { return }
+            if peripheral.state != .disconnected { cancelling.insert(id) }
+            central.cancelPeripheralConnection(peripheral)
         case .discover(let id):
             // The link decides which peripheral is being set up; a stray that connects meanwhile
             // doesn't take its place.
@@ -115,6 +127,40 @@ public final class CoreBluetoothTransport: NSObject, LinkTransport {
             unacknowledged = [:]
         }
         report?(.disconnected(peripheralID: peripheral.identifier, error.map(BluetoothError.init)))
+        finishedCancelling(peripheral)
+    }
+
+    /// A cancel ended (disconnect or failed connect): issue the connect that waited for it.
+    fileprivate func finishedCancelling(_ peripheral: CBPeripheral) {
+        let id = peripheral.identifier
+        guard cancelling.remove(id) != nil, connectAfterCancel.remove(id) != nil else { return }
+        central.connect(peripheral, options: [CBConnectPeripheralOptionNotifyOnDisconnectionKey: true])
+    }
+
+    /// Below poweredOff (resetting, unauthorized, unsupported) every peripheral object is invalid and must
+    /// be retrieved again (Apple's `centralManagerDidUpdateState` documentation).
+    fileprivate func powerChanged(_ power: BluetoothPower) {
+        switch power {
+        case .resetting, .unauthorized, .unsupported:
+            peripherals = [:]
+            current = nil
+            characteristics = [:]
+            unacknowledged = [:]
+            cancelling = []
+            connectAfterCancel = []
+        case .poweredOff:
+            current = nil  // the links are gone; the objects stay valid
+            cancelling = []
+            connectAfterCancel = []
+        default:
+            break
+        }
+        report?(.power(power))
+    }
+
+    fileprivate func servicesModified(_ peripheral: CBPeripheral, _ pumpServiceGone: Bool) {
+        guard peripheral === current, pumpServiceGone else { return }
+        report?(.servicesInvalidated)
     }
 
     fileprivate func discoveredServices(_ peripheral: CBPeripheral, _ error: Error?) {
@@ -184,7 +230,7 @@ public final class CoreBluetoothTransport: NSObject, LinkTransport {
 extension CoreBluetoothTransport: CBCentralManagerDelegate {
     public nonisolated func centralManagerDidUpdateState(_ central: CBCentralManager) {
         let power = Self.power(central.state)
-        MainActor.assumeIsolated { report?(.power(power)) }
+        MainActor.assumeIsolated { powerChanged(power) }
     }
 
     /// iOS relaunched the app and hands back the peripherals it kept connected or connecting. Called
@@ -225,6 +271,7 @@ extension CoreBluetoothTransport: CBCentralManagerDelegate {
     ) {
         MainActor.assumeIsolated {
             report?(.connectFailed(peripheralID: peripheral.identifier, error.map(BluetoothError.init)))
+            finishedCancelling(peripheral)
         }
     }
 
@@ -236,6 +283,11 @@ extension CoreBluetoothTransport: CBCentralManagerDelegate {
 }
 
 extension CoreBluetoothTransport: CBPeripheralDelegate {
+    public nonisolated func peripheral(_ peripheral: CBPeripheral, didModifyServices invalidatedServices: [CBService]) {
+        let pumpServiceGone = invalidatedServices.contains { $0.uuid == CBUUID(nsuuid: ServiceUUID.pumpService) }
+        MainActor.assumeIsolated { servicesModified(peripheral, pumpServiceGone) }
+    }
+
     public nonisolated func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         MainActor.assumeIsolated { discoveredServices(peripheral, error) }
     }

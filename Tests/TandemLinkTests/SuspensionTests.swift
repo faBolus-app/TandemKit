@@ -163,12 +163,174 @@ import TandemMessages
     @Test func dropWhileSettingUpARestoredLinkIsNotAFlap() {
         var h = LinkHarness()
         h.apply(.restored([RestoredPeripheral(peripheralID: Self.id, isConnected: true, name: "tslim X2 ***693")]))
-        h.apply(.power(.resetting))  // may come before poweredOn at launch
         h.apply(.connect(target, SupportMatrix()))
         h.apply(.power(.poweredOn))
         #expect(h.phase == .discovering)  // adopted, not reconnected
         h.apply(.disconnected(peripheralID: Self.id, drop))
         #expect(h.state.ladder.flaps == 0)
         #expect(h.commands.contains(.connect(Self.id)))
+    }
+
+    @Test func resettingForgetsRestoredPeripherals() {
+        // Below poweredOff every peripheral object is invalid, the restored link included.
+        var h = LinkHarness()
+        h.apply(.restored([RestoredPeripheral(peripheralID: Self.id, isConnected: true, name: nil)]))
+        h.apply(.power(.resetting))
+        h.apply(.connect(target, SupportMatrix()))
+        h.apply(.power(.poweredOn))
+        #expect(h.commands == [.connect(Self.id)])
+    }
+
+    @Test func restoredLinkThatDroppedBeforeTheTargetIsKnownIsReconnectedNotAdopted() {
+        var h = LinkHarness()
+        h.apply(.restored([RestoredPeripheral(peripheralID: Self.id, isConnected: true, name: nil)]))
+        h.apply(.power(.poweredOn))
+        h.apply(.disconnected(peripheralID: Self.id, drop))
+        h.apply(.connect(target, SupportMatrix()))
+        #expect(h.commands == [.connect(Self.id)])
+        #expect(h.phase == .connecting)
+    }
+
+    @Test func restoredConnectThatCompletesBeforeTheTargetIsKnownIsAdopted() {
+        var h = LinkHarness()
+        h.apply(.restored([RestoredPeripheral(peripheralID: Self.id, isConnected: false, name: nil)]))
+        h.apply(.power(.poweredOn))
+        h.apply(.connected(peripheralID: Self.id, name: "tslim X2 ***693"))
+        #expect(h.commands.isEmpty)  // not cancelled
+        h.apply(.connect(target, SupportMatrix()))
+        #expect(h.phase == .discovering)
+    }
+
+    @Test func linkStartsAssumingTheBackground() {
+        // An app relaunched in the background may never be told it's in the background.
+        var h = LinkHarness()
+        h.state.appActive = LinkState().appActive
+        h.apply(.power(.poweredOn))
+        h.apply(.connect(target, SupportMatrix()))
+        h.apply(.connectFailed(peripheralID: Self.id, drop))
+        #expect(h.commands.contains(.connect(Self.id)))
+        #expect(h.phase == .connecting)
+    }
+
+    @Test func lateOp77DoesNotAnswerTheNextSignedWriteWhenTheModelIsUnknown() {
+        var h = LinkHarness()
+        h.makeReady(model: nil, name: nil)
+        h.advance(by: 10)
+        let first = h.submit(BolusPermissionRequest(), allowing: .delivery, deadline: 5)
+        let firstTx = h.lastWrite!.txId
+        h.advance(by: 5)
+        #expect(h.results[first] == .unknown(.timedOut))
+        let second = h.submit(BolusPermissionRequest(), allowing: .delivery)
+        h.notify(ControlError(cargo: [0, 3]), txId: firstTx, signedAt: 586_961_779 + 15)
+        h.advance(by: 1)
+        #expect(h.results[second] == nil)
+    }
+
+    @Test func optionalCharacteristicThatWontSubscribeRefusesItsRequests() {
+        var h = LinkHarness()
+        h.apply(.power(.poweredOn))
+        h.apply(.connect(target, SupportMatrix()))
+        h.apply(.connected(peripheralID: Self.id, name: "tslim X2 ***693"))
+        h.apply(.characteristicsDiscovered(Set(Characteristic.allCases)))
+        h.apply(.subscription(.control, isNotifying: false, failed: true))
+        for c in ServiceUUID.notificationCharacteristics where c != .control {
+            h.apply(.subscription(c, isNotifying: true, failed: false))
+        }
+        h.apply(.authenticated(key: LinkHarness.key, derivedSecret: nil))
+        h.answerHandshake()
+        h.advance(by: 10)
+        let id = h.submit(BolusPermissionRequest(), allowing: .delivery)
+        #expect(h.results[id] == .notSent(.characteristicUnavailable))
+    }
+
+    @Test func failedSubscriptionWhileReadyIsRestored() {
+        var h = LinkHarness()
+        h.makeReady()
+        h.apply(.subscription(.currentStatus, isNotifying: false, failed: true))
+        #expect(h.commands == [.subscribe(.currentStatus)])
+        #expect(h.timers[.resubscribe] != nil)
+        #expect(h.state.connection?.subscribed.contains(.currentStatus) == false)
+    }
+
+    @Test func invalidatedServiceEndsTheConnection() {
+        var h = LinkHarness()
+        h.makeReady()
+        h.advance(by: 10)
+        h.apply(.servicesInvalidated)
+        #expect(h.commands.contains(.cancelConnection(Self.id)))
+        #expect(h.state.telemetry.spans.last?.reason == .servicesInvalidated)
+    }
+
+    @Test func probeThatDrewAnOp77IsNotSentAgain() {
+        var h = LinkHarness()
+        h.makeReady(api: (4, 0), unit: LinkHarness.p2Unit)
+        h.advance(by: 10)
+        let id = h.submit(CurrentBatteryV2Request())
+        h.replyError(code: 0)
+        h.advance(by: 1)
+        #expect(h.writes(of: CurrentBatteryV2Request.self) == 1)
+        guard case .pumpError = h.results[id] else {
+            Issue.record("expected the pump's error")
+            return
+        }
+    }
+
+    @Test func oneRetryMeansAtMostTwoSends() {
+        var h = LinkHarness()
+        h.makeReady()
+        _ = h.submit(CurrentBatteryV1Request())
+        h.replyError(code: 2)
+        h.advance(by: 1)
+        h.replyError(code: 0)
+        h.advance(by: 1)
+        #expect(h.writes(of: CurrentBatteryV1Request.self) == 2)
+    }
+
+    @Test func cancelledRetryReportsThePumpsAnswer() {
+        var h = LinkHarness()
+        h.makeReady()
+        _ = h.submit(InsulinStatusRequest())  // keeps the wire busy so the retry stays queued
+        let id = h.submit(CurrentBatteryV1Request())
+        h.reply(InsulinStatusResponse(cargo: [10, 0, 0, 0]))
+        h.replyError(code: 2)
+        h.advance(by: 0.5)
+        h.apply(.cancel(id))
+        guard case .pumpError = h.results[id] else {
+            Issue.record("it reached the pump; expected its answer, got \(String(describing: h.results[id]))")
+            return
+        }
+    }
+
+    @Test func connectingAgainMergesANewerMatrix() {
+        var h = LinkHarness()
+        h.makeReady(api: (4, 0), unit: LinkHarness.p2Unit)
+        var loaded = SupportMatrix()
+        loaded.record(.unsupported, for: MessageKey(LoadStatusRequest.self), on: LinkHarness.p2Unit, note: "stored")
+        h.apply(.connect(target, loaded))
+        h.advance(by: 10)
+        let id = h.submit(LoadStatusRequest())
+        #expect(h.results[id] == .notSent(.unsupported))
+    }
+
+    @Test func cancelledSignedWritesAuthenticatedAnswerIsReported() {
+        var h = LinkHarness()
+        h.makeReady()
+        let id = h.submit(BolusPermissionRequest(), allowing: .delivery)
+        h.apply(.cancel(id))
+        h.reply(BolusPermissionResponse(cargo: [0, 1, 0, 0, 0, 0]), signedAt: 586_961_779 + 2)
+        let answered = h.events.contains {
+            if case .cancelledRequestAnswered(id, .reply) = $0 { return true } else { return false }
+        }
+        #expect(answered)
+    }
+
+    @Test func qualifyingEventsAreNotClearedBeforeReady() {
+        var h = LinkHarness()
+        h.apply(.power(.poweredOn))
+        h.apply(.connect(target, SupportMatrix()))
+        h.apply(.connected(peripheralID: Self.id, name: "tslim X2 ***693"))
+        h.apply(.notified(.qualifyingEvents, [1, 0, 0, 0]))
+        #expect(h.events == [.qualifyingEvents(.alert)])
+        #expect(h.commands.isEmpty)
     }
 }

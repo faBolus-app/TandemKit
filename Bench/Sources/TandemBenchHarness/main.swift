@@ -99,6 +99,7 @@ final class Bench {
     }
 
     func start() {
+        link.setAppActive(true)  // a command-line tool's timers always run, as in an app's foreground
         Task { @MainActor in
             for await event in link.events { handle(event) }
         }
@@ -163,6 +164,8 @@ final class Bench {
             say("qualifying events: 0x\(String(events.rawValue, radix: 16))")
         case .unsolicited(let reply):
             say("unsolicited \(type(of: reply.message)) on \(reply.characteristic.name)")
+        case .cancelledRequestAnswered(let id, let result):
+            say("request \(id), cancelled earlier, was answered: \(describe(result))")
         }
     }
 

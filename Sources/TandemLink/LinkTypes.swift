@@ -205,6 +205,8 @@ public enum DisconnectReason: Sendable, Equatable {
     /// A post-authentication read failed.
     case handshakeFailed
     case authenticationFailed(rejected: Bool)
+    /// The pump's service was invalidated; the link cancelled the connection.
+    case servicesInvalidated
     /// A dropped subscription wasn't restored in time; the link cancelled the connection.
     case subscriptionLost(Characteristic)
     /// The Bluetooth name contradicted the stored model, or names an unsupported model.
@@ -360,6 +362,8 @@ public enum LinkInput: Sendable {
     case characteristicsDiscovered(Set<Characteristic>)
     case subscription(Characteristic, isNotifying: Bool, failed: Bool)
     case deviceInformation(modelNumber: String?)
+    /// The pump's service was invalidated (`didModifyServices`): its characteristics are gone.
+    case servicesInvalidated
     /// One notification packet (or the 4-byte qualifying-events bitmap).
     case notified(Characteristic, [UInt8])
     /// A write the pump didn't acknowledge, with the txId of the packet that failed when known.
@@ -420,6 +424,9 @@ public enum LinkEvent: Sendable, Equatable {
     case supportMatrixChanged(SupportMatrix)
     /// A frame no request was waiting for: a history-log or control stream, or a stray reply.
     case unsolicited(LinkReply)
+    /// The pump answered a request after its caller cancelled it (the caller got `.unknown(.cancelled)`).
+    /// For a signed write this can be the definite outcome.
+    case cancelledRequestAnswered(RequestID, RequestResult)
     case qualifyingEvents(QualifyingEvent)
 }
 

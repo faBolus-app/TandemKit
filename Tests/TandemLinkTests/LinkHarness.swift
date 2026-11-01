@@ -27,8 +27,10 @@ struct LinkHarness {
     static let p1Unit = PumpUnit(serialNumber: 1693, armSoftwareVersion: 1, mspSoftwareVersion: 2)
     static let p2Unit = PumpUnit(serialNumber: 2000, armSoftwareVersion: 7, mspSoftwareVersion: 7)
 
+    /// Starts in the foreground, as most tests want; the link itself starts assuming the background.
     init(config: LinkConfiguration = LinkConfiguration()) {
         state = LinkState(config: config)
+        state.appActive = true
     }
 
     var phase: LinkPhase { state.phase }
