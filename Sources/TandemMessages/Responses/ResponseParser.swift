@@ -34,6 +34,10 @@ public enum ResponseParser {
         let make: @Sendable ([UInt8]) -> any Message
         let expectedSize: Int?  // nil = variable-size / stream frame
         let signed: Bool
+        /// Builds the reply's unverified form when its trailer doesn't verify, instead of throwing.
+        /// Only the CONTROL op-77 error has one: a caller must still see that the pump answered,
+        /// but never as a definite refusal.
+        var unverified: (@Sendable ([UInt8], UnverifiedErrorResponse.Reason) -> any Message)?
     }
 
     /// Composite dispatch key: opcodes are only unique per characteristic.
@@ -61,6 +65,17 @@ public enum ResponseParser {
                 make: { M(cargo: $0) },
                 expectedSize: (p.variableSize || p.stream) ? nil : p.size,
                 signed: p.signed)
+        }
+        // The CONTROL op-77 error: the same cargo as the CURRENT_STATUS one, but it answers a signed
+        // write and carries the 24-byte trailer (upstream `PacketArrayList` checks its HMAC whenever
+        // the expected reply is signed; captured from P1 as `4d <txId> 1a 0000 <time(4)> <hmac(20)>`).
+        func addSignedControlError() {
+            let p = ErrorResponse.props
+            r[Key(characteristic: .control, opCode: p.opCode)] = Registration(
+                make: { ErrorResponse(cargo: $0) },
+                expectedSize: p.size,
+                signed: true,
+                unverified: { UnverifiedErrorResponse(cargo: $0, reason: $1) })
         }
         // CURRENT_STATUS reads
         add(ApiVersionResponse.self)
@@ -132,9 +147,9 @@ public enum ResponseParser {
         add(TempRateResponse.self)
         add(ErrorResponse.self)
         // Same op-77 error reply also arrives on CONTROL when a signed control write is NACKed
-        // (echoing the failing request's txId). Register the control variant so it decodes as
-        // ErrorResponse instead of `unknownOpcode`. Additive key — currentStatus variant untouched.
-        add(ErrorResponse.self, on: .control)
+        // (echoing the failing request's txId). It is HMAC-verified like any signed reply; one that
+        // doesn't verify parses as `UnverifiedErrorResponse`. Additive key — currentStatus untouched.
+        addSignedControlError()
         // AUTHORIZATION — legacy (V1 / 16-char) pairing replies. The modern JPAKE pairing replies
         // (op 33/35/37/39/41) are parsed inline by PairingCoordinator and are intentionally NOT
         // registered here; these two are registered for oracle parity + reuse.
@@ -240,24 +255,38 @@ public enum ResponseParser {
         // durable delivery lock and opening a double-dose window. Verify BEFORE stripping/trusting the cargo,
         // fail CLOSED, constant-time. Byte-exact with the oracle: the HMAC covers messageData
         // (`[opcode,txId,length] + cargo`) minus its last 20 bytes; the last 20 bytes are the expected mac.
-        if reg.signed && verifySignature {
-            guard length >= 24 else { throw ParseError.signatureMissing(opcode: opCode) }
-            guard !authenticationKey.isEmpty else { throw ParseError.signatureKeyUnavailable(opcode: opCode) }
-            let messageData = Array(body[0..<(3 + length)])
-            let signedOver = Array(messageData[0..<(messageData.count - 20)])
-            let expected = Array(messageData[(messageData.count - 20)...])
-            guard Packetize.isValidHmacSha1(mac: expected, data: signedOver, key: authenticationKey) else {
-                throw ParseError.signatureInvalid(opcode: opCode)
+        // Signed responses append a 24-byte HMAC to the cargo; strip it for field parsing. A frame
+        // too short to hold one has nothing to strip (verification below rejects it).
+        let cargoLen = reg.signed && length >= 24 ? length - 24 : length
+        let cargo = Array(body[3..<(3 + cargoLen)])
+        if reg.signed && verifySignature,
+            let failure = signatureFailure(
+                messageData: Array(body[0..<(3 + length)]), key: authenticationKey)
+        {
+            if let unverified = reg.unverified {
+                return Parsed(opCode: opCode, txId: txId, message: unverified(cargo, failure))
+            }
+            switch failure {
+            case .trailerMissing: throw ParseError.signatureMissing(opcode: opCode)
+            case .keyUnavailable: throw ParseError.signatureKeyUnavailable(opcode: opCode)
+            case .hmacMismatch: throw ParseError.signatureInvalid(opcode: opCode)
             }
         }
-        // Signed responses append a 24-byte HMAC to the cargo; strip it for field parsing.
-        let cargoLen = reg.signed ? max(0, length - 24) : length
-        let cargo = Array(body[3..<(3 + cargoLen)])
         // Require at least the expected cargo, but tolerate extra trailing bytes: newer pump
         // firmware (e.g. Control-IQ+ 7.10.x EGV) appends fields we don't parse.
         if let expected = reg.expectedSize, cargo.count < expected {
             throw ParseError.cargoLengthMismatch(opcode: opCode, expected: expected, got: cargo.count)
         }
         return Parsed(opCode: opCode, txId: txId, message: reg.make(cargo))
+    }
+
+    /// Why a signed reply's trailer doesn't verify, or nil when it does. `messageData` is
+    /// `[opcode, txId, length] + cargo`; the HMAC covers all of it but its last 20 bytes.
+    static func signatureFailure(messageData: [UInt8], key: [UInt8]) -> UnverifiedErrorResponse.Reason? {
+        guard messageData.count >= 3 + 24 else { return .trailerMissing }
+        guard !key.isEmpty else { return .keyUnavailable }
+        let signedOver = Array(messageData[0..<(messageData.count - 20)])
+        let expected = Array(messageData[(messageData.count - 20)...])
+        return Packetize.isValidHmacSha1(mac: expected, data: signedOver, key: key) ? nil : .hmacMismatch
     }
 }

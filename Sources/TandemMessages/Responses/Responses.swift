@@ -2007,6 +2007,41 @@ public struct ErrorResponse: ResponseMessage {
     public var isBadOpcode: Bool { errorCodeId == 6 }
 }
 
+/// An op-77 error on CONTROL whose HMAC trailer is absent, couldn't be checked, or doesn't verify.
+/// Anyone on the link can write a CRC-valid frame, so this is not evidence the pump refused the
+/// write: a signed write answered only by this has an unknown outcome (R2, R5). It is a separate
+/// type so code that matches `ErrorResponse` can't treat it as a refusal by accident.
+public struct UnverifiedErrorResponse: ResponseMessage {
+    public enum Reason: Sendable, Equatable {
+        /// The cargo is too short to hold the 24-byte trailer.
+        case trailerMissing
+        /// No session key was supplied to check it against.
+        case keyUnavailable
+        /// The trailer's HMAC doesn't match.
+        case hmacMismatch
+    }
+
+    public static let props = MessageProps(
+        opCode: 77, size: 2, variableSize: true, type: .response, characteristic: .control)
+    public var cargo: [UInt8]
+    public private(set) var reason: Reason = .trailerMissing
+    /// What the frame claims, unauthenticated.
+    public private(set) var claimedRequestCodeId = 0
+    public private(set) var claimedErrorCodeId = 0
+    public init() { cargo = [] }
+    /// `ResponseParser` always passes the reason; without one, assume the trailer didn't verify.
+    public init(cargo raw: [UInt8]) { self.init(cargo: raw, reason: .hmacMismatch) }
+    public init(cargo raw: [UInt8], reason: Reason) {
+        cargo = raw
+        self.reason = reason
+        if raw.count >= 2 {
+            claimedRequestCodeId = Int(raw[0])
+            claimedErrorCodeId = Int(raw[1])
+        }
+    }
+    public mutating func parse(_ raw: [UInt8]) { self = UnverifiedErrorResponse(cargo: raw, reason: reason) }
+}
+
 // MARK: - Remaining A1 read responses (generated)
 
 /// Read response. Ported from ActiveAamBitsResponse.java (opcode raw -109).

@@ -234,11 +234,11 @@ import Testing
             let body: [UInt8] = [op, 0x01, UInt8(cargo.count)] + cargo
             return body + Bytes.calculateCRC16(body)
         }
-        // Control variant: failing opcode 0x1C, errorCodeId 3 (INVALID_PARAMETER), plus trailing control
-        // context the tolerant size check ignores.
+        // Control variant: failing opcode 0x1C, errorCodeId 3 (INVALID_PARAMETER), plus a placeholder
+        // trailer; `verifySignature: false` makes this a decode test (ControlErrorHmacTests checks it).
         let ctl = try ResponseParser.parse(
             frame: frame(77, [0x1C, 3] + [UInt8](repeating: 0, count: 24)),
-            characteristic: .control)
+            characteristic: .control, verifySignature: false)
         #expect((ctl.message as? ErrorResponse)?.requestCodeId == 0x1C)
         #expect((ctl.message as? ErrorResponse)?.isInvalidParameter == true)
         // Pre-existing currentStatus variant unchanged.

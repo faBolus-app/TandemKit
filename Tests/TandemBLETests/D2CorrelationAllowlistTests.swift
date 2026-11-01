@@ -105,10 +105,10 @@ import TandemMessages
             "the pre-existing .currentStatus op-77 registration must remain untouched")
         // The additive control-variant key.
         #expect(
-            source.contains("add(ErrorResponse.self, on: .control)"),
+            source.contains("addSignedControlError()"),
             "the additive op-77-on-.control registration must be present")
         // Exactly one .control override for ErrorResponse — no shadowing / no duplicate key.
-        let controlKeyCount = source.components(separatedBy: "add(ErrorResponse.self, on: .control)").count - 1
+        let controlKeyCount = source.components(separatedBy: "        addSignedControlError()").count - 1
         #expect(
             controlKeyCount == 1,
             "expected exactly one op-77-on-.control key; a second would shadow it (found \(controlKeyCount))")
