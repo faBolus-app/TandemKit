@@ -1,8 +1,8 @@
 import Foundation
 
 /// Pump-mode + active-profile control (A2). **Both modify insulin delivery** (they change
-/// Control-IQ behavior / the active basal profile), so `modifiesInsulinDelivery=true` — the app
-/// must raise WritePolicy to `.allowDelivery` and these require bench (saline) validation before
+/// Control-IQ behavior / the active basal profile), so `modifiesInsulinDelivery=true` — a send
+/// must allow `.delivery`, and these require bench (saline) validation before
 /// being relied upon, behind the advanced-control + Mobi gate. Ports of
 /// `request/control/{SetModes,SetActiveIDP}Request`.
 

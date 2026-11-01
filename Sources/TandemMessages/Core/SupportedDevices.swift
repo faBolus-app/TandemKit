@@ -53,16 +53,6 @@ public extension ApiVersion {
 
 }
 
-/// Bootstrap-read allowlist key. Keyed by **(Characteristic, opCode)** — never a raw opcode —
-/// because opcodes collide across characteristics: `0xA4` is both `LastBolusStatusV2Request`
-/// (`.currentStatus`, an unrestricted read) and `SetTempRateRequest` (`.control`, Mobi-only, with
-/// `modifiesInsulinDelivery: true`). That second one is why a raw-opcode key would be unsafe and not
-/// merely ambiguous: allowlisting the READ byte would allowlist a DELIVERY command. The compound key
-/// cannot confuse them by construction — the read is `(.currentStatus, 0xA4)`, the delivery command
-/// `(.control, 0xA4)`, distinct Hashable values even though the raw byte matches. Pinned by
-/// faBolus's `PumpDeliveryOpcodeScopeGuardTests` (that suite lives in the app repo, not here).
-public typealias SendGateAllowlistKey = MessageKey
-
 /// A message's identity on the wire: **(Characteristic, opCode)**, since opcodes are only unique per
 /// characteristic.
 public struct MessageKey: Hashable, Sendable, Codable {
@@ -81,17 +71,4 @@ public struct MessageKey: Hashable, Sendable, Codable {
     public init(_ message: some Message) {
         self.init(type(of: message))
     }
-}
-
-/// Bootstrap-read allowlist. `identityGateError` consults a compound key plus a runtime
-/// `operationRisk == .read` guard (never the key alone) so a model-restricted READ may still
-/// reach an unidentified/untrusted pump when the app's pre-identity schedule needs it.
-///
-/// Currently empty: every automatic send between link-up and op33 identity is unrestricted.
-/// If a future model-restricted READ is added to that burst, put its `(Characteristic, opCode)`
-/// here or it will fail with `.identityNotEstablished` until identity is established.
-/// Entries are an explicit `Set` — never computed by reflecting the catalog.
-public enum SendGateBootstrapAllowlist {
-    /// Empty until a pre-identity model-restricted read needs an exemption.
-    public static let entries: Set<SendGateAllowlistKey> = []
 }

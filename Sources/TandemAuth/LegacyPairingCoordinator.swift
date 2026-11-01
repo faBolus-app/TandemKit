@@ -1,8 +1,8 @@
 import Foundation
 import TandemMessages
 
-/// The shared surface of a client-initiated pump pairing handshake, so callers (`LiveSession`, the
-/// app connect path) can drive JPAKE (6-digit) and legacy V1 (16-char) pairing UNIFORMLY. Both
+/// The shared surface of a client-initiated pump pairing handshake, so the link
+/// (`PumpConnection`) can drive JPAKE (6-digit) and legacy V1 (16-char) pairing UNIFORMLY. Both
 /// `PairingCoordinator` (JPAKE) and `LegacyPairingCoordinator` (V1) conform.
 ///
 /// The two differ in exactly one place a caller must branch on: RESUME. JPAKE supports a quick-pair
@@ -125,8 +125,8 @@ public final class LegacyPairingCoordinator: PairingCoordinating {
                 // challengeResponse.getAppInstanceId();`. Every prior version of this coordinator built
                 // PumpChallengeRequest with `appInstanceId` (the coordinator's own op16 value, default 0)
                 // instead, silently ignoring `resp.appInstanceId` — a real, reference-confirmed
-                // divergence, though on-device evidence (`.planning/debug/pump-pairing-loop.md`, capture
-                // #4) shows it is NOT what causes the post-pair read-drop loop: appInstanceId appears
+                // divergence, though on-device captures from P1's reconnect loop show it is NOT what
+                // causes the post-pair read-drop loop: appInstanceId appears
                 // nowhere in the wire format of any non-pairing (CURRENT_STATUS/CONTROL) message or in
                 // Packetize's packet header, so a wrong value here cannot mis-route a later read; and the
                 // coordinator sent the SAME (wrong) constant on every capture, yet the drop's presence

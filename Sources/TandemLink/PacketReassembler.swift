@@ -9,7 +9,7 @@ import Foundation
 /// Mirrors the packet-merge behavior of upstream `PacketArrayList`, not `Packet.merge` — the
 /// latter enforces none of this type's txId / packetsRemaining / 512-byte protections and is not
 /// a usable entry point for this path.
-public struct PacketReassembler {
+public struct PacketReassembler: Sendable, Equatable {
     /// Hard ceiling on the reassembled buffer. Comfortably above the protocol max frame of
     /// 260 bytes (3-byte header + 255 max length byte + 2-byte CRC); the 512 headroom bounds a
     /// peer that never terminates a sequence so the buffer cannot grow unboundedly (memory DoS).

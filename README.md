@@ -40,14 +40,14 @@ import the products you need:
 // then, per target:
 .product(name: "TandemMessages", package: "TandemKit"),  // message framing + models
 .product(name: "TandemAuth", package: "TandemKit"),      // pairing (JPAKE/legacy) + HMAC signing
-.product(name: "TandemBLE", package: "TandemKit"),       // Core Bluetooth transport
+.product(name: "TandemLink", package: "TandemKit"),      // the connection state machine
+.product(name: "TandemBLE", package: "TandemKit"),       // the link over Core Bluetooth
 ```
 
-Typical entry points: `PumpBLEClient` (scan/connect/subscribe/write), `PairingCoordinator`
-(JPAKE / legacy pairing), and the request/response types in `TandemMessages`. For a worked example
-of driving a full connect → status → bolus → cancel flow, see `Bench/Sources/TandemBenchHarness` and the faBolus
-app's `TandemBackend` (which adapts this library to faBolus's `PumpBackend` interface). To build a
-non-faBolus app on it, depend on these products directly — you don't need faBolus. Contributions go
+Typical entry points: `PumpConnection` (pair, keep the link up, send requests and get typed results),
+`SupportMatrix` (what each pump answers), and the request/response types in `TandemMessages`. For a
+worked example, see `Bench/Sources/TandemBenchHarness`. To build a non-faBolus app on it, depend on
+these products directly — you don't need faBolus. Contributions go
 through PR, not fork; see [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## The cliparser oracle

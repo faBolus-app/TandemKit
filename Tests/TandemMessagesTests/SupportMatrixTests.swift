@@ -147,4 +147,32 @@ import Testing
         let unit = PumpUnit(PumpVersionResponse(cargo: cargo))
         #expect(unit == PumpUnit(serialNumber: 7, armSoftwareVersion: 9, mspSoftwareVersion: 8))
     }
+
+    /// An undefined-code error followed by a drop is a strike: one leaves the command suspected and
+    /// probe-able, two in a row make it unsupported, and an answer in between starts the count over.
+    @Test func twoDropStrikesMakeACommandUnsupported() {
+        var m = SupportMatrix()
+        let key = MessageKey(CurrentBatteryV2Request.self)
+        let entry = { (m: SupportMatrix) in
+            m.entry(for: key, unit: p2Unit, model: .tslim, apiVersion: p2API)
+        }
+        m.record(.droppedAfterError, for: key, on: p2Unit, note: "strike 1")
+        #expect(entry(m).status == .untested && entry(m).suspected)
+        m.record(.supported, for: key, on: p2Unit, note: "answered")
+        m.record(.droppedAfterError, for: key, on: p2Unit, note: "strike 1 again")
+        #expect(entry(m).status == .untested)
+        m.record(.droppedAfterError, for: key, on: p2Unit, note: "strike 2")
+        #expect(entry(m).status == .unsupported)
+    }
+
+    /// Forgetting a unit's evidence makes the command a probe again; class evidence stays.
+    @Test func forgetReturnsACommandToProbing() {
+        var m = SupportMatrix()
+        let key = MessageKey(LoadStatusRequest.self)
+        m.record(.unsupported, for: key, on: p1Unit, note: "op-77 BAD_OPCODE")
+        m.forget(key, on: p1Unit)
+        let e = m.entry(for: LoadStatusRequest(), unit: p1Unit, model: .tslim, apiVersion: .v2_5)
+        #expect(e.status == .untested && e.suspected)
+        #expect(m.recorded.isEmpty)
+    }
 }

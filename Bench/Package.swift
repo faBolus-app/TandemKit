@@ -24,6 +24,7 @@ let package = Package(
                 "TandemBench",
                 .product(name: "TandemMessages", package: "TandemKit"),
                 .product(name: "TandemAuth", package: "TandemKit"),
+                .product(name: "TandemLink", package: "TandemKit"),
                 .product(name: "TandemBLE", package: "TandemKit")
             ],
             // Not a SwiftPM resource — it's embedded into the binary via the linker flag below.
@@ -42,17 +43,6 @@ let package = Package(
             ]
         ),
 
-        .testTarget(name: "TandemBenchTests", dependencies: ["TandemBench"]),
-
-        // Hardware cases, gated on a real pump and its environment (`HardwareGate`): with no pump they
-        // skip, never fail.
-        .testTarget(
-            name: "TandemHardwareTests",
-            dependencies: [
-                .product(name: "TandemMessages", package: "TandemKit"),
-                .product(name: "TandemAuth", package: "TandemKit"),
-                .product(name: "TandemBLE", package: "TandemKit")
-            ]
-        )
+        .testTarget(name: "TandemBenchTests", dependencies: ["TandemBench"])
     ]
 )

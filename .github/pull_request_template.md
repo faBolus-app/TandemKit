@@ -23,7 +23,7 @@ BRANCHES.md.
 
 ## Safety
 
-- [ ] Does **not** loosen the `WritePolicy` interlock or the pairing/signing path
+- [ ] Does **not** loosen the per-call risk gate (`send(_:allowing:)`) or the pairing/signing path
 - [ ] Signed / insulin-affecting messages set `modifiesInsulinDelivery: true`
 - [ ] Delivery disposition unchanged (**NO-GO for real insulin delivery**) — or this PR's explicit
       subject is changing it, and says so

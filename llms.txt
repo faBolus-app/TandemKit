@@ -8,10 +8,12 @@ Thin map. Working guide: [`AGENTS.md`](AGENTS.md). Oracle workflow: [`README.md`
 Pinned upstream + hardware log: [`PINNED.md`](PINNED.md). Branch policy:
 [`../faBolus/BRANCHES.md`](../faBolus/BRANCHES.md).
 
-- Products: `TandemMessages`, `TandemAuth`, `TandemBLE`. Bench tooling (the `TandemBenchHarness`
-  executable, the planner, hardware tests) is a separate package, `Bench/`, never linked by the library.
+- Products: `TandemMessages`, `TandemAuth`, `TandemLink` (the connection state machine, no
+  CoreBluetooth), `TandemBLE` (`PumpConnection` over CoreBluetooth). Bench tooling (the
+  `TandemBenchHarness` executable and the planner) is a separate package, `Bench/`, never linked by the
+  library.
 - **Never change message bytes without a matching oracle-parity test.**
 - `ResponseParser` dispatches on **(characteristic, opcode)** — opcodes are not globally unique.
-- `WritePolicy`: `.readOnly`, `.allowBenignControl`, `.allowNonDelivery`, `.allowDestructive`,
-  `.allowDelivery`. Don't reach for `.allowDelivery` when a lower tier suffices.
+- `PumpConnection.send(_:allowing:)`: each call grants the highest `OperationRisk` it allows, for that
+  call only (default `.read`). Don't pass `.delivery` when a lower tier suffices.
 - Tests: `swift test` (JDK 17+ + built cliparser.jar for oracle parity; CI uses JDK 21).

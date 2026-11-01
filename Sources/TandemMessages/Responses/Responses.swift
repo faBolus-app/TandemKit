@@ -1983,7 +1983,7 @@ public struct UserInteractionResponse: ResponseMessage {
 /// Generic pump error reply (op 77). Sent when a request fails: `requestCodeId` = the failing
 /// request's opcode, `errorCodeId` = why. Cargo is 2 bytes (currentStatus) or 26 (control/signed).
 /// `response/ErrorResponse`.
-public struct ErrorResponse: ResponseMessage {
+public struct ErrorResponse: ResponseMessage, Equatable {
     public static let props = MessageProps(opCode: 77, size: 2, type: .response, characteristic: .currentStatus)
     public var cargo: [UInt8]
     public private(set) var requestCodeId = 0
@@ -2000,10 +2000,8 @@ public struct ErrorResponse: ResponseMessage {
     /// errorCodeId 3 = INVALID_PARAMETER (then requestCodeId is the opcode that failed).
     public var isInvalidParameter: Bool { errorCodeId == 3 }
     /// errorCodeId 6 = BAD_OPCODE (reference `ErrorResponse.java`'s `ErrorCode` enum,
-    /// `BAD_OPCODE(6)`) — the pump doesn't recognize/support `requestCodeId`. Added for the
-    /// pump-pairing-loop debug session's op192 (`CurrentEgvGuiDataV2Request`) fix: an older
-    /// t:slim X2 (API < 3.x) replies with this exact error to the newer V2 EGV GUI-data request
-    /// and then tears the BLE link down — see `.planning/debug/pump-pairing-loop.md`.
+    /// `BAD_OPCODE(6)`) — the pump doesn't recognize/support `requestCodeId`. An older t:slim X2
+    /// (API 2.5) replies with it to the V2 EGV GUI-data request (op 192) and then drops the link.
     public var isBadOpcode: Bool { errorCodeId == 6 }
 }
 
@@ -2314,10 +2312,9 @@ public struct CreateHistoryLogResponse: ResponseMessage {
 ///
 /// The V1 twin of `CurrentEgvGuiDataV2Response` (op 193) — identical 8-byte cargo layout and identical
 /// field semantics, and the ONLY EGV read that older t:slim X2 firmware supports. Older pumps reply to
-/// the V2 request (op 192) with `ErrorResponse`/BAD_OPCODE and then tear the BLE link down; see
-/// `.planning/debug/pump-pairing-loop.md` (on-device capture #6) and `TandemBackend.resolveQueuedRead`,
-/// which substitutes the V1 request for the V2 one on those pumps. The parity helpers below mirror the
-/// V2 struct's exactly so both responses can feed one shared consumer path.
+/// the V2 request (op 192) with `ErrorResponse`/BAD_OPCODE and then tear the BLE link down (seen on a
+/// phone with P1), so those pumps are read with this one. The parity helpers below mirror the V2
+/// struct's exactly so both responses can feed one shared consumer path.
 public struct CurrentEGVGuiDataResponse: ResponseMessage, EgvGuiData {
     public static let props = MessageProps(opCode: 35, size: 8, type: .response, characteristic: .currentStatus)
     public var cargo: [UInt8]

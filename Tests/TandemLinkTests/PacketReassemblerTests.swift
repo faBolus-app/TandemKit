@@ -1,5 +1,5 @@
 import Testing
-@testable import TandemBLE
+@testable import TandemLink
 
 @Suite struct PacketReassemblerTests {
     /// Single packet (packetsRemaining == 0) yields its cargo immediately.

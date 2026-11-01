@@ -2,7 +2,7 @@ import Foundation
 
 /// Parses a reassembled inbound frame into a typed `ResponseMessage`.
 ///
-/// Frame layout (produced by `Packetize`, reassembled by `TandemBLE.PacketReassembler`):
+/// Frame layout (produced by `Packetize`, reassembled by `TandemLink.PacketReassembler`):
 /// `[opcode, txId, length, cargo(length bytes), crc0, crc1]`. Validates the CRC-16 and cargo
 /// length before dispatching.
 ///
@@ -26,6 +26,17 @@ public enum ResponseParser {
         public let opCode: UInt8
         public let txId: UInt8
         public let message: any Message
+        /// The pump time (seconds since reset) in a signed reply's trailer, set only when the trailer's
+        /// HMAC verified. The pump writes its own current time there, not the request's, so the
+        /// connection layer can tell an old authentic reply from a fresh one. Upstream doesn't read it.
+        public let signedPumpTime: UInt32?
+
+        init(opCode: UInt8, txId: UInt8, message: any Message, signedPumpTime: UInt32? = nil) {
+            self.opCode = opCode
+            self.txId = txId
+            self.message = message
+            self.signedPumpTime = signedPumpTime
+        }
     }
 
     /// A response registered for dispatch. `signed`/`expectedSize` are derived from the type's
@@ -259,9 +270,10 @@ public enum ResponseParser {
         // too short to hold one has nothing to strip (verification below rejects it).
         let cargoLen = reg.signed && length >= 24 ? length - 24 : length
         let cargo = Array(body[3..<(3 + cargoLen)])
+        let messageData = Array(body[0..<(3 + length)])
+        var signedPumpTime: UInt32?
         if reg.signed && verifySignature,
-            let failure = signatureFailure(
-                messageData: Array(body[0..<(3 + length)]), key: authenticationKey)
+            let failure = signatureFailure(messageData: messageData, key: authenticationKey)
         {
             if let unverified = reg.unverified {
                 return Parsed(opCode: opCode, txId: txId, message: unverified(cargo, failure))
@@ -271,13 +283,16 @@ public enum ResponseParser {
             case .keyUnavailable: throw ParseError.signatureKeyUnavailable(opcode: opCode)
             case .hmacMismatch: throw ParseError.signatureInvalid(opcode: opCode)
             }
+        } else if reg.signed && verifySignature {
+            // Verified: the trailer is the last 24 bytes, pump time (4, little-endian) then the HMAC.
+            signedPumpTime = Bytes.readUint32(messageData, messageData.count - 24)
         }
         // Require at least the expected cargo, but tolerate extra trailing bytes: newer pump
         // firmware (e.g. Control-IQ+ 7.10.x EGV) appends fields we don't parse.
         if let expected = reg.expectedSize, cargo.count < expected {
             throw ParseError.cargoLengthMismatch(opcode: opCode, expected: expected, got: cargo.count)
         }
-        return Parsed(opCode: opCode, txId: txId, message: reg.make(cargo))
+        return Parsed(opCode: opCode, txId: txId, message: reg.make(cargo), signedPumpTime: signedPumpTime)
     }
 
     /// Why a signed reply's trailer doesn't verify, or nil when it does. `messageData` is

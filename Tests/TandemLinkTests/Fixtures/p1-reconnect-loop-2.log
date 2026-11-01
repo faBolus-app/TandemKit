@@ -1,0 +1,497 @@
+# Scrubbed copy of a faBolus app BLE log from P1 (t:slim X2, API 2.5, legacy pairing), 2026-08-27.
+# Kept: the time and the message. Removed: the process, its IDs, the archive path; the log had no
+# serial number or device identifier. One process launch per 'launch' line. Replayed by ReplayTests.
+2026-08-27 09:17:31.867 launch
+2026-08-27 09:17:31.867 BLE state → idle
+2026-08-27 09:17:31.868 BLE state → connecting
+2026-08-27 09:17:32.533 BLE state → discovering
+2026-08-27 09:17:33.038 BLE state → ready
+2026-08-27 09:17:33.045 pairing scheme selected → V1/legacy (resume re-challenge)
+2026-08-27 09:17:33.046 pairing send → CentralChallengeRequest opcode=16 cargoBytes=10 result=sent
+2026-08-27 09:17:33.100 pairing recv ← opcode=17 bytes=35
+2026-08-27 09:17:33.101 pairing send → PumpChallengeRequest opcode=18 cargoBytes=22 result=sent
+2026-08-27 09:17:33.220 pairing recv ← opcode=19 bytes=8
+2026-08-27 09:17:33.220 pairing outcome → paired
+2026-08-27 09:17:33.227 read send → ApiVersionRequest opcode=32 result=sent
+2026-08-27 09:17:33.227 read send → PumpVersionRequest opcode=84 result=sent
+2026-08-27 09:17:33.227 read send → TimeSinceResetRequest opcode=54 result=sent
+2026-08-27 09:17:33.227 read send → ControlIQIOBRequest opcode=108 result=sent
+2026-08-27 09:17:33.227 read send → CurrentEGVGuiDataRequest opcode=34 result=sent
+2026-08-27 09:17:33.228 read send → InsulinStatusRequest opcode=36 result=sent
+2026-08-27 09:17:33.228 read send → LastBolusStatusV2Request opcode=164 result=sent
+2026-08-27 09:17:33.228 read send → CurrentBatteryV2Request opcode=144 result=sent
+2026-08-27 09:17:33.228 read send → HomeScreenMirrorRequest opcode=56 result=sent
+2026-08-27 09:17:33.228 read send → CurrentBasalStatusRequest opcode=40 result=sent
+2026-08-27 09:17:33.228 read send → BolusCalcDataSnapshotRequest opcode=114 result=sent
+2026-08-27 09:17:33.228 read send → TimeSinceResetRequest opcode=54 result=sent
+2026-08-27 09:17:33.228 read send → ApiVersionRequest opcode=32 result=sent
+2026-08-27 09:17:33.228 read send → PumpFeaturesV1Request opcode=78 result=sent
+2026-08-27 09:17:33.228 read send → ControlIQInfoV2Request opcode=178 result=sent
+2026-08-27 09:17:33.228 read send → BasalLimitSettingsRequest opcode=138 result=sent
+2026-08-27 09:17:33.279 read recv ← opcode=33 bytes=9
+2026-08-27 09:17:33.281 read send → LoadStatusRequest opcode=20 result=skipped (previously rejected by pump)
+2026-08-27 09:17:33.340 read recv ← opcode=85 bytes=53
+2026-08-27 09:17:33.400 read recv ← opcode=55 bytes=13
+2026-08-27 09:17:33.460 read recv ← opcode=109 bytes=22
+2026-08-27 09:17:33.521 read recv ← opcode=35 bytes=13
+2026-08-27 09:17:33.579 read recv ← opcode=37 bytes=9
+2026-08-27 09:17:33.640 read recv ← opcode=165 bytes=29
+2026-08-27 09:17:33.715 read recv ← opcode=145 bytes=16
+2026-08-27 09:17:33.844 read recv ← opcode=57 bytes=14
+2026-08-27 09:17:33.845 read recv ← opcode=41 bytes=14
+2026-08-27 09:17:33.879 read recv ← opcode=115 bytes=51
+2026-08-27 09:17:33.939 read recv ← opcode=55 bytes=13
+2026-08-27 09:17:33.999 read recv ← opcode=33 bytes=9
+2026-08-27 09:17:34.060 read recv ← opcode=79 bytes=13
+2026-08-27 09:17:34.120 read recv ← opcode=179 bytes=24
+2026-08-27 09:17:34.180 read recv ← opcode=139 bytes=13
+2026-08-27 09:17:34.239 read recv ← opcode=59 bytes=17
+2026-08-27 09:17:34.299 read recv ← opcode=61 bytes=7
+2026-08-27 09:17:34.358 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:34.419 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:34.478 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:34.538 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:34.599 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:34.677 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:34.719 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:34.734 read send → AlertStatusRequest opcode=68 result=sent
+2026-08-27 09:17:34.734 read send → AlarmStatusRequest opcode=70 result=sent
+2026-08-27 09:17:34.734 read send → CGMAlertStatusRequest opcode=74 result=sent
+2026-08-27 09:17:34.734 read send → ReminderStatusRequest opcode=72 result=sent
+2026-08-27 09:17:34.735 read send → MalfunctionStatusRequest opcode=118 result=sent
+2026-08-27 09:17:34.735 read send → HighestAamRequest opcode=120 result=sent
+2026-08-27 09:17:34.735 read send → ActiveAamBitsRequest opcode=146 result=sent
+2026-08-27 09:17:34.781 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:34.840 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:34.899 read recv ← opcode=69 bytes=13
+2026-08-27 09:17:34.960 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:35.020 read recv ← opcode=71 bytes=13
+2026-08-27 09:17:35.079 read recv ← opcode=75 bytes=13
+2026-08-27 09:17:35.139 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:35.204 disconnect domain=CBErrorDomain code=7
+2026-08-27 09:17:35.206 BLE state → connecting
+2026-08-27 09:17:35.209 reconnect attempt=0 delay=6.789050s
+2026-08-27 09:17:42.858 reconnect attempt=1 delay=10.545993s
+2026-08-27 09:17:43.469 BLE state → discovering
+2026-08-27 09:17:43.976 BLE state → ready
+2026-08-27 09:17:43.987 pairing scheme selected → V1/legacy (resume re-challenge)
+2026-08-27 09:17:43.988 pairing send → CentralChallengeRequest opcode=16 cargoBytes=10 result=sent
+2026-08-27 09:17:44.037 pairing recv ← opcode=17 bytes=35
+2026-08-27 09:17:44.037 pairing send → PumpChallengeRequest opcode=18 cargoBytes=22 result=sent
+2026-08-27 09:17:44.157 pairing recv ← opcode=19 bytes=8
+2026-08-27 09:17:44.157 pairing outcome → paired
+2026-08-27 09:17:44.166 read send → ApiVersionRequest opcode=32 result=sent
+2026-08-27 09:17:44.166 read send → PumpVersionRequest opcode=84 result=sent
+2026-08-27 09:17:44.166 read send → TimeSinceResetRequest opcode=54 result=sent
+2026-08-27 09:17:44.166 read send → ControlIQIOBRequest opcode=108 result=sent
+2026-08-27 09:17:44.166 read send → CurrentEGVGuiDataRequest opcode=34 result=sent
+2026-08-27 09:17:44.166 read send → InsulinStatusRequest opcode=36 result=sent
+2026-08-27 09:17:44.167 read send → LastBolusStatusV2Request opcode=164 result=sent
+2026-08-27 09:17:44.167 read send → CurrentBatteryV2Request opcode=144 result=sent
+2026-08-27 09:17:44.167 read send → HomeScreenMirrorRequest opcode=56 result=sent
+2026-08-27 09:17:44.167 read send → CurrentBasalStatusRequest opcode=40 result=sent
+2026-08-27 09:17:44.167 read send → BolusCalcDataSnapshotRequest opcode=114 result=sent
+2026-08-27 09:17:44.167 read send → TimeSinceResetRequest opcode=54 result=sent
+2026-08-27 09:17:44.167 read send → ApiVersionRequest opcode=32 result=sent
+2026-08-27 09:17:44.167 read send → PumpFeaturesV1Request opcode=78 result=sent
+2026-08-27 09:17:44.167 read send → ControlIQInfoV2Request opcode=178 result=sent
+2026-08-27 09:17:44.167 read send → BasalLimitSettingsRequest opcode=138 result=sent
+2026-08-27 09:17:44.218 read recv ← opcode=33 bytes=9
+2026-08-27 09:17:44.218 read send → LoadStatusRequest opcode=20 result=skipped (previously rejected by pump)
+2026-08-27 09:17:44.276 read recv ← opcode=85 bytes=53
+2026-08-27 09:17:44.337 read recv ← opcode=55 bytes=13
+2026-08-27 09:17:44.398 read recv ← opcode=109 bytes=22
+2026-08-27 09:17:44.457 read recv ← opcode=35 bytes=13
+2026-08-27 09:17:44.517 read recv ← opcode=37 bytes=9
+2026-08-27 09:17:44.578 read recv ← opcode=165 bytes=29
+2026-08-27 09:17:44.637 read recv ← opcode=145 bytes=16
+2026-08-27 09:17:44.696 read recv ← opcode=57 bytes=14
+2026-08-27 09:17:44.759 read recv ← opcode=41 bytes=14
+2026-08-27 09:17:44.817 read recv ← opcode=115 bytes=51
+2026-08-27 09:17:44.877 read recv ← opcode=55 bytes=13
+2026-08-27 09:17:44.938 read recv ← opcode=33 bytes=9
+2026-08-27 09:17:44.997 read recv ← opcode=79 bytes=13
+2026-08-27 09:17:45.057 read recv ← opcode=179 bytes=24
+2026-08-27 09:17:45.118 read recv ← opcode=139 bytes=13
+2026-08-27 09:17:45.176 read recv ← opcode=59 bytes=17
+2026-08-27 09:17:45.237 read recv ← opcode=61 bytes=7
+2026-08-27 09:17:45.297 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:45.357 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:45.417 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:45.476 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:45.538 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:45.597 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:45.658 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:45.719 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:45.734 read send → AlertStatusRequest opcode=68 result=sent
+2026-08-27 09:17:45.734 read send → AlarmStatusRequest opcode=70 result=sent
+2026-08-27 09:17:45.734 read send → CGMAlertStatusRequest opcode=74 result=sent
+2026-08-27 09:17:45.735 read send → ReminderStatusRequest opcode=72 result=sent
+2026-08-27 09:17:45.735 read send → MalfunctionStatusRequest opcode=118 result=sent
+2026-08-27 09:17:45.735 read send → HighestAamRequest opcode=120 result=sent
+2026-08-27 09:17:45.735 read send → ActiveAamBitsRequest opcode=146 result=sent
+2026-08-27 09:17:45.777 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:45.839 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:45.896 read recv ← opcode=69 bytes=13
+2026-08-27 09:17:45.959 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:46.018 read recv ← opcode=71 bytes=13
+2026-08-27 09:17:46.077 read recv ← opcode=75 bytes=13
+2026-08-27 09:17:46.137 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:46.206 disconnect domain=CBErrorDomain code=7
+2026-08-27 09:17:46.207 BLE state → connecting
+2026-08-27 09:17:46.210 reconnect attempt=1 delay=10.089191s
+2026-08-27 09:17:56.301 reconnect attempt=2 delay=29.717836s
+2026-08-27 09:17:56.987 BLE state → discovering
+2026-08-27 09:17:57.494 BLE state → ready
+2026-08-27 09:17:57.504 pairing scheme selected → V1/legacy (resume re-challenge)
+2026-08-27 09:17:57.504 pairing send → CentralChallengeRequest opcode=16 cargoBytes=10 result=sent
+2026-08-27 09:17:57.554 pairing recv ← opcode=17 bytes=35
+2026-08-27 09:17:57.555 pairing send → PumpChallengeRequest opcode=18 cargoBytes=22 result=sent
+2026-08-27 09:17:57.677 pairing recv ← opcode=19 bytes=8
+2026-08-27 09:17:57.678 pairing outcome → paired
+2026-08-27 09:17:57.684 read send → ApiVersionRequest opcode=32 result=sent
+2026-08-27 09:17:57.684 read send → PumpVersionRequest opcode=84 result=sent
+2026-08-27 09:17:57.684 read send → TimeSinceResetRequest opcode=54 result=sent
+2026-08-27 09:17:57.684 read send → ControlIQIOBRequest opcode=108 result=sent
+2026-08-27 09:17:57.684 read send → CurrentEGVGuiDataRequest opcode=34 result=sent
+2026-08-27 09:17:57.685 read send → InsulinStatusRequest opcode=36 result=sent
+2026-08-27 09:17:57.685 read send → LastBolusStatusV2Request opcode=164 result=sent
+2026-08-27 09:17:57.685 read send → CurrentBatteryV2Request opcode=144 result=sent
+2026-08-27 09:17:57.685 read send → HomeScreenMirrorRequest opcode=56 result=sent
+2026-08-27 09:17:57.685 read send → CurrentBasalStatusRequest opcode=40 result=sent
+2026-08-27 09:17:57.685 read send → BolusCalcDataSnapshotRequest opcode=114 result=sent
+2026-08-27 09:17:57.685 read send → TimeSinceResetRequest opcode=54 result=sent
+2026-08-27 09:17:57.685 read send → ApiVersionRequest opcode=32 result=sent
+2026-08-27 09:17:57.685 read send → PumpFeaturesV1Request opcode=78 result=sent
+2026-08-27 09:17:57.685 read send → ControlIQInfoV2Request opcode=178 result=sent
+2026-08-27 09:17:57.685 read send → BasalLimitSettingsRequest opcode=138 result=sent
+2026-08-27 09:17:57.734 read recv ← opcode=33 bytes=9
+2026-08-27 09:17:57.734 read send → LoadStatusRequest opcode=20 result=skipped (previously rejected by pump)
+2026-08-27 09:17:57.795 read recv ← opcode=85 bytes=53
+2026-08-27 09:17:57.854 read recv ← opcode=55 bytes=13
+2026-08-27 09:17:57.915 read recv ← opcode=109 bytes=22
+2026-08-27 09:17:57.974 read recv ← opcode=35 bytes=13
+2026-08-27 09:17:58.035 read recv ← opcode=37 bytes=9
+2026-08-27 09:17:58.094 read recv ← opcode=165 bytes=29
+2026-08-27 09:17:58.155 read recv ← opcode=145 bytes=16
+2026-08-27 09:17:58.215 read recv ← opcode=57 bytes=14
+2026-08-27 09:17:58.275 read recv ← opcode=41 bytes=14
+2026-08-27 09:17:58.335 read recv ← opcode=115 bytes=51
+2026-08-27 09:17:58.394 read recv ← opcode=55 bytes=13
+2026-08-27 09:17:58.454 read recv ← opcode=33 bytes=9
+2026-08-27 09:17:58.514 read recv ← opcode=79 bytes=13
+2026-08-27 09:17:58.575 read recv ← opcode=179 bytes=24
+2026-08-27 09:17:58.635 read recv ← opcode=139 bytes=13
+2026-08-27 09:17:58.694 read recv ← opcode=59 bytes=17
+2026-08-27 09:17:58.755 read recv ← opcode=61 bytes=7
+2026-08-27 09:17:58.814 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:58.877 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:58.934 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:58.994 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:59.056 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:59.114 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:59.177 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:59.234 read send → AlertStatusRequest opcode=68 result=sent
+2026-08-27 09:17:59.234 read send → AlarmStatusRequest opcode=70 result=sent
+2026-08-27 09:17:59.235 read send → CGMAlertStatusRequest opcode=74 result=sent
+2026-08-27 09:17:59.235 read send → ReminderStatusRequest opcode=72 result=sent
+2026-08-27 09:17:59.235 read send → MalfunctionStatusRequest opcode=118 result=sent
+2026-08-27 09:17:59.235 read send → HighestAamRequest opcode=120 result=sent
+2026-08-27 09:17:59.235 read send → ActiveAamBitsRequest opcode=146 result=sent
+2026-08-27 09:17:59.235 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:59.295 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:59.356 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:59.414 read recv ← opcode=69 bytes=13
+2026-08-27 09:17:59.475 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:59.534 read recv ← opcode=71 bytes=13
+2026-08-27 09:17:59.594 read recv ← opcode=75 bytes=13
+2026-08-27 09:17:59.654 read recv ← opcode=129 bytes=85
+2026-08-27 09:17:59.725 disconnect domain=CBErrorDomain code=7
+2026-08-27 09:17:59.725 BLE state → connecting
+2026-08-27 09:17:59.727 reconnect attempt=2 delay=27.348726s
+2026-08-27 09:18:20.807 bg session armed (scenePhaseBackground) granted=true
+2026-08-27 09:18:27.136 reconnect attempt=3 delay=43.076531s
+2026-08-27 09:18:27.751 BLE state → discovering
+2026-08-27 09:18:28.244 BLE state → ready
+2026-08-27 09:18:28.244 bg session ended (ready)
+2026-08-27 09:18:28.256 pairing scheme selected → V1/legacy (resume re-challenge)
+2026-08-27 09:18:28.256 pairing send → CentralChallengeRequest opcode=16 cargoBytes=10 result=sent
+2026-08-27 09:18:28.305 pairing recv ← opcode=17 bytes=35
+2026-08-27 09:18:28.306 pairing send → PumpChallengeRequest opcode=18 cargoBytes=22 result=sent
+2026-08-27 09:18:28.427 pairing recv ← opcode=19 bytes=8
+2026-08-27 09:18:28.427 pairing outcome → paired
+2026-08-27 09:18:28.437 read send → ApiVersionRequest opcode=32 result=sent
+2026-08-27 09:18:28.437 read send → PumpVersionRequest opcode=84 result=sent
+2026-08-27 09:18:28.437 read send → TimeSinceResetRequest opcode=54 result=sent
+2026-08-27 09:18:28.437 read send → ControlIQIOBRequest opcode=108 result=sent
+2026-08-27 09:18:28.438 read send → CurrentEGVGuiDataRequest opcode=34 result=sent
+2026-08-27 09:18:28.438 read send → InsulinStatusRequest opcode=36 result=sent
+2026-08-27 09:18:28.438 read send → LastBolusStatusV2Request opcode=164 result=sent
+2026-08-27 09:18:28.438 read send → CurrentBatteryV2Request opcode=144 result=sent
+2026-08-27 09:18:28.439 read send → HomeScreenMirrorRequest opcode=56 result=sent
+2026-08-27 09:18:28.439 read send → CurrentBasalStatusRequest opcode=40 result=sent
+2026-08-27 09:18:28.439 read send → BolusCalcDataSnapshotRequest opcode=114 result=sent
+2026-08-27 09:18:28.439 read send → TimeSinceResetRequest opcode=54 result=sent
+2026-08-27 09:18:28.439 read send → ApiVersionRequest opcode=32 result=sent
+2026-08-27 09:18:28.440 read send → PumpFeaturesV1Request opcode=78 result=sent
+2026-08-27 09:18:28.440 read send → ControlIQInfoV2Request opcode=178 result=sent
+2026-08-27 09:18:28.440 read send → BasalLimitSettingsRequest opcode=138 result=sent
+2026-08-27 09:18:28.531 read recv ← opcode=33 bytes=9
+2026-08-27 09:18:28.532 read send → LoadStatusRequest opcode=20 result=skipped (previously rejected by pump)
+2026-08-27 09:18:28.545 read recv ← opcode=85 bytes=53
+2026-08-27 09:18:28.607 read recv ← opcode=55 bytes=13
+2026-08-27 09:18:28.665 read recv ← opcode=109 bytes=22
+2026-08-27 09:18:28.750 read recv ← opcode=35 bytes=13
+2026-08-27 09:18:28.787 read recv ← opcode=37 bytes=9
+2026-08-27 09:18:28.845 read recv ← opcode=165 bytes=29
+2026-08-27 09:18:28.905 read recv ← opcode=145 bytes=16
+2026-08-27 09:18:28.967 read recv ← opcode=57 bytes=14
+2026-08-27 09:18:29.025 read recv ← opcode=41 bytes=14
+2026-08-27 09:18:29.085 read recv ← opcode=115 bytes=51
+2026-08-27 09:18:29.147 read recv ← opcode=55 bytes=13
+2026-08-27 09:18:29.205 read recv ← opcode=33 bytes=9
+2026-08-27 09:18:29.265 read recv ← opcode=79 bytes=13
+2026-08-27 09:18:29.328 read recv ← opcode=179 bytes=24
+2026-08-27 09:18:29.385 read recv ← opcode=139 bytes=13
+2026-08-27 09:18:29.445 read recv ← opcode=59 bytes=17
+2026-08-27 09:18:29.507 read recv ← opcode=61 bytes=7
+2026-08-27 09:18:29.565 read recv ← opcode=129 bytes=85
+2026-08-27 09:18:29.625 read recv ← opcode=129 bytes=85
+2026-08-27 09:18:29.685 read recv ← opcode=129 bytes=85
+2026-08-27 09:18:29.746 read recv ← opcode=129 bytes=85
+2026-08-27 09:18:29.807 read recv ← opcode=129 bytes=85
+2026-08-27 09:18:29.865 read recv ← opcode=129 bytes=85
+2026-08-27 09:18:29.925 read recv ← opcode=129 bytes=85
+2026-08-27 09:18:29.985 read recv ← opcode=129 bytes=85
+2026-08-27 09:18:30.013 read send → AlertStatusRequest opcode=68 result=sent
+2026-08-27 09:18:30.013 read send → AlarmStatusRequest opcode=70 result=sent
+2026-08-27 09:18:30.013 read send → CGMAlertStatusRequest opcode=74 result=sent
+2026-08-27 09:18:30.014 read send → ReminderStatusRequest opcode=72 result=sent
+2026-08-27 09:18:30.014 read send → MalfunctionStatusRequest opcode=118 result=sent
+2026-08-27 09:18:30.014 read send → HighestAamRequest opcode=120 result=sent
+2026-08-27 09:18:30.015 read send → ActiveAamBitsRequest opcode=146 result=sent
+2026-08-27 09:18:30.048 read recv ← opcode=129 bytes=85
+2026-08-27 09:18:30.108 read recv ← opcode=129 bytes=85
+2026-08-27 09:18:30.137 read recv ← opcode=69 bytes=13
+2026-08-27 09:18:30.197 read recv ← opcode=129 bytes=85
+2026-08-27 09:18:30.256 read recv ← opcode=71 bytes=13
+2026-08-27 09:18:30.315 read recv ← opcode=75 bytes=13
+2026-08-27 09:18:30.378 read recv ← opcode=129 bytes=85
+2026-08-27 09:18:30.425 disconnect domain=CBErrorDomain code=7
+2026-08-27 09:18:30.426 BLE state → connecting
+2026-08-27 09:18:30.430 reconnect attempt=3 delay=37.759801s
+2026-08-27 09:18:30.431 bg session armed (reconnect(delay=37s)) granted=true
+2026-08-27 09:19:08.290 reconnect attempt=4 delay=37.299078s
+2026-08-27 09:19:08.941 BLE state → discovering
+2026-08-27 09:19:09.437 BLE state → ready
+2026-08-27 09:19:09.437 bg session ended (ready)
+2026-08-27 09:19:09.444 pairing scheme selected → V1/legacy (resume re-challenge)
+2026-08-27 09:19:09.445 pairing send → CentralChallengeRequest opcode=16 cargoBytes=10 result=sent
+2026-08-27 09:19:09.496 pairing recv ← opcode=17 bytes=35
+2026-08-27 09:19:09.498 pairing send → PumpChallengeRequest opcode=18 cargoBytes=22 result=sent
+2026-08-27 09:19:09.617 pairing recv ← opcode=19 bytes=8
+2026-08-27 09:19:09.618 pairing outcome → paired
+2026-08-27 09:19:09.628 read send → ApiVersionRequest opcode=32 result=sent
+2026-08-27 09:19:09.629 read send → PumpVersionRequest opcode=84 result=sent
+2026-08-27 09:19:09.629 read send → TimeSinceResetRequest opcode=54 result=sent
+2026-08-27 09:19:09.629 read send → ControlIQIOBRequest opcode=108 result=sent
+2026-08-27 09:19:09.630 read send → CurrentEGVGuiDataRequest opcode=34 result=sent
+2026-08-27 09:19:09.630 read send → InsulinStatusRequest opcode=36 result=sent
+2026-08-27 09:19:09.630 read send → LastBolusStatusV2Request opcode=164 result=sent
+2026-08-27 09:19:09.630 read send → CurrentBatteryV2Request opcode=144 result=sent
+2026-08-27 09:19:09.631 read send → HomeScreenMirrorRequest opcode=56 result=sent
+2026-08-27 09:19:09.631 read send → CurrentBasalStatusRequest opcode=40 result=sent
+2026-08-27 09:19:09.631 read send → BolusCalcDataSnapshotRequest opcode=114 result=sent
+2026-08-27 09:19:09.631 read send → TimeSinceResetRequest opcode=54 result=sent
+2026-08-27 09:19:09.631 read send → ApiVersionRequest opcode=32 result=sent
+2026-08-27 09:19:09.631 read send → PumpFeaturesV1Request opcode=78 result=sent
+2026-08-27 09:19:09.632 read send → ControlIQInfoV2Request opcode=178 result=sent
+2026-08-27 09:19:09.632 read send → BasalLimitSettingsRequest opcode=138 result=sent
+2026-08-27 09:19:09.696 read recv ← opcode=33 bytes=9
+2026-08-27 09:19:09.696 read send → LoadStatusRequest opcode=20 result=skipped (previously rejected by pump)
+2026-08-27 09:19:09.736 read recv ← opcode=85 bytes=53
+2026-08-27 09:19:09.797 read recv ← opcode=55 bytes=13
+2026-08-27 09:19:09.856 read recv ← opcode=109 bytes=22
+2026-08-27 09:19:09.918 read recv ← opcode=35 bytes=13
+2026-08-27 09:19:09.977 read recv ← opcode=37 bytes=9
+2026-08-27 09:19:10.036 read recv ← opcode=165 bytes=29
+2026-08-27 09:19:10.096 read recv ← opcode=145 bytes=16
+2026-08-27 09:19:10.158 read recv ← opcode=57 bytes=14
+2026-08-27 09:19:10.216 read recv ← opcode=41 bytes=14
+2026-08-27 09:19:10.301 read recv ← opcode=115 bytes=51
+2026-08-27 09:19:10.337 read recv ← opcode=55 bytes=13
+2026-08-27 09:19:10.396 read recv ← opcode=33 bytes=9
+2026-08-27 09:19:10.457 read recv ← opcode=79 bytes=13
+2026-08-27 09:19:10.517 read recv ← opcode=179 bytes=24
+2026-08-27 09:19:10.577 read recv ← opcode=139 bytes=13
+2026-08-27 09:19:10.641 read recv ← opcode=59 bytes=17
+2026-08-27 09:19:10.698 read recv ← opcode=61 bytes=7
+2026-08-27 09:19:10.758 read recv ← opcode=129 bytes=85
+2026-08-27 09:19:10.816 read recv ← opcode=129 bytes=85
+2026-08-27 09:19:10.879 read recv ← opcode=129 bytes=85
+2026-08-27 09:19:10.937 read recv ← opcode=129 bytes=85
+2026-08-27 09:19:10.998 read recv ← opcode=129 bytes=85
+2026-08-27 09:19:11.057 read recv ← opcode=129 bytes=85
+2026-08-27 09:19:11.117 read recv ← opcode=129 bytes=85
+2026-08-27 09:19:11.178 read recv ← opcode=129 bytes=85
+2026-08-27 09:19:11.242 read send → AlertStatusRequest opcode=68 result=sent
+2026-08-27 09:19:11.243 read send → AlarmStatusRequest opcode=70 result=sent
+2026-08-27 09:19:11.243 read send → CGMAlertStatusRequest opcode=74 result=sent
+2026-08-27 09:19:11.243 read send → ReminderStatusRequest opcode=72 result=sent
+2026-08-27 09:19:11.244 read send → MalfunctionStatusRequest opcode=118 result=sent
+2026-08-27 09:19:11.244 read send → HighestAamRequest opcode=120 result=sent
+2026-08-27 09:19:11.244 read send → ActiveAamBitsRequest opcode=146 result=sent
+2026-08-27 09:19:11.245 read recv ← opcode=129 bytes=85
+2026-08-27 09:19:11.326 read recv ← opcode=129 bytes=85
+2026-08-27 09:19:11.357 read recv ← opcode=129 bytes=85
+2026-08-27 09:19:11.418 read recv ← opcode=69 bytes=13
+2026-08-27 09:19:11.477 read recv ← opcode=129 bytes=85
+2026-08-27 09:19:11.537 read recv ← opcode=71 bytes=13
+2026-08-27 09:19:11.598 read recv ← opcode=75 bytes=13
+2026-08-27 09:19:11.658 read recv ← opcode=129 bytes=85
+2026-08-27 09:19:11.738 disconnect domain=CBErrorDomain code=7
+2026-08-27 09:19:11.742 BLE state → connecting
+2026-08-27 09:19:11.744 reconnect attempt=4 delay=33.055519s
+2026-08-27 09:19:11.746 bg session armed (reconnect(delay=33s)) granted=true
+2026-08-27 09:19:44.903 reconnect attempt=5 delay=33.023273s
+2026-08-27 09:19:45.538 BLE state → discovering
+2026-08-27 09:19:46.023 BLE state → ready
+2026-08-27 09:19:46.023 bg session ended (ready)
+2026-08-27 09:19:46.033 pairing scheme selected → V1/legacy (resume re-challenge)
+2026-08-27 09:19:46.034 pairing send → CentralChallengeRequest opcode=16 cargoBytes=10 result=sent
+2026-08-27 09:19:46.084 pairing recv ← opcode=17 bytes=35
+2026-08-27 09:19:46.084 pairing send → PumpChallengeRequest opcode=18 cargoBytes=22 result=sent
+2026-08-27 09:19:46.205 pairing recv ← opcode=19 bytes=8
+2026-08-27 09:19:46.205 pairing outcome → paired
+2026-08-27 09:19:46.214 read send → ApiVersionRequest opcode=32 result=sent
+2026-08-27 09:19:46.215 read send → PumpVersionRequest opcode=84 result=sent
+2026-08-27 09:19:46.218 read send → TimeSinceResetRequest opcode=54 result=sent
+2026-08-27 09:19:46.218 read send → ControlIQIOBRequest opcode=108 result=sent
+2026-08-27 09:19:46.219 read send → CurrentEGVGuiDataRequest opcode=34 result=sent
+2026-08-27 09:19:46.219 read send → InsulinStatusRequest opcode=36 result=sent
+2026-08-27 09:19:46.219 read send → LastBolusStatusV2Request opcode=164 result=sent
+2026-08-27 09:19:46.219 read send → CurrentBatteryV2Request opcode=144 result=sent
+2026-08-27 09:19:46.220 read send → HomeScreenMirrorRequest opcode=56 result=sent
+2026-08-27 09:19:46.220 read send → CurrentBasalStatusRequest opcode=40 result=sent
+2026-08-27 09:19:46.220 read send → BolusCalcDataSnapshotRequest opcode=114 result=sent
+2026-08-27 09:19:46.220 read send → TimeSinceResetRequest opcode=54 result=sent
+2026-08-27 09:19:46.220 read send → ApiVersionRequest opcode=32 result=sent
+2026-08-27 09:19:46.220 read send → PumpFeaturesV1Request opcode=78 result=sent
+2026-08-27 09:19:46.221 read send → ControlIQInfoV2Request opcode=178 result=sent
+2026-08-27 09:19:46.221 read send → BasalLimitSettingsRequest opcode=138 result=sent
+2026-08-27 09:19:46.289 read recv ← opcode=33 bytes=9
+2026-08-27 09:19:46.289 read send → LoadStatusRequest opcode=20 result=skipped (previously rejected by pump)
+2026-08-27 09:19:46.326 read recv ← opcode=85 bytes=53
+2026-08-27 09:19:46.384 read recv ← opcode=55 bytes=13
+2026-08-27 09:19:46.444 read recv ← opcode=109 bytes=22
+2026-08-27 09:19:46.536 read recv ← opcode=35 bytes=13
+2026-08-27 09:19:46.565 read recv ← opcode=37 bytes=9
+2026-08-27 09:19:46.624 read recv ← opcode=165 bytes=29
+2026-08-27 09:19:46.685 read recv ← opcode=145 bytes=16
+2026-08-27 09:19:46.744 read recv ← opcode=57 bytes=14
+2026-08-27 09:19:46.805 read recv ← opcode=41 bytes=14
+2026-08-27 09:19:46.866 read recv ← opcode=115 bytes=51
+2026-08-27 09:19:46.924 read recv ← opcode=55 bytes=13
+2026-08-27 09:19:46.984 read recv ← opcode=33 bytes=9
+2026-08-27 09:19:47.045 read recv ← opcode=79 bytes=13
+2026-08-27 09:19:47.105 read recv ← opcode=179 bytes=24
+2026-08-27 09:19:47.164 read recv ← opcode=139 bytes=13
+2026-08-27 09:19:47.224 read recv ← opcode=59 bytes=17
+2026-08-27 09:19:47.284 read recv ← opcode=61 bytes=7
+2026-08-27 09:19:47.344 read recv ← opcode=129 bytes=85
+2026-08-27 09:19:47.434 read recv ← opcode=129 bytes=85
+2026-08-27 09:19:47.494 read recv ← opcode=129 bytes=85
+2026-08-27 09:19:47.553 read recv ← opcode=129 bytes=85
+2026-08-27 09:19:47.646 read recv ← opcode=129 bytes=85
+2026-08-27 09:19:47.706 read recv ← opcode=129 bytes=85
+2026-08-27 09:19:47.763 read recv ← opcode=129 bytes=85
+2026-08-27 09:19:47.795 read send → AlertStatusRequest opcode=68 result=sent
+2026-08-27 09:19:47.795 read send → AlarmStatusRequest opcode=70 result=sent
+2026-08-27 09:19:47.796 read send → CGMAlertStatusRequest opcode=74 result=sent
+2026-08-27 09:19:47.796 read send → ReminderStatusRequest opcode=72 result=sent
+2026-08-27 09:19:47.796 read send → MalfunctionStatusRequest opcode=118 result=sent
+2026-08-27 09:19:47.796 read send → HighestAamRequest opcode=120 result=sent
+2026-08-27 09:19:47.796 read send → ActiveAamBitsRequest opcode=146 result=sent
+2026-08-27 09:19:47.826 read recv ← opcode=129 bytes=85
+2026-08-27 09:19:47.886 read recv ← opcode=129 bytes=85
+2026-08-27 09:19:47.946 read recv ← opcode=69 bytes=13
+2026-08-27 09:19:48.005 read recv ← opcode=129 bytes=85
+2026-08-27 09:19:48.094 read recv ← opcode=71 bytes=13
+2026-08-27 09:19:48.155 read recv ← opcode=75 bytes=13
+2026-08-27 09:19:48.216 read recv ← opcode=129 bytes=85
+2026-08-27 09:19:48.259 disconnect domain=CBErrorDomain code=7
+2026-08-27 09:19:48.261 BLE state → connecting
+2026-08-27 09:19:48.263 reconnect attempt=5 delay=40.441485s
+2026-08-27 09:19:48.264 bg session armed (reconnect(delay=40s)) granted=true
+2026-08-27 09:20:24.336 bg session ended (expired)
+2026-08-27 09:20:28.709 reconnect attempt=6 delay=44.185883s
+2026-08-27 09:20:28.712 bg session armed (reconnect(delay=44s)) granted=false
+2026-08-27 09:20:29.432 BLE state → discovering
+2026-08-27 09:20:29.930 BLE state → ready
+2026-08-27 09:20:29.941 pairing scheme selected → V1/legacy (resume re-challenge)
+2026-08-27 09:20:29.942 pairing send → CentralChallengeRequest opcode=16 cargoBytes=10 result=sent
+2026-08-27 09:20:29.992 pairing recv ← opcode=17 bytes=35
+2026-08-27 09:20:29.993 pairing send → PumpChallengeRequest opcode=18 cargoBytes=22 result=sent
+2026-08-27 09:20:30.143 pairing recv ← opcode=19 bytes=8
+2026-08-27 09:20:30.143 pairing outcome → paired
+2026-08-27 09:20:30.152 read send → ApiVersionRequest opcode=32 result=sent
+2026-08-27 09:20:30.153 read send → PumpVersionRequest opcode=84 result=sent
+2026-08-27 09:20:30.153 read send → TimeSinceResetRequest opcode=54 result=sent
+2026-08-27 09:20:30.153 read send → ControlIQIOBRequest opcode=108 result=sent
+2026-08-27 09:20:30.154 read send → CurrentEGVGuiDataRequest opcode=34 result=sent
+2026-08-27 09:20:30.154 read send → InsulinStatusRequest opcode=36 result=sent
+2026-08-27 09:20:30.154 read send → LastBolusStatusV2Request opcode=164 result=sent
+2026-08-27 09:20:30.154 read send → CurrentBatteryV2Request opcode=144 result=sent
+2026-08-27 09:20:30.154 read send → HomeScreenMirrorRequest opcode=56 result=sent
+2026-08-27 09:20:30.155 read send → CurrentBasalStatusRequest opcode=40 result=sent
+2026-08-27 09:20:30.155 read send → BolusCalcDataSnapshotRequest opcode=114 result=sent
+2026-08-27 09:20:30.155 read send → TimeSinceResetRequest opcode=54 result=sent
+2026-08-27 09:20:30.155 read send → ApiVersionRequest opcode=32 result=sent
+2026-08-27 09:20:30.156 read send → PumpFeaturesV1Request opcode=78 result=sent
+2026-08-27 09:20:30.156 read send → ControlIQInfoV2Request opcode=178 result=sent
+2026-08-27 09:20:30.156 read send → BasalLimitSettingsRequest opcode=138 result=sent
+2026-08-27 09:20:30.237 read recv ← opcode=33 bytes=9
+2026-08-27 09:20:30.237 read send → LoadStatusRequest opcode=20 result=skipped (previously rejected by pump)
+2026-08-27 09:20:30.261 read recv ← opcode=85 bytes=53
+2026-08-27 09:20:30.321 read recv ← opcode=55 bytes=13
+2026-08-27 09:20:30.383 read recv ← opcode=109 bytes=22
+2026-08-27 09:20:30.489 read recv ← opcode=35 bytes=13
+2026-08-27 09:20:30.501 read recv ← opcode=37 bytes=9
+2026-08-27 09:20:30.563 read recv ← opcode=165 bytes=29
+2026-08-27 09:20:30.627 read recv ← opcode=145 bytes=16
+2026-08-27 09:20:30.683 read recv ← opcode=57 bytes=14
+2026-08-27 09:20:30.742 read recv ← opcode=41 bytes=14
+2026-08-27 09:20:30.802 read recv ← opcode=115 bytes=51
+2026-08-27 09:20:31.073 read recv ← opcode=55 bytes=13
+2026-08-27 09:20:31.074 read recv ← opcode=33 bytes=9
+2026-08-27 09:20:31.075 read recv ← opcode=79 bytes=13
+2026-08-27 09:20:31.075 read recv ← opcode=179 bytes=24
+2026-08-27 09:20:31.104 read recv ← opcode=139 bytes=13
+2026-08-27 09:20:31.203 read recv ← opcode=59 bytes=17
+2026-08-27 09:20:31.251 read recv ← opcode=61 bytes=7
+2026-08-27 09:20:31.312 read recv ← opcode=129 bytes=85
+2026-08-27 09:20:31.371 read recv ← opcode=129 bytes=85
+2026-08-27 09:20:31.432 read recv ← opcode=129 bytes=85
+2026-08-27 09:20:31.491 read recv ← opcode=129 bytes=85
+2026-08-27 09:20:31.553 read recv ← opcode=129 bytes=85
+2026-08-27 09:20:31.612 read recv ← opcode=129 bytes=85
+2026-08-27 09:20:31.672 read recv ← opcode=129 bytes=85
+2026-08-27 09:20:31.731 read recv ← opcode=129 bytes=85
+2026-08-27 09:20:31.734 read send → AlertStatusRequest opcode=68 result=sent
+2026-08-27 09:20:31.734 read send → AlarmStatusRequest opcode=70 result=sent
+2026-08-27 09:20:31.735 read send → CGMAlertStatusRequest opcode=74 result=sent
+2026-08-27 09:20:31.735 read send → ReminderStatusRequest opcode=72 result=sent
+2026-08-27 09:20:31.735 read send → MalfunctionStatusRequest opcode=118 result=sent
+2026-08-27 09:20:31.735 read send → HighestAamRequest opcode=120 result=sent
+2026-08-27 09:20:31.736 read send → ActiveAamBitsRequest opcode=146 result=sent
+2026-08-27 09:20:31.792 read recv ← opcode=129 bytes=85
+2026-08-27 09:20:31.854 read recv ← opcode=129 bytes=85
+2026-08-27 09:20:31.912 read recv ← opcode=69 bytes=13
+2026-08-27 09:20:31.972 read recv ← opcode=129 bytes=85
+2026-08-27 09:20:32.033 read recv ← opcode=71 bytes=13
+2026-08-27 09:20:32.091 read recv ← opcode=75 bytes=13
+2026-08-27 09:20:32.152 read recv ← opcode=129 bytes=85
+2026-08-27 09:20:32.227 disconnect domain=CBErrorDomain code=7
+2026-08-27 09:20:32.228 BLE state → connecting
+2026-08-27 09:20:32.233 reconnect attempt=6 delay=37.208793s
+2026-08-27 09:20:32.234 bg session armed (reconnect(delay=37s)) granted=true

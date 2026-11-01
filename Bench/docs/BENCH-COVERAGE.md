@@ -1,5 +1,11 @@
 # Bench command-coverage harness
 
+> **Note (2026-10-31):** the harness modes this describes (`coverage`, `probe`, `bolus`, the
+> hardware tests) were removed with the old `PumpBLEClient` when the link became a state machine. The
+> link now learns what each pump supports itself, through careful probing recorded in `SupportMatrix`,
+> and refuses to send what a pump has rejected. This file records how the T-1 evidence was gathered;
+> for running the bench today see [`../README.md`](../README.md).
+
 A resumable, per-command coverage matrix for validating **every** TandemKit command across **every** pump
 
 + peripheral configuration, safely, on the **saline bench**. This complements the cliparser/OracleRunner

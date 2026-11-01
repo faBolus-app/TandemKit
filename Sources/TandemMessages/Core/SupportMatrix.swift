@@ -54,7 +54,10 @@ public struct SupportEvidence: Sendable, Equatable, Codable {
     /// What a pump did with the command.
     public enum Result: String, Sendable, Codable {
         case supported, unsupported
-        var status: SupportStatus { self == .supported ? .supported : .unsupported }
+        /// An op-77 with the undefined error code (0) followed by a dropped link. P1 answers an
+        /// unsupported command this way, but one such drop could be unrelated, so it takes
+        /// `strikesToUnsupported` of them, with no answer in between, to make the command unsupported.
+        case droppedAfterError
     }
 
     public let result: Result
@@ -100,6 +103,10 @@ public struct SupportMatrix: Sendable, Equatable, Codable {
     /// How many observations are kept per unit and command; older ones add nothing once newer ones
     /// agree, and the matrix is persisted with the pairing.
     public static let observationsKept = 8
+    /// How many `droppedAfterError` observations in a row make a command unsupported on a unit. One
+    /// leaves it suspected, so it is probed again on a later connection (owner, 2026-10-31: a drop
+    /// must not block a command by accident). BAD_OPCODE is the pump saying so, and counts at once.
+    public static let strikesToUnsupported = 2
 
     /// Per-unit evidence, newest last.
     public private(set) var recorded: [PumpUnit: [MessageKey: [SupportEvidence]]] = [:]
@@ -118,8 +125,17 @@ public struct SupportMatrix: Sendable, Equatable, Codable {
             classEvidence = (Self.classEvidence[key] ?? []).filter { $0.scope == .tslimAPI(apiVersion) }
         }
         let evidence = unitEvidence.reversed() + classEvidence
+        // Strikes count back from the newest observation to the newest definite one.
+        let strikes = unitEvidence.reversed().prefix { $0.result == .droppedAfterError }.count
+        if strikes >= Self.strikesToUnsupported {
+            return SupportEntry(status: .unsupported, suspected: false, evidence: evidence)
+        }
+        if strikes > 0 {
+            return SupportEntry(status: .untested, suspected: true, evidence: evidence)
+        }
         if let latest = unitEvidence.last {
-            return SupportEntry(status: latest.result.status, suspected: false, evidence: evidence)
+            let status: SupportStatus = latest.result == .supported ? .supported : .unsupported
+            return SupportEntry(status: status, suspected: false, evidence: evidence)
         }
         if classEvidence.contains(where: { $0.result == .supported }) {
             return SupportEntry(status: .supported, suspected: false, evidence: evidence)
@@ -143,8 +159,8 @@ public struct SupportMatrix: Sendable, Equatable, Codable {
     }
 
     /// Records what `unit` did with `key`: `.supported` for an answer, `.unsupported` for an op-77
-    /// that means the command isn't there. Deciding which op-77 means that (BAD_OPCODE, or on P1
-    /// error 0 followed by a drop on a probe) is the caller's.
+    /// that means the command isn't there (BAD_OPCODE), `.droppedAfterError` for an error 0 that the
+    /// link dropped after. Deciding which reply is which is the connection layer's.
     public mutating func record(
         _ result: SupportEvidence.Result, for key: MessageKey, on unit: PumpUnit, note: String, at date: Date = Date()
     ) {
@@ -152,6 +168,14 @@ public struct SupportMatrix: Sendable, Equatable, Codable {
         var kept = recorded[unit]?[key] ?? []
         kept.append(evidence)
         recorded[unit, default: [:]][key] = Array(kept.suffix(Self.observationsKept))
+    }
+
+    /// Forgets what this app recorded about `key` on `unit`, so the next request for it is a probe
+    /// again. For a developer setting that retests a command (owner, 2026-10-31); the compiled-in class
+    /// evidence stays.
+    public mutating func forget(_ key: MessageKey, on unit: PumpUnit) {
+        recorded[unit]?[key] = nil
+        if recorded[unit]?.isEmpty == true { recorded[unit] = nil }
     }
 
     // MARK: Signed writes

@@ -32,6 +32,8 @@ import Testing
         #expect(error.errorCodeId == 6 && error.isBadOpcode)
         #expect(error.cargo == [0, 6])
         #expect(parsed.txId == 0x12)
+        // The verified trailer's pump time is exposed for the link's freshness check.
+        #expect(parsed.signedPumpTime == 586_961_779)
     }
 
     /// A tampered error code with the CRC recomputed (CRC is not cryptographic) is caught by the HMAC.

@@ -25,13 +25,19 @@ oracle-parity test.**
   **(characteristic, opCode)** — opcodes are not globally unique.
 - `Sources/TandemMessages/Core/SupportMatrix.swift` — which commands a pump answers (supported,
   unsupported, untested), with evidence per pump unit and firmware, and the six signed writes that
-  are ever sent (`allowedSignedWrites`; `PumpBLEClient.send` refuses every other signed write).
+  are ever sent (`allowedSignedWrites`; the link refuses every other signed write).
 - `Sources/TandemAuth/` — `PairingCoordinator`, `JpakeAuth` / `EcJpakeContext` (EC-JPAKE via vendored
   mbedTLS), `Crypto`.
-- `Sources/TandemBLE/` — `PumpBLEClient`. `WritePolicy` is risk-tiered: `.readOnly` (default),
-  `.allowBenignControl`, `.allowNonDelivery`, `.allowDestructive`, `.allowDelivery`. `send()` enforces
-  `message.operationRisk ≤ policy.maxRisk`. Prefer `withWritePolicy` so elevation cannot stick.
+- `Sources/TandemLink/` — the connection state machine: `LinkReducer.reduce(state, input)` returns the
+  new `LinkState` and `[LinkEffect]`, with no CoreBluetooth import. It owns every piece of link state:
+  phases, the reconnect ladder, the request queue (one in flight, txId matching), op-77
+  classification, probing, the signed-reply freshness check and the telemetry.
+- `Sources/TandemBLE/` — `PumpConnection` runs the reducer and performs its effects through a
+  `LinkTransport` (`CoreBluetoothTransport`). `send(_:allowing:)` grants risk per call, so no
+  elevation can stick; a message above it is refused before a byte is built.
 - `Tests/TandemMessagesTests/` — `OracleParityTests`, `ResponseParityTests`, `ResponseDirectTests`.
+- `Tests/TandemLinkTests/` — every transition, the replay of P1's reconnect-loop logs (`Fixtures/`) and
+  the request rules. `Tests/TandemBLETests/` — `PumpConnection` over a scripted CoreBluetooth stand-in.
 
 ## How to add a message
 

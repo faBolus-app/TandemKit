@@ -6,9 +6,8 @@ package's library products and adds:
 | Target | What it is |
 | --- | --- |
 | `TandemBench` | Bench session planning, the command-coverage matrix and the bench-bolus planner. |
-| `TandemBenchHarness` | The bench CLI against a real pump (`scan`, `monitor`, `probe`, `coverage`, and more). |
+| `TandemBenchHarness` | The bench CLI against a real pump, on the app's `PumpConnection`: `scan`, `monitor`, `dismiss`. |
 | `TandemBenchTests` | Unit tests for the planner and matrix (no hardware). |
-| `TandemHardwareTests` | Hardware cases, including the read-only txId-match probe. Gated on a pump being present; with none they skip. |
 
 ## Running it
 
@@ -30,12 +29,17 @@ CoreBluetooth without a Bluetooth usage string, and only the executable embeds o
 swift run --package-path Bench TandemBenchHarness monitor
 ```
 
-`monitor` is read-only. Anything that writes keeps both delivery walls armed: `PumpBLEClient`'s write
-policy defaults to `.readOnly`, and `Packetize` refuses a delivery message unless delivery is enabled
-for that one call. TandemKit sends only six signed writes (`SupportMatrix.allowedSignedWrites`); the
-client refuses any other before a byte is built, so the planner marks the rest as never sent.
+- `scan` lists pumps in pairing range.
+- `monitor` pairs (`PUMP_PAIRING_CODE`, optionally `PUMP_PERIPHERAL_ID`), holds the link, reads status
+  every minute, and reports every drop with its reason and the telemetry every 10 minutes. It's the
+  24-hour hold check.
+- `dismiss <reminder|alert|alarm|cgm> <id>` dismisses one pump notification once the link has held,
+  and reports whether the pump accepted it or doesn't support it.
 
-The coverage runner reads and writes `Bench/bench-coverage/COVERAGE-MATRIX.{json,md}`, wherever it is
-started from (`PUMPX2_BENCH_COVERAGE_DIR` overrides it). The committed
-matrix is the T-1 run on the old t:slim X2 (API 2.5, legacy pairing, no cartridge, no CGM), which
-`SupportMatrix` cites as evidence. See `docs/BENCH-COVERAGE.md` and `docs/BENCH-SESSION-PLAN.md`.
+Every request goes through the link's own gates: the support matrix (kept between runs in
+`~/.tandemkit-bench/support-matrix.json`, or `PUMP_SUPPORT_MATRIX`), careful probing, and the six
+allowed signed writes. The only signed write the harness sends is DismissNotification.
+
+The committed `bench-coverage/` matrix is the T-1 run on the old t:slim X2 (API 2.5, legacy pairing,
+no cartridge, no CGM), which `SupportMatrix` cites as evidence. The sweep runner that produced it was
+removed with the old client; `docs/BENCH-COVERAGE.md` and `docs/BENCH-SESSION-PLAN.md` record how.

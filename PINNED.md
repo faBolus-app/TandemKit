@@ -55,7 +55,7 @@ firmware (< v7.7)** that pairs with a **16-character alphanumeric pairing code**
 CentralChallenge → PumpChallenge** handshake — NOT the 6-digit EC-JPAKE scheme the primary pump
 above uses. Discovered while bringing the spare up on the hardware harness; the V1 library support
 this needed now exists (`PairingAuth.createV1`, `LegacyPairingCoordinator`, op-17/19 parsers,
-`PairingAuth.detectType`), and `LiveSession.beginPairing()` auto-selects V1 vs JPAKE from the code.
+`PairingAuth.detectType`), and the bench harness selects V1 or JPAKE from the code.
 
 > **The two pumps are DIFFERENT FIRMWARE FAMILIES and must be validated separately.** A behavior
 > observed on one (capability bitmask contents, "Mobi-only" write acceptance, remote time-set,

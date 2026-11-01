@@ -1,11 +1,11 @@
 import Foundation
 
-/// TandemBLE — Core Bluetooth central transport for the Tandem pump.
+/// TandemBLE: runs the pump link over CoreBluetooth.
 ///
-/// Platform-agnostic: imports CoreBluetooth only, never UIKit, so the same code runs on iOS
-/// and watchOS. Entry point is `PumpBLEClient`; `PacketReassembler` handles inbound
-/// multi-packet reassembly. Hardware-validated on real pumps — 6-digit JPAKE and legacy 16-char V1
-/// pairing, read sweeps, and a signed bolus (see `PINNED.md` for the log). The connection flow
-/// follows upstream `TandemBluetoothHandler`; the BLE path is exercised on hardware via the
-/// `TandemBenchHarness` executable, not `swift test`.
+/// `PumpConnection` drives TandemLink's state machine (`LinkReducer`) and performs its effects through a
+/// `LinkTransport`; `CoreBluetoothTransport` is the real one. Platform-agnostic: imports CoreBluetooth
+/// only, never UIKit, so the same code runs on iOS and watchOS. The connection flow follows upstream
+/// pumpx2's `TandemBluetoothHandler`. A macOS test host can't use Bluetooth (no usage description), so
+/// the transport runs on hardware through the bench harness (`Bench/`), and the tests drive
+/// `PumpConnection` through a scripted transport.
 public enum TandemBLE {}

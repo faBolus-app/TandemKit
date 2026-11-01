@@ -14,6 +14,7 @@ let package = Package(
     products: [
         .library(name: "TandemMessages", targets: ["TandemMessages"]),
         .library(name: "TandemAuth", targets: ["TandemAuth"]),
+        .library(name: "TandemLink", targets: ["TandemLink"]),
         .library(name: "TandemBLE", targets: ["TandemBLE"])
     ],
     targets: [
@@ -48,21 +49,26 @@ let package = Package(
         .target(name: "TandemAuth", dependencies: ["TandemMessages", "CMbedTLSJPAKE"]),
         // (CMbedTLSJPAKE compiles the vendored mbedTLS EC-JPAKE sources; see above.)
 
-        // Core Bluetooth central transport. Platform-agnostic (iOS + watchOS): imports
-        // CoreBluetooth only, never UIKit. Built in Swift 5 language mode: this target is
-        // CoreBluetooth delegate glue. Builds in the package's Swift 6 language mode: CB's
-        // non-Sendable objects are main-queue-confined (the central uses `queue: .main`), so the
-        // delegates hop via `MainActor.assumeIsolated` and `@preconcurrency import CoreBluetooth`
-        // lets CB-typed callback params cross into the main-actor closures.
+        // The connection state machine: a pure transition function with no CoreBluetooth import, so
+        // every transition is tested on any platform. TandemBLE drives it.
+        .target(name: "TandemLink", dependencies: ["TandemMessages"]),
+
+        // The CoreBluetooth adapter and the driver that runs TandemLink's state machine. Platform-
+        // agnostic (iOS + watchOS): imports CoreBluetooth only, never UIKit. CB's non-Sendable objects
+        // are main-queue-confined (the central uses `queue: .main`), so the delegates hop via
+        // `MainActor.assumeIsolated` and pass only plain values on.
         .target(
             name: "TandemBLE",
-            dependencies: ["TandemMessages", "TandemAuth"]
+            dependencies: ["TandemMessages", "TandemAuth", "TandemLink"]
         ),
 
         // Tests. The oracle (cliparser) tests live in TandemMessagesTests. The bench tooling and the
         // hardware tests are a separate package, Bench/, which the library never links.
         .testTarget(name: "TandemMessagesTests", dependencies: ["TandemMessages"]),
         .testTarget(name: "TandemAuthTests", dependencies: ["TandemAuth"]),
-        .testTarget(name: "TandemBLETests", dependencies: ["TandemBLE"])
+        .testTarget(
+            name: "TandemLinkTests", dependencies: ["TandemLink"],
+            resources: [.copy("Fixtures")]),
+        .testTarget(name: "TandemBLETests", dependencies: ["TandemBLE", "TandemLink"])
     ]
 )

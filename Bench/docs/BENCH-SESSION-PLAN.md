@@ -1,5 +1,11 @@
 # Booked bench session — saline, one sitting
 
+> **Note (2026-10-31):** the harness modes this describes (`coverage`, `probe`, `bolus`, the
+> hardware tests) were removed with the old `PumpBLEClient` when the link became a state machine. The
+> link now learns what each pump supports itself, through careful probing recorded in `SupportMatrix`,
+> and refuses to send what a pump has rejected. This file records how the T-1 evidence was gathered;
+> for running the bench today see [`../README.md`](../README.md).
+
 **Status:** BOOKED (not yet run). **Trigger:** the next time a pump + saline cartridge + a signing/dev
 Mac are all in the same place. **Disposition unchanged by this doc: NO-GO for real insulin delivery —
 saline only, on the bench, never on a body.**

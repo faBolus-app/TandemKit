@@ -2,7 +2,7 @@ import Foundation
 
 /// Cartridge-change / tubing-fill / cannula-fill workflow commands (A2, Mobi). Signed CONTROL
 /// writes. The "enter mode" and fill/prime steps dispense or interrupt insulin, so those carry
-/// `modifiesInsulinDelivery=true` — they require WritePolicy `.allowDelivery` + bench (saline)
+/// `modifiesInsulinDelivery=true` — a send must allow `.delivery`, plus bench (saline)
 /// validation + the advanced-control gate. Progress feedback arrives on CONTROL_STREAM (A3,
 /// deferred until the cartridge UI is built). Ports of the `request/control/*CartridgeMode`,
 /// `*FillTubingMode`, `FillCannula`, `PrimeTubingSuspend` classes.
