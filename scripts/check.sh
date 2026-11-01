@@ -10,7 +10,11 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 gate_build() { swift build --build-tests -Xswiftc -warnings-as-errors; }
-gate_test() { PUMPX2_JAVA="${PUMPX2_JAVA:-${JAVA_HOME:+$JAVA_HOME/bin/java}}" swift test; }
+# Same flags as gate_build, so running both doesn't compile everything twice.
+gate_test() {
+  if [ -z "${PUMPX2_JAVA:-}" ] && [ -n "${JAVA_HOME:-}" ]; then export PUMPX2_JAVA="$JAVA_HOME/bin/java"; fi
+  swift test -Xswiftc -warnings-as-errors
+}
 gate_format() { git ls-files -z '*.swift' | xargs -0 xcrun swift-format lint --strict; }
 gate_swiftlint() { swiftlint lint --strict --quiet; }
 gate_shell() { git ls-files -z '*.sh' | xargs -0 shellcheck; }
