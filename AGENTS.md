@@ -43,7 +43,6 @@ oracle-parity test.**
   on-device, say so in the doc-comment — don't guess.
 - Swift 6: keep CoreBluetooth delegate isolation correct.
 - Comments explain why (safety, oracle, hardware). Do not add phase/ticket IDs or pin SHAs here.
-  faBolus's TandemKit pin lives in `faBolus/project.yml`.
 
 ## Quality gates
 
@@ -57,6 +56,22 @@ oracle-parity test.**
   `Responses.swift` (`has(8388608)` -> `has(8_388_608)`, hiding that each one is a single bit).
 - `.swiftlint.yml` is a short list of correctness rules. Never rename a wire field to satisfy a linter.
 - Report only: Semgrep (faBolus's `.semgrep/deslop.yml`), Periphery, and CodeQL (`codeql.yml`).
+
+## Reviewing
+
+<!-- Only facts a reviewer can't get from the diff. How to review is the review tool's job; don't restate it here. -->
+
+Facts a reviewer needs that the diff doesn't show:
+
+- The golden rule above names what matters most here.
+- Out of scope: anything a `check.sh` gate already fails on.
+- `vendor/` holds two upstream submodules, pumpx2 and mbedTLS. A diff can only move their pins, and
+  moving pumpx2's changes what every parity test compares against.
+- controlX2 has no license: it is read for structure, and nothing is copied from it.
+- On API 2.5 pumps an unsupported command gets an op-77 error and the pump drops the link, so sending a
+  new read, or retrying one, can cost a connection.
+- Most past bugs were in the phone↔pump link: state kept outside a state machine, retry and reconnect
+  loops, stuck states after a drop, suspension and relaunch, and replies lost, duplicated or reordered.
 
 ## Consumed by
 
