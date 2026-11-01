@@ -65,7 +65,9 @@ public final class CoreBluetoothTransport: NSObject, LinkTransport {
         case .cancelConnection(let id):
             connectAfterCancel.remove(id)
             guard let peripheral = peripherals[id] else { return }
-            if peripheral.state != .disconnected { cancelling.insert(id) }
+            // Only a connected link reliably reports its disconnect; a cancelled pending connect may not,
+            // and a connect waiting on it would never go out.
+            if peripheral.state == .connected || peripheral.state == .disconnecting { cancelling.insert(id) }
             central.cancelPeripheralConnection(peripheral)
         case .discover(let id):
             // The link decides which peripheral is being set up; a stray that connects meanwhile
