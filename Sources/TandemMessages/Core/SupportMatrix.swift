@@ -197,16 +197,19 @@ public struct SupportMatrix: Sendable, Equatable, Codable {
     // MARK: Signed writes
 
     /// The only signed writes TandemKit sends, on any pump: the remote-bolus family P1 accepts on API
-    /// 2.5, InitiateBolus, and DismissNotification (op-184). The other signed writes P1 was sent each
-    /// drew op-77 and a dropped link. Everything else
-    /// signed is refused before a byte is built, whatever the pump's API version.
+    /// 2.5, InitiateBolus, DismissNotification (op-184), and BolusPermissionRelease, which closes a
+    /// granted permission no bolus followed, as Tandem's app does. The release has no bench evidence on
+    /// any pump, so it goes as an untested write. The other signed writes P1 was sent each drew op-77 and
+    /// a dropped link. Everything else signed is refused before a byte is built, whatever the pump's API
+    /// version.
     public static let allowedSignedWrites: Set<MessageKey> = [
         MessageKey(BolusPermissionRequest.self),
         MessageKey(InitiateBolusRequest.self),
         MessageKey(CancelBolusRequest.self),
         MessageKey(RemoteCarbEntryRequest.self),
         MessageKey(RemoteBgEntryRequest.self),
-        MessageKey(DismissNotificationRequest.self)
+        MessageKey(DismissNotificationRequest.self),
+        MessageKey(BolusPermissionReleaseRequest.self)
     ]
 
     public static func isAllowedSignedWrite(_ message: some Message) -> Bool {

@@ -7,11 +7,11 @@ import Testing
     private let p2Unit = PumpUnit(serialNumber: 2000, armSoftwareVersion: 7, mspSoftwareVersion: 7)
     private let p2API = ApiVersion(major: 4, minor: 0)
 
-    @Test func onlySixSignedWritesAreAllowed() {
-        #expect(SupportMatrix.allowedSignedWrites.count == 6)
+    @Test func onlySevenSignedWritesAreAllowed() {
+        #expect(SupportMatrix.allowedSignedWrites.count == 7)
         #expect(SupportMatrix.isAllowedSignedWrite(InitiateBolusRequest()))
         #expect(SupportMatrix.isAllowedSignedWrite(DismissNotificationRequest(kind: .alert, notificationId: 1)))
-        #expect(!SupportMatrix.isAllowedSignedWrite(BolusPermissionReleaseRequest(bolusID: 1)))
+        #expect(SupportMatrix.isAllowedSignedWrite(BolusPermissionReleaseRequest(bolusID: 1)))
         #expect(!SupportMatrix.isAllowedSignedWrite(ChangeTimeDateRequest(tandemEpochTime: 0)))
         #expect(SupportMatrix.isAllowedSignedWrite(PumpVersionRequest()))  // unsigned: not the allowlist's business
         for key in SupportMatrix.allowedSignedWrites {
@@ -94,7 +94,8 @@ import Testing
         #expect(!SupportMatrix().mayProbe(PumpVersionRequest(), unit: p1Unit, model: .tslim, apiVersion: .v2_5))
     }
 
-    /// The six allowed writes have evidence on a t:slim X2; DismissNotification on P1 is unknown.
+    /// The allowed writes carry their evidence on a t:slim X2: DismissNotification on P1 and
+    /// BolusPermissionRelease on any pump are untested, not suspected.
     @Test func allowedWritesCarryTheirEvidence() {
         let m = SupportMatrix()
         #expect(
@@ -105,6 +106,11 @@ import Testing
             for: DismissNotificationRequest(kind: .alert, notificationId: 1), unit: nil, model: .tslim,
             apiVersion: .v2_5)
         #expect(dismissOnP1.status == .untested && !dismissOnP1.suspected)
+        for api in [ApiVersion.v2_5, p2API] {
+            let release = m.entry(
+                for: BolusPermissionReleaseRequest(bolusID: 1), unit: nil, model: .tslim, apiVersion: api)
+            #expect(release.status == .untested && !release.suspected)
+        }
     }
 
     /// No command has both an answer and a rejection at the same scope: the compiled-in evidence

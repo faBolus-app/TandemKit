@@ -38,7 +38,7 @@ import TandemMessages
         #expect(h.writes(of: CancelBolusRequest.self) == 0)
     }
 
-    @Test func signedWriteOutsideTheAllowedSixIsRefused() {
+    @Test func signedWriteOutsideTheAllowedSevenIsRefused() {
         var h = readyP1()
         let id = h.submit(ChangeTimeDateRequest(tandemEpochTime: 0), allowing: .delivery)
         #expect(h.results[id] == .notSent(.signedWriteNotAllowed))
@@ -469,6 +469,24 @@ import TandemMessages
             return
         }
         #expect(h.state.ladder.flaps == 0)
+    }
+
+    @Test func bolusPermissionReleaseIsAllowedAndGoesOutOnceAsAnUntestedWrite() {
+        // No pump has bench evidence for the release, so it waits for the hold like any untested write,
+        // then goes out once, and its verified reply is the answer.
+        var h = readyP1()
+        let release = BolusPermissionReleaseRequest(bolusID: 10650)
+        let id = h.submit(release, allowing: release.operationRisk)
+        #expect(h.writes(of: BolusPermissionReleaseRequest.self) == 0)
+        h.advance(by: 10)
+        #expect(h.writes(of: BolusPermissionReleaseRequest.self) == 1)
+        h.reply(BolusPermissionReleaseResponse(cargo: [0]), signedAt: Self.pumpTime + 10)
+        guard case .reply(let reply) = h.results[id] else {
+            Issue.record("expected the verified release reply, got \(String(describing: h.results[id]))")
+            return
+        }
+        #expect((reply.message as? BolusPermissionReleaseResponse)?.released == true)
+        #expect(h.writes(of: BolusPermissionReleaseRequest.self) == 1)
     }
 
     @Test func qualifyingEventsAreReportedAndClearedButNotDuringASignedWrite() {

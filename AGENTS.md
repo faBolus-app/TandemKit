@@ -24,7 +24,7 @@ oracle-parity test.**
   `characteristic`, `modifiesInsulinDelivery`, `responseOpCode`). `ResponseParser` dispatches on
   **(characteristic, opCode)** — opcodes are not globally unique.
 - `Sources/TandemMessages/Core/SupportMatrix.swift` — which commands a pump answers (supported,
-  unsupported, untested), with evidence per pump unit and firmware, and the six signed writes that
+  unsupported, untested), with evidence per pump unit and firmware, and the seven signed writes that
   are ever sent (`allowedSignedWrites`; the link refuses every other signed write).
 - `Sources/TandemAuth/` — `PairingCoordinator`, `JpakeAuth` / `EcJpakeContext` (EC-JPAKE via vendored
   mbedTLS), `Crypto`.

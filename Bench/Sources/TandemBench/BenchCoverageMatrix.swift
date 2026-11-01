@@ -128,7 +128,7 @@ public enum BenchCoverage {
             && !SupportMatrix.allowedSignedWrites.contains(
                 MessageKey(characteristic: cmd.characteristic, opCode: cmd.opCode))
         {
-            return .notApplicable("never sent — not one of TandemKit's six allowed signed writes")
+            return .notApplicable("never sent — not one of TandemKit's seven allowed signed writes")
         }
 
         // Model gate: a command not legal for this model is N/A here (covered in that model's sessions).

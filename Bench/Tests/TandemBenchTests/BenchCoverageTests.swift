@@ -274,7 +274,7 @@ import TandemMessages
         } else {
             Issue.record("expected N/A on new t:slim")
         }
-        // On a Mobi it is still never sent: not one of the six allowed signed writes.
+        // On a Mobi it is still never sent: not one of the seven allowed signed writes.
         if case .notApplicable(let r) = plan("SetTempRateRequest", Self.mobiSaline) {
             #expect(r.contains("never sent"))
         } else {
@@ -282,12 +282,12 @@ import TandemMessages
         }
     }
 
-    /// A signed write outside TandemKit's six allowed ones is never sent, so the bench can't cover it,
+    /// A signed write outside TandemKit's seven allowed ones is never sent, so the bench can't cover it,
     /// whatever its affordance; the allowed ones follow the affordance catalog.
     @Test func signedWriteDispositionFollowsTheAllowlistThenTheAffordanceCatalog() {
         for name in [
             "FactoryResetRequest", "ActivateShelfModeRequest", "SetBgReminderRequest", "SetMaxBolusLimitRequest",
-            "ChangeTimeDateRequest", "PlaySoundRequest", "BolusPermissionReleaseRequest"
+            "ChangeTimeDateRequest", "PlaySoundRequest"
         ] {
             if case .notApplicable(let r) = plan(name, Self.oldTslim) {
                 #expect(r.contains("never sent"), "\(name): \(r)")
@@ -298,6 +298,13 @@ import TandemMessages
         #expect(plan("BolusPermissionRequest", Self.oldTslim) == .exercise(.signedWrite))  // benignProbe
         #expect(plan("CancelBolusRequest", Self.oldTslim) == .exercise(.signedWrite))  // benignProbe
         #expect(plan("RemoteCarbEntryRequest", Self.oldTslim) == .exercise(.signedWrite))
+        // The release is allowed now, but the bench covers it only as the restore half of the permission
+        // pair, behind the saline gate.
+        if case .gap(let r) = plan("BolusPermissionReleaseRequest", Self.oldTslim) {
+            #expect(r.contains("restore-half"), "\(r)")
+        } else {
+            Issue.record("BolusPermissionReleaseRequest should be a restore-half gap on the old t:slim")
+        }
     }
 
     /// Pairing coverage is attributed by scheme + API floor.
