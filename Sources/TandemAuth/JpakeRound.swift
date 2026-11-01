@@ -33,7 +33,8 @@ enum JpakeRound {
         /// Re-encodes with `r` left-padded with zeroes to `scalarLength`. A longer `r` is left as
         /// it is: mbedTLS never writes one, and stripping bytes would change the value.
         var encoded: [UInt8] {
-            let padded = r.count < JpakeRound.scalarLength
+            let padded =
+                r.count < JpakeRound.scalarLength
                 ? [UInt8](repeating: 0, count: JpakeRound.scalarLength - r.count) + r : r
             return [UInt8(x.count)] + x + [UInt8(v.count)] + v + [UInt8(padded.count)] + padded
         }

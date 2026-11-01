@@ -181,6 +181,54 @@ public enum HistoryLogParser {
         add(WumpCartridgeFilledHistoryLog.self)
         add(WumpCartridgeRemovedHistoryLog.self)
         add(WumpOcclusionDebugHistoryLog.self)
+        // HistoryLogEventsExtended.swift
+        add(AamAnnunciationHistoryLog.self)
+        add(AntDailyStatus1HistoryLog.self)
+        add(AntDailyStatus2HistoryLog.self)
+        add(AntSleepEatSchedSettingChangeHistoryLog.self)
+        add(AuthorizationCountersHistoryLog.self)
+        add(BatteryEstimateUpdateHistoryLog.self)
+        add(BatteryHourlyHistoryLog.self)
+        add(BleDailyConnectionsHistoryLog.self)
+        add(BleLinkStatsHistoryLog.self)
+        add(BleSoftDeviceVersionHistoryLog.self)
+        add(BolusDeliverySummaryHistoryLog.self)
+        add(BolusIobEntryHistoryLog.self)
+        add(BolusPermissionChangeHistoryLog.self)
+        add(BolusPermissionRequestHistoryLog.self)
+        add(BolusPermissionResponseHistoryLog.self)
+        add(CartridgeFillResponseHistoryLog.self)
+        add(CgmStateChangeGxHistoryLog.self)
+        add(ChargingStartedHistoryLog.self)
+        add(ChargingStoppedHistoryLog.self)
+        add(ControlIQAutomatedInsulinHistoryLog.self)
+        add(ControlIQCycleHistoryLog.self)
+        add(ControlIQFeaturesHistoryLog.self)
+        add(ControlIQGlucoseModelHistoryLog.self)
+        add(ControlRequestCountersHistoryLog.self)
+        add(ControlRequestHistoryLog.self)
+        add(ControlResponseHistoryLog.self)
+        add(ControlStreamCountersHistoryLog.self)
+        add(DismissNotificationResponseHistoryLog.self)
+        add(HistoryRequestCountersHistoryLog.self)
+        add(HistoryRequestRangeHistoryLog.self)
+        add(InitiateBolusRequestMsg1HistoryLog.self)
+        add(InitiateBolusRequestMsg2HistoryLog.self)
+        add(InitiateBolusRequestMsg3HistoryLog.self)
+        add(InitiateBolusResponseHistoryLog.self)
+        add(IobSnapshotPostBolusHistoryLog.self)
+        add(IobSnapshotPreBolusHistoryLog.self)
+        add(MaxBasalLimitSetHistoryLog.self)
+        add(MaxBolusLimitSetHistoryLog.self)
+        add(PumpButtonHistoryLog.self)
+        add(PumpDriveEventHistoryLog.self)
+        add(ReservoirEstimateHistoryLog.self)
+        add(SetTempRateResponseHistoryLog.self)
+        add(SoftwareIdHistoryLog.self)
+        add(SyncDoseCompleteHistoryLog.self)
+        add(SyncDoseStartHistoryLog.self)
+        add(TempAdjustmentActivatedHistoryLog.self)
+        add(TempAdjustmentCompletedHistoryLog.self)
         return r
     }()
 
@@ -206,7 +254,7 @@ public struct BolusDeliveryHistoryLog: HistoryLogEvent {
     public private(set) var bolusDeliveryStatusId: Int = 0
     public private(set) var bolusTypeBitmask: Int = 0
     public private(set) var bolusSource: Int = 0
-    public private(set) var reserved: Int = 0
+    public private(set) var remoteId: Int = 0
     public private(set) var requestedNow: Int = 0
     public private(set) var requestedLater: Int = 0
     public private(set) var correction: Int = 0
@@ -222,7 +270,7 @@ public struct BolusDeliveryHistoryLog: HistoryLogEvent {
         bolusDeliveryStatusId = Int(raw[12])
         bolusTypeBitmask = Int(raw[13])
         bolusSource = Int(raw[14])
-        reserved = Int(raw[15])
+        remoteId = Int(raw[15])
         requestedNow = Bytes.readShort(raw, 16)
         requestedLater = Bytes.readShort(raw, 18)
         correction = Bytes.readShort(raw, 20)
@@ -263,6 +311,7 @@ public struct BolusActivatedHistoryLog: HistoryLogEvent {
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
     public private(set) var bolusId: Int = 0
+    public private(set) var selectedIob: Int = 0
     public private(set) var iob: Float = 0
     public private(set) var bolusSize: Float = 0
     public init() { cargo = [] }
@@ -272,6 +321,7 @@ public struct BolusActivatedHistoryLog: HistoryLogEvent {
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
         bolusId = Bytes.readShort(raw, 10)
+        selectedIob = Int(raw[12])
         iob = Bytes.readFloat(raw, 14)
         bolusSize = Bytes.readFloat(raw, 18)
     }
@@ -284,6 +334,7 @@ public struct BolexActivatedHistoryLog: HistoryLogEvent {
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
     public private(set) var bolusId: Int = 0
+    public private(set) var selectedIob: Int = 0
     public private(set) var iob: Float = 0
     public private(set) var bolexSize: Float = 0
     public init() { cargo = [] }
@@ -293,6 +344,7 @@ public struct BolexActivatedHistoryLog: HistoryLogEvent {
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
         bolusId = Bytes.readShort(raw, 10)
+        selectedIob = Int(raw[12])
         iob = Bytes.readFloat(raw, 14)
         bolexSize = Bytes.readFloat(raw, 18)
     }
@@ -397,6 +449,7 @@ public struct BolusRequestedMsg3HistoryLog: HistoryLogEvent {
     public private(set) var sequenceNum: UInt32 = 0
     public private(set) var bolusId: Int = 0
     public private(set) var spare: Int = 0
+    public private(set) var queued: Bool = false
     public private(set) var foodBolusSize: Float = 0
     public private(set) var correctionBolusSize: Float = 0
     public private(set) var totalBolusSize: Float = 0
@@ -408,6 +461,7 @@ public struct BolusRequestedMsg3HistoryLog: HistoryLogEvent {
         sequenceNum = Bytes.readUint32(raw, 6)
         bolusId = Bytes.readShort(raw, 10)
         spare = Bytes.readShort(raw, 12)
+        queued = raw[12] != 0
         foodBolusSize = Bytes.readFloat(raw, 14)
         correctionBolusSize = Bytes.readFloat(raw, 18)
         totalBolusSize = Bytes.readFloat(raw, 22)
@@ -575,6 +629,7 @@ public struct DexcomG6CGMHistoryLog: HistoryLogEvent {
     public private(set) var timeStampSeconds: Int = 0
     public private(set) var egvInfoBitmaskRaw: Int = 0
     public private(set) var interval: Int = 0
+    public private(set) var egvCount: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
@@ -590,6 +645,7 @@ public struct DexcomG6CGMHistoryLog: HistoryLogEvent {
         timeStampSeconds = Int(Bytes.readUint32(raw, 18))
         egvInfoBitmaskRaw = Bytes.readShort(raw, 22)
         interval = Int(raw[24])
+        egvCount = Int(raw[25])
     }
 }
 
@@ -666,6 +722,7 @@ public struct PumpingResumedHistoryLog: HistoryLogEvent {
     public var cargo: [UInt8]
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
+    public private(set) var preResumeState: Int = 0
     public private(set) var insulinAmount: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
@@ -673,6 +730,7 @@ public struct PumpingResumedHistoryLog: HistoryLogEvent {
         guard raw.count >= 26 else { return }
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
+        preResumeState = Int(Bytes.readUint32(raw, 10))
         insulinAmount = Bytes.readShort(raw, 14)
     }
 }
@@ -683,16 +741,20 @@ public struct PumpingSuspendedHistoryLog: HistoryLogEvent {
     public var cargo: [UInt8]
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
+    public private(set) var preSuspendState: Int = 0
     public private(set) var insulinAmount: Int = 0
     public private(set) var reasonId: Int = 0
+    public private(set) var rpaTimeout: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
         guard raw.count >= 26 else { return }
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
+        preSuspendState = Int(Bytes.readUint32(raw, 10))
         insulinAmount = Bytes.readShort(raw, 14)
         reasonId = Int(raw[16])
+        rpaTimeout = Int(raw[17])
     }
 }
 
@@ -723,6 +785,7 @@ public struct CannulaFilledHistoryLog: HistoryLogEvent {
     public private(set) var sequenceNum: UInt32 = 0
     public private(set) var primeSize: Float = 0
     public private(set) var completionStatus: Int = 0
+    public private(set) var infusionSetType: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
@@ -731,6 +794,7 @@ public struct CannulaFilledHistoryLog: HistoryLogEvent {
         sequenceNum = Bytes.readUint32(raw, 6)
         primeSize = Bytes.readFloat(raw, 10)
         completionStatus = Int(Bytes.readUint32(raw, 14))
+        infusionSetType = Int(raw[18])
     }
 }
 
@@ -806,6 +870,7 @@ public struct BasalDeliveryHistoryLog: HistoryLogEvent {
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
     public private(set) var commandedRateSource: Int = 0
+    public private(set) var basalDeliveryFlags: Int = 0
     public private(set) var commandedRate: Int = 0
     public private(set) var profileBasalRate: Int = 0
     public private(set) var algorithmRate: Int = 0
@@ -817,6 +882,7 @@ public struct BasalDeliveryHistoryLog: HistoryLogEvent {
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
         commandedRateSource = Bytes.readShort(raw, 10)
+        basalDeliveryFlags = Bytes.readShort(raw, 12)
         commandedRate = Bytes.readShort(raw, 14)
         profileBasalRate = Bytes.readShort(raw, 16)
         algorithmRate = Bytes.readShort(raw, 18)
@@ -830,9 +896,9 @@ public struct CgmAlertAckDexHistoryLog: HistoryLogEvent {
     public var cargo: [UInt8]
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
-    /// alertId is a single byte @10 (upstream dev `d3d209c2`, PR #119): the earlier 4-byte read wrongly
-    /// swallowed sensorType@11 + padding, yielding a mis-decoded value. Fix ported to `main` (decode only).
     public private(set) var alertId: Int = 0
+    public private(set) var sensorType: Int = 0
+    public private(set) var ackSource: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
@@ -840,6 +906,8 @@ public struct CgmAlertAckDexHistoryLog: HistoryLogEvent {
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
         alertId = Int(raw[10])
+        sensorType = Int(raw[11])
+        ackSource = Int(Bytes.readUint32(raw, 14))
     }
 }
 
@@ -849,9 +917,11 @@ public struct CgmAlertActivatedDexHistoryLog: HistoryLogEvent {
     public var cargo: [UInt8]
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
-    /// alertId is a single byte @10 (upstream dev `d3d209c2`, PR #119): the earlier 4-byte read wrongly
-    /// swallowed sensorType@11 + padding, yielding a mis-decoded value. Fix ported to `main` (decode only).
     public private(set) var alertId: Int = 0
+    public private(set) var sensorType: Int = 0
+    public private(set) var faultLocatorData: Int = 0
+    public private(set) var param1: Int = 0
+    public private(set) var param2: Float = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
@@ -859,6 +929,10 @@ public struct CgmAlertActivatedDexHistoryLog: HistoryLogEvent {
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
         alertId = Int(raw[10])
+        sensorType = Int(raw[11])
+        faultLocatorData = Int(Bytes.readUint32(raw, 14))
+        param1 = Int(Bytes.readUint32(raw, 18))
+        param2 = Bytes.readFloat(raw, 22)
     }
 }
 
@@ -869,13 +943,21 @@ public struct CgmAlertActivatedFsl2HistoryLog: HistoryLogEvent {
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
     public private(set) var alertId: Int = 0
+    public private(set) var sensorType: Int = 0
+    public private(set) var faultLocatorData: Int = 0
+    public private(set) var param1: Int = 0
+    public private(set) var param2: Float = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
         guard raw.count >= 26 else { return }
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
-        alertId = Int(Bytes.readUint32(raw, 10))
+        alertId = Int(raw[10])
+        sensorType = Int(raw[11])
+        faultLocatorData = Int(Bytes.readUint32(raw, 14))
+        param1 = Int(Bytes.readUint32(raw, 18))
+        param2 = Bytes.readFloat(raw, 22)
     }
 }
 
@@ -908,9 +990,8 @@ public struct CgmAlertClearedDexHistoryLog: HistoryLogEvent {
     public var cargo: [UInt8]
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
-    /// alertId is a single byte @10 (upstream dev `d3d209c2`, PR #119): the earlier 4-byte read wrongly
-    /// swallowed sensorType@11 + padding, yielding a mis-decoded value. Fix ported to `main` (decode only).
     public private(set) var alertId: Int = 0
+    public private(set) var sensorType: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
@@ -918,6 +999,7 @@ public struct CgmAlertClearedDexHistoryLog: HistoryLogEvent {
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
         alertId = Int(raw[10])
+        sensorType = Int(raw[11])
     }
 }
 
@@ -928,13 +1010,15 @@ public struct CgmAlertClearedFsl2HistoryLog: HistoryLogEvent {
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
     public private(set) var alertId: Int = 0
+    public private(set) var sensorType: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
         guard raw.count >= 26 else { return }
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
-        alertId = Int(Bytes.readUint32(raw, 10))
+        alertId = Int(raw[10])
+        sensorType = Int(raw[11])
     }
 }
 
@@ -968,7 +1052,7 @@ public struct CgmCalibrationGxHistoryLog: HistoryLogEvent {
         guard raw.count >= 26 else { return }
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
-        value = Bytes.readShort(raw, 10)
+        value = Int(Bytes.readUint32(raw, 10))
     }
 }
 
@@ -1003,26 +1087,30 @@ public struct CgmDataFsl2HistoryLog: HistoryLogEvent {
     public var cargo: [UInt8]
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
-    public private(set) var status: Int = 0
-    public private(set) var type: Int = 0
     public private(set) var rate: Int = 0
+    public private(set) var glucoseValueStatusRaw: Int = 0
+    public private(set) var cgmDataTypeRaw: Int = 0
+    public private(set) var algorithmStateRaw: Int = 0
     public private(set) var rssi: Int = 0
-    public private(set) var value: Int = 0
-    public private(set) var timestamp: Int = 0
-    public private(set) var transmitterTimestamp: Int = 0
+    public private(set) var currentGlucoseDisplayValue: Int = 0
+    public private(set) var egvTimestamp: Int = 0
+    public private(set) var egvInfoBitmaskRaw: Int = 0
+    public private(set) var interval: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
         guard raw.count >= 26 else { return }
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
-        status = Bytes.readShort(raw, 10)
-        type = Int(raw[12])
-        rate = Int(Int8(bitPattern: raw[13]))
+        glucoseValueStatusRaw = Int(raw[10])
+        cgmDataTypeRaw = Int(raw[11])
+        algorithmStateRaw = Int(raw[14])
         rssi = Int(Int8(bitPattern: raw[15]))
-        value = Bytes.readShort(raw, 16)
-        timestamp = Int(Bytes.readUint32(raw, 18))
-        transmitterTimestamp = Int(Bytes.readUint32(raw, 22))
+        currentGlucoseDisplayValue = Bytes.readShort(raw, 16)
+        egvTimestamp = Int(Bytes.readUint32(raw, 18))
+        egvInfoBitmaskRaw = Bytes.readShort(raw, 22)
+        interval = Int(raw[24])
+        rate = Int(Int16(truncatingIfNeeded: Bytes.readShort(raw, 12)))
     }
 }
 
@@ -1032,26 +1120,30 @@ public struct CgmDataFsl3HistoryLog: HistoryLogEvent {
     public var cargo: [UInt8]
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
-    public private(set) var status: Int = 0
-    public private(set) var type: Int = 0
     public private(set) var rate: Int = 0
+    public private(set) var glucoseValueStatusRaw: Int = 0
+    public private(set) var cgmDataTypeRaw: Int = 0
+    public private(set) var algorithmStateRaw: Int = 0
     public private(set) var rssi: Int = 0
-    public private(set) var value: Int = 0
-    public private(set) var timestamp: Int = 0
-    public private(set) var transmitterTimestamp: Int = 0
+    public private(set) var currentGlucoseDisplayValue: Int = 0
+    public private(set) var egvTimestamp: Int = 0
+    public private(set) var egvInfoBitmaskRaw: Int = 0
+    public private(set) var interval: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
         guard raw.count >= 26 else { return }
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
-        status = Bytes.readShort(raw, 10)
-        type = Int(raw[12])
-        rate = Int(Int8(bitPattern: raw[13]))
+        glucoseValueStatusRaw = Int(raw[10])
+        cgmDataTypeRaw = Int(raw[11])
+        algorithmStateRaw = Int(raw[14])
         rssi = Int(Int8(bitPattern: raw[15]))
-        value = Bytes.readShort(raw, 16)
-        timestamp = Int(Bytes.readUint32(raw, 18))
-        transmitterTimestamp = Int(Bytes.readUint32(raw, 22))
+        currentGlucoseDisplayValue = Bytes.readShort(raw, 16)
+        egvTimestamp = Int(Bytes.readUint32(raw, 18))
+        egvInfoBitmaskRaw = Bytes.readShort(raw, 22)
+        interval = Int(raw[24])
+        rate = Int(Int16(truncatingIfNeeded: Bytes.readShort(raw, 12)))
     }
 }
 
@@ -1109,12 +1201,20 @@ public struct CgmJoinSessionFsl2HistoryLog: HistoryLogEvent {
     public var cargo: [UInt8]
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
+    public private(set) var sessionStartTime: Int = 0
+    public private(set) var sessionJoinTime: Int = 0
+    public private(set) var sessionDuration: Int = 0
+    public private(set) var sessionJoinReason: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
         guard raw.count >= 26 else { return }
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
+        sessionStartTime = Int(Bytes.readUint32(raw, 10))
+        sessionJoinTime = Int(Bytes.readUint32(raw, 14))
+        sessionDuration = Int(raw[18])
+        sessionJoinReason = Int(raw[19])
     }
 }
 
@@ -1124,12 +1224,22 @@ public struct CgmJoinSessionFsl3HistoryLog: HistoryLogEvent {
     public var cargo: [UInt8]
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
+    public private(set) var sessionStartTime: Int = 0
+    public private(set) var sessionJoinTime: Int = 0
+    public private(set) var sessionDuration: Int = 0
+    public private(set) var sessionJoinReason: Int = 0
+    public private(set) var sessionDurationSecs: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
         guard raw.count >= 26 else { return }
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
+        sessionStartTime = Int(Bytes.readUint32(raw, 10))
+        sessionJoinTime = Int(Bytes.readUint32(raw, 14))
+        sessionDuration = Int(raw[18])
+        sessionJoinReason = Int(raw[19])
+        sessionDurationSecs = Int(Bytes.readUint32(raw, 22))
     }
 }
 
@@ -1160,8 +1270,8 @@ public struct CgmJoinSessionHistoryLog: HistoryLogEvent {
     public private(set) var sequenceNum: UInt32 = 0
     public private(set) var currentTransmitterTime: Int = 0
     public private(set) var sessionStartTime: Int = 0
-    public private(set) var sessionJoinReasonRaw: Int = 0
     public private(set) var sessionDuration: Int = 0
+    public private(set) var sessionJoinReasonRaw: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
@@ -1170,8 +1280,8 @@ public struct CgmJoinSessionHistoryLog: HistoryLogEvent {
         sequenceNum = Bytes.readUint32(raw, 6)
         currentTransmitterTime = Int(Bytes.readUint32(raw, 10))
         sessionStartTime = Int(Bytes.readUint32(raw, 14))
-        sessionJoinReasonRaw = Int(raw[24])
-        sessionDuration = Int(raw[25])
+        sessionDuration = Int(raw[22])
+        sessionJoinReasonRaw = Int(raw[23])
     }
 }
 
@@ -1181,12 +1291,16 @@ public struct CgmStartSessionFsl2HistoryLog: HistoryLogEvent {
     public var cargo: [UInt8]
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
+    public private(set) var sessionStartTime: Int = 0
+    public private(set) var sessionDuration: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
         guard raw.count >= 26 else { return }
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
+        sessionStartTime = Int(Bytes.readUint32(raw, 10))
+        sessionDuration = Int(raw[14])
     }
 }
 
@@ -1199,6 +1313,7 @@ public struct CgmStartSessionHistoryLog: HistoryLogEvent {
     public private(set) var currentTransmitterTime: Int = 0
     public private(set) var sessionStartTime: Int = 0
     public private(set) var sessionDuration: Int = 0
+    public private(set) var sessionStartReason: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
@@ -1207,7 +1322,8 @@ public struct CgmStartSessionHistoryLog: HistoryLogEvent {
         sequenceNum = Bytes.readUint32(raw, 6)
         currentTransmitterTime = Int(Bytes.readUint32(raw, 10))
         sessionStartTime = Int(Bytes.readUint32(raw, 14))
-        sessionDuration = Int(raw[25])
+        sessionDuration = Int(raw[22])
+        sessionStartReason = Int(raw[23])
     }
 }
 
@@ -1217,12 +1333,20 @@ public struct CgmStopSessionFsl2HistoryLog: HistoryLogEvent {
     public var cargo: [UInt8]
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
+    public private(set) var sessionStartTime: Int = 0
+    public private(set) var sessionStopTime: Int = 0
+    public private(set) var sessionDuration: Int = 0
+    public private(set) var sessionStopReason: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
         guard raw.count >= 26 else { return }
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
+        sessionStartTime = Int(Bytes.readUint32(raw, 10))
+        sessionStopTime = Int(Bytes.readUint32(raw, 14))
+        sessionDuration = Int(raw[18])
+        sessionStopReason = Int(raw[19])
     }
 }
 
@@ -1232,12 +1356,20 @@ public struct CgmStopSessionFsl3HistoryLog: HistoryLogEvent {
     public var cargo: [UInt8]
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
+    public private(set) var sessionStartTime: Int = 0
+    public private(set) var sessionStopTime: Int = 0
+    public private(set) var sessionDuration: Int = 0
+    public private(set) var sessionStopReason: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
         guard raw.count >= 26 else { return }
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
+        sessionStartTime = Int(Bytes.readUint32(raw, 10))
+        sessionStopTime = Int(Bytes.readUint32(raw, 14))
+        sessionDuration = Int(raw[18])
+        sessionStopReason = Int(raw[19])
     }
 }
 
@@ -1250,9 +1382,9 @@ public struct CgmStopSessionG7HistoryLog: HistoryLogEvent {
     public private(set) var currentTransmitterTime: Int = 0
     public private(set) var sessionStartTime: Int = 0
     public private(set) var sessionStopTime: Int = 0
-    public private(set) var stopSessionCode: Int = 0
-    public private(set) var sessionStopReason: Int = 0
     public private(set) var sessionDuration: Int = 0
+    public private(set) var sessionStopReason: Int = 0
+    public private(set) var stopSessionCode: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
@@ -1262,9 +1394,9 @@ public struct CgmStopSessionG7HistoryLog: HistoryLogEvent {
         currentTransmitterTime = Int(Bytes.readUint32(raw, 10))
         sessionStartTime = Int(Bytes.readUint32(raw, 14))
         sessionStopTime = Int(Bytes.readUint32(raw, 18))
-        stopSessionCode = Int(raw[23])
-        sessionStopReason = Int(raw[24])
-        sessionDuration = Int(raw[25])
+        sessionDuration = Int(raw[22])
+        sessionStopReason = Int(raw[23])
+        stopSessionCode = Int(raw[24])
     }
 }
 
@@ -1277,8 +1409,8 @@ public struct CgmStopSessionHistoryLog: HistoryLogEvent {
     public private(set) var currentTransmitterTime: Int = 0
     public private(set) var sessionStartTime: Int = 0
     public private(set) var sessionStopTime: Int = 0
-    public private(set) var sessionStopReasonRaw: Int = 0
     public private(set) var sessionDuration: Int = 0
+    public private(set) var sessionStopReasonRaw: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
@@ -1288,8 +1420,8 @@ public struct CgmStopSessionHistoryLog: HistoryLogEvent {
         currentTransmitterTime = Int(Bytes.readUint32(raw, 10))
         sessionStartTime = Int(Bytes.readUint32(raw, 14))
         sessionStopTime = Int(Bytes.readUint32(raw, 18))
-        sessionStopReasonRaw = Int(raw[24])
-        sessionDuration = Int(raw[25])
+        sessionDuration = Int(raw[22])
+        sessionStopReasonRaw = Int(raw[23])
     }
 }
 
@@ -1301,6 +1433,11 @@ public struct ControlIQPcmChangeHistoryLog: HistoryLogEvent {
     public private(set) var sequenceNum: UInt32 = 0
     public private(set) var currentPcmId: Int = 0
     public private(set) var previousPcmId: Int = 0
+    public private(set) var pumpSuspendedRaw: Int = 0
+    public private(set) var calculationAvailableRaw: Int = 0
+    public private(set) var cgmAvailableRaw: Int = 0
+    public private(set) var closedLoopPreferredRaw: Int = 0
+    public private(set) var sufficientClosedLoopParamsRaw: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
@@ -1309,6 +1446,11 @@ public struct ControlIQPcmChangeHistoryLog: HistoryLogEvent {
         sequenceNum = Bytes.readUint32(raw, 6)
         currentPcmId = Int(raw[10])
         previousPcmId = Int(raw[11])
+        pumpSuspendedRaw = Int(raw[12])
+        calculationAvailableRaw = Int(raw[13])
+        cgmAvailableRaw = Int(raw[14])
+        closedLoopPreferredRaw = Int(raw[15])
+        sufficientClosedLoopParamsRaw = Int(raw[16])
     }
 }
 
@@ -1320,6 +1462,13 @@ public struct ControlIQUserModeChangeHistoryLog: HistoryLogEvent {
     public private(set) var sequenceNum: UInt32 = 0
     public private(set) var currentUserMode: Int = 0
     public private(set) var previousUserMode: Int = 0
+    public private(set) var requestedActionRaw: Int = 0
+    public private(set) var sleepStartedByGuiRaw: Int = 0
+    public private(set) var activeSleepSchedule: Int = 0
+    public private(set) var exerciseStoppedByTimerRaw: Int = 0
+    public private(set) var exerciseChoiceRaw: Int = 0
+    public private(set) var exerciseTime: Int = 0
+    public private(set) var eatingSoonStoppedByTimerRaw: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
@@ -1328,6 +1477,13 @@ public struct ControlIQUserModeChangeHistoryLog: HistoryLogEvent {
         sequenceNum = Bytes.readUint32(raw, 6)
         currentUserMode = Int(raw[10])
         previousUserMode = Int(raw[11])
+        requestedActionRaw = Int(raw[12])
+        sleepStartedByGuiRaw = Int(raw[14])
+        activeSleepSchedule = Int(raw[15])
+        exerciseStoppedByTimerRaw = Int(raw[18])
+        exerciseChoiceRaw = Int(raw[19])
+        exerciseTime = Bytes.readShort(raw, 20)
+        eatingSoonStoppedByTimerRaw = Int(raw[22])
     }
 }
 
@@ -1362,18 +1518,24 @@ public struct DailyStatusHistoryLog: HistoryLogEvent {
     public var cargo: [UInt8]
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
-    public private(set) var sensorType: Int = 0
-    public private(set) var userMode: Int = 0
     public private(set) var pumpControlState: Int = 0
+    public private(set) var userMode: Int = 0
+    public private(set) var sensorType: Int = 0
+    public private(set) var weightUnit: Int = 0
+    public private(set) var weight: Int = 0
+    public private(set) var currentTdiPop: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
         guard raw.count >= 26 else { return }
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
-        sensorType = Int(raw[11])
-        userMode = Int(raw[12])
-        pumpControlState = Int(raw[13])
+        pumpControlState = Int(raw[10])
+        userMode = Int(raw[11])
+        sensorType = Int(raw[12])
+        weightUnit = Int(raw[13])
+        weight = Bytes.readShort(raw, 14)
+        currentTdiPop = Int(raw[16])
     }
 }
 
@@ -1392,7 +1554,7 @@ public struct DataLogCorruptionHistoryLog: HistoryLogEvent {
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
         block = Int(Bytes.readUint32(raw, 10))
-        reason = Int(raw[17])
+        reason = Int(raw[14])
     }
 }
 
@@ -1432,6 +1594,7 @@ public struct DexcomG7CGMHistoryLog: HistoryLogEvent {
     public private(set) var egvTimestamp: Int = 0
     public private(set) var egvInfoBitmaskRaw: Int = 0
     public private(set) var interval: Int = 0
+    public private(set) var egvCount: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
@@ -1447,6 +1610,7 @@ public struct DexcomG7CGMHistoryLog: HistoryLogEvent {
         egvTimestamp = Int(Bytes.readUint32(raw, 18))
         egvInfoBitmaskRaw = Bytes.readShort(raw, 22)
         interval = Int(raw[24])
+        egvCount = Int(raw[25])
     }
 }
 
@@ -1819,12 +1983,31 @@ public struct PlgsPeriodicHistoryLog: HistoryLogEvent {
     public var cargo: [UInt8]
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
+    public private(set) var timestamp: Int = 0
+    public private(set) var fmr: Int = 0
+    public private(set) var pgv: Int = 0
+    public private(set) var fmrStatus: Int = 0
+    public private(set) var pgvValid: Bool = false
+    public private(set) var ruleState: Int = 0
+    public private(set) var hoMinState: Int = 0
+    public private(set) var status: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
-        guard raw.count >= 26 else { return }
+        guard raw.count >= 26 else {
+            status = 1
+            return
+        }
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
+        timestamp = Int(Bytes.readUint32(raw, 10))
+        fmr = Bytes.readShort(raw, 14)
+        pgv = Bytes.readShort(raw, 16)
+        fmrStatus = Int(raw[18])
+        pgvValid = raw[19] != 0
+        ruleState = Int(raw[20])
+        hoMinState = Int(raw[21])
+        status = Int(Bytes.readUint32(raw, 22))
     }
 }
 
@@ -1834,10 +2017,10 @@ public struct ShelfModeHistoryLog: HistoryLogEvent {
     public var cargo: [UInt8]
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
-    public private(set) var msecSinceReset: Int = 0
-    public private(set) var lipoIbc: Int = 0
-    public private(set) var lipoAbc: Int = 0
     public private(set) var lipoCurrent: Int = 0
+    public private(set) var msecSinceReset: Int = 0
+    public private(set) var lipoAbc: Int = 0
+    public private(set) var lipoIbc: Int = 0
     public private(set) var lipoRemCap: Int = 0
     public private(set) var lipoMv: Int = 0
     public init() { cargo = [] }
@@ -1847,11 +2030,11 @@ public struct ShelfModeHistoryLog: HistoryLogEvent {
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
         msecSinceReset = Int(Bytes.readUint32(raw, 10))
-        lipoIbc = Int(raw[14])
-        lipoAbc = Int(raw[15])
-        lipoCurrent = Bytes.readShort(raw, 16)
+        lipoAbc = Int(raw[16])
+        lipoIbc = Int(raw[17])
         lipoRemCap = Int(Bytes.readUint32(raw, 18))
         lipoMv = Int(Bytes.readUint32(raw, 22))
+        lipoCurrent = Int(Int16(truncatingIfNeeded: Bytes.readShort(raw, 14)))
     }
 }
 
@@ -1882,12 +2065,12 @@ public struct UpdateStatusHistoryLog: HistoryLogEvent {
     public var cargo: [UInt8]
     public private(set) var pumpTimeSec: UInt32 = 0
     public private(set) var sequenceNum: UInt32 = 0
-    public private(set) var metadataAndVersionStatus: Int = 0
     public private(set) var swUpdateStatus: Int = 0
-    public private(set) var fileDlAndSideloadStatus: Int = 0
+    public private(set) var metadataAndVersionStatus: Int = 0
     public private(set) var fullDlAndCrcStatus: Int = 0
-    public private(set) var updateSuccessful: Int = 0
+    public private(set) var fileDlAndSideloadStatus: Int = 0
     public private(set) var externalFlashStatus: Int = 0
+    public private(set) var updateSuccessful: Int = 0
     public private(set) var swPartNum: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
@@ -1895,12 +2078,12 @@ public struct UpdateStatusHistoryLog: HistoryLogEvent {
         guard raw.count >= 26 else { return }
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
-        metadataAndVersionStatus = Bytes.readShort(raw, 10)
-        swUpdateStatus = Bytes.readShort(raw, 12)
-        fileDlAndSideloadStatus = Bytes.readShort(raw, 14)
-        fullDlAndCrcStatus = Bytes.readShort(raw, 16)
-        updateSuccessful = Int(raw[19])
-        externalFlashStatus = Bytes.readShort(raw, 20)
+        swUpdateStatus = Bytes.readShort(raw, 10)
+        metadataAndVersionStatus = Bytes.readShort(raw, 12)
+        fullDlAndCrcStatus = Bytes.readShort(raw, 14)
+        fileDlAndSideloadStatus = Bytes.readShort(raw, 16)
+        externalFlashStatus = Bytes.readShort(raw, 18)
+        updateSuccessful = Int(raw[20])
         swPartNum = Int(Bytes.readUint32(raw, 22))
     }
 }
@@ -1975,7 +2158,7 @@ public struct VersionInfoHistoryLog: HistoryLogEvent {
         version = Int(Bytes.readUint32(raw, 10))
         configABits = Int(Bytes.readUint32(raw, 14))
         configBBits = Int(Bytes.readUint32(raw, 18))
-        armCrc = Bytes.readShort(raw, 24)
+        armCrc = Bytes.readShort(raw, 22)
     }
 }
 

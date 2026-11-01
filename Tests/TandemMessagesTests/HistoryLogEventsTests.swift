@@ -15,11 +15,34 @@ private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8]
     return r
 }
 
-/// Byte-exact **decode** parity for history-log events: for each ported typeId, build a record,
-/// feed the same bytes to the upstream oracle (`cliparser historylog`) and to Swift
-/// `HistoryLogParser`, and assert both agree on typeId + concrete class. History logs are
-/// decode-only, so matching the upstream decode is the correctness property.
+/// Registry parity: every one of the 4096 typeIds (the parser masks to 12 bits) decodes to the same
+/// class in Swift as in the oracle, `UnknownHistoryLog` included, so a type upstream decodes can't
+/// be missing here. `HistoryLogFieldParityTests` then checks each registered type's fields.
+///
+/// One deliberate difference: upstream retries an unknown typeId as its low byte, read signed, and
+/// then as that plus 512 (a leftover of its old signed-byte arithmetic, `HistoryLogParser.parse`),
+/// so an unregistered 1002 decodes as type 234 and 134 as type 390. Swift keeps such a record
+/// unknown rather than read it as a different type.
 @Suite(.enabled(if: OracleRunner.isAvailable)) struct HistoryLogOracleParityTests {
+    @Test func everyTypeIdDecodesToTheOraclesClass() throws {
+        for typeId in 0..<4096 {
+            let rec = record(typeId: typeId, pumpTimeSec: 461_500_000, seq: 42)
+            let oracle = try OracleRunner.parseHistoryLog(hex: Hex.encode(rec))
+            let event = HistoryLogParser.parse(record: rec)
+            if oracle.className != "UnknownHistoryLog", oracle.typeId != typeId {
+                #expect(event is UnknownHistoryLog, "typeId \(typeId) (oracle retried it as \(oracle.typeId))")
+                continue
+            }
+            #expect(String(describing: type(of: event)) == oracle.className, "typeId \(typeId)")
+            #expect(event.pumpTimeSec == 461_500_000 && event.sequenceNum == 42)
+        }
+    }
+}
+
+
+/// A hand-kept dispatch table checked without the oracle, so a checkout with no JDK 21 still
+/// catches a registry regression for the types the app reads most.
+@Suite struct HistoryLogSwiftDispatchTests {
     static let cases: [(Int, String)] = [
         (280, "BolusDeliveryHistoryLog"),
         (20, "BolusCompletedHistoryLog"),
@@ -85,7 +108,6 @@ private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8]
         (37, "UsbDisconnectedHistoryLog"),
         (67, "UsbEnumeratedHistoryLog"),
         (307, "VersionsAHistoryLog"),
-        // typeIds an older oracle mis-decoded (it read the low typeId byte as signed).
         (171, "CgmAlertActivatedHistoryLog"),
         (172, "CgmAlertClearedHistoryLog"),
         (210, "CgmCalibrationGxHistoryLog"),
@@ -156,24 +178,8 @@ private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8]
         (283, "WumpOcclusionDebugHistoryLog")
     ]
 
-    @Test(arguments: cases)
-    func decodeParity(typeId: Int, name: String) throws {
-        let rec = record(typeId: typeId, pumpTimeSec: 461_500_000, seq: 42)
-        let oracle = try OracleRunner.parseHistoryLog(hex: Hex.encode(rec))
-        #expect(oracle.typeId == typeId, "oracle typeId \(oracle.typeId) != \(typeId)")
-        #expect(oracle.className == name, "oracle class \(oracle.className) != \(name)")
-        let event = HistoryLogParser.parse(record: rec)
-        #expect(String(describing: type(of: event)) == name)
-        #expect(event.typeId == typeId)
-        #expect(event.pumpTimeSec == 461_500_000)
-        #expect(event.sequenceNum == 42)
-    }
-}
 
-/// The same dispatch table checked without the oracle, so a checkout with no JDK 21 still catches a
-/// registry regression.
-@Suite struct HistoryLogSwiftDispatchTests {
-    @Test(arguments: HistoryLogOracleParityTests.cases)
+    @Test(arguments: cases)
     func dispatch(typeId: Int, name: String) {
         let event = HistoryLogParser.parse(record: record(typeId: typeId, pumpTimeSec: 1, seq: 2))
         #expect(String(describing: type(of: event)) == name)
