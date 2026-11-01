@@ -38,7 +38,7 @@ import Testing
         [
             ("SetG6TransmitterIdRequest", SetG6TransmitterIdRequest.props),
             ("DisconnectPumpRequest", DisconnectPumpRequest.props),
-            ("LastBolusStatusV3Request", LastBolusStatusV3Request.props),
+            ("LastBolusStatusV3Request", LastBolusStatusV3Request.props)
         ]
     }
 
@@ -50,7 +50,8 @@ import Testing
         for (name, props) in subjects {
             #expect(
                 props.isSupported(onModel: .tslim, apiVersion: apiV4) == false,
-                "\(name) must be refused on a t:slim at API 4.0: a version above the known table must not be read as 'supports everything'")
+                "\(name) must be refused on a t:slim at API 4.0: a version above the known table must not be read as 'supports everything'"
+            )
         }
     }
 

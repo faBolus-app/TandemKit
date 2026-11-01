@@ -27,14 +27,16 @@ The indeterminate case group B is built around: a cancel issued **while a dose i
 0.10 u delivery already validated (`PINNED.md` 2026-07-18) completes too fast to race, so this needs an
 **extended or large** bolus whose delivery window is long enough to interrupt.
 
-**Procedure**
+### Procedure
+
 1. Program an extended/combo or a large units bolus (e.g. 2.0 u extended over the shortest allowed
    duration, or the largest saline-safe immediate dose) so the delivery window is measurable.
 2. Partway through delivery, issue a signed `CancelBolus`.
 3. Read `LastBolusStatusV2` and `CurrentBolusStatus`; compare the **delivered** amount to the pump
    screen and t:connect.
 
-**Pass/fail (DoD)**
+### Pass/fail (DoD)
+
 - The app reports the **actual partial amount** the pump recorded — never the requested amount, never a
   fabricated "delivered", never a stuck "delivering" (FB-02 / R3-B).
 - If the cancel *races* completion (dose finishes before the cancel lands), the outcome is reported as
@@ -52,13 +54,15 @@ it is **not established** whether a Tandem response echoes the request's transac
 Matching on a txId the pump does *not* echo would fail every correlation and break all pump comms — so
 this must be a measured hardware fact before the code changes.
 
-**Procedure**
+### Procedure
+
 1. With the harness logging raw frames, send several requests of **distinct** opcodes and a couple of
    the **same** opcode back-to-back (a status poll burst is ideal).
 2. For each, record `request.frame[1]` (the txId byte the client set) and the matching
    `response.frame[1]`.
 
-**Pass/fail (DoD)**
+### Pass/fail (DoD)
+
 - **Echoed** (`response.frame[1] == request.frame[1]` reliably, including for same-opcode bursts): then
   the follow-up is safe — add `&& frame[1] == entry.txId` to `PumpTransactionCoordinator.ingest()` and
   drop the `serialized` gate, letting two identical in-flight opcodes coexist. Retest Objective 1 after.
@@ -78,7 +82,8 @@ pinned cliparser oracle is itself defective for this field (its `buildCargo` wri
 padding at byte 4; the OPPOSITE of the real wire), so no OracleRunner vector can confirm the offset by
 construction. The byte-4 offset is confirmed only on the primary pinned pump; it must be confirmed live.
 
-**Procedure**
+### Procedure
+
 1. Set a distinctive, known IDP target BG on the pump (e.g. 115 mg/dL), then read
    `CurrentActiveIdpValuesResponse` with the harness logging the raw cargo bytes.
 2. Capture the raw cargo on **BOTH pump families** — `t:slim X2` AND `Mobi` — AND across **more than one
@@ -88,7 +93,8 @@ construction. The byte-4 offset is confirmed only on the primary pinned pump; it
 3. For each capture, confirm byte 4 (not byte 5) carries the set target BG, and confirm no capture shows a
    genuine byte-5 layout.
 
-**Pass/fail (DoD)**
+### Pass/fail (DoD)
+
 - The app's decoded `currentTargetBg` equals the target set on the pump screen, on every (pump family,
   firmware version) captured, decoding from byte 4.
 - If ANY capture shows targetBg at byte 5 (a genuine variant), the decode MUST become variant-aware keyed
@@ -105,11 +111,13 @@ construction. The byte-4 offset is confirmed only on the primary pinned pump; it
 The only delivery validated to date is 0.10 u. Confirm accuracy does not drift at a clinically
 meaningful magnitude.
 
-**Procedure**
+### Procedure
+
 1. Deliver a larger saline dose (e.g. 1.0–2.0 u immediate).
 2. Compare requested vs `LastBolusStatusV2` delivered vs the pump screen.
 
-**Pass/fail (DoD)**
+### Pass/fail (DoD)
+
 - Requested == delivered == pump-screen, within the pump's own rounding increment (the increment is
   already oracle-locked in `InitiateBolusRequest`; this confirms the *physical* result matches).
 

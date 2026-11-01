@@ -41,7 +41,8 @@ import TandemMessages
         client.writePolicy = .allowNonDelivery
         assertAllowed(client, BolusPermissionRequest())  // .settings ok
         assertBlocked(
-            client, InitiateBolusRequest(totalVolume: 1000, bolusID: 1, bolusTypeBitmask: 1), by: .allowNonDelivery)  // delivery
+            // delivery
+            client, InitiateBolusRequest(totalVolume: 1000, bolusID: 1, bolusTypeBitmask: 1), by: .allowNonDelivery)
         assertBlocked(client, FactoryResetRequest(), by: .allowNonDelivery)  // destructive blocked
         assertBlocked(client, DisconnectPumpRequest(), by: .allowNonDelivery)
         assertBlocked(client, ActivateShelfModeRequest(), by: .allowNonDelivery)

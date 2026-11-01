@@ -164,9 +164,12 @@ import TandemMessages
         typealias R = InitiateBolusRequest
         #expect(R.typeBitmask(hasCarbs: true, hasCorrection: false, isExtended: false) == R.bitFood1)  // 1
         #expect(R.typeBitmask(hasCarbs: false, hasCorrection: false, isExtended: false) == R.bitFood2)  // 8
-        #expect(R.typeBitmask(hasCarbs: true, hasCorrection: true, isExtended: false) == R.bitFood1 | R.bitCorrection)  // 3
-        #expect(R.typeBitmask(hasCarbs: true, hasCorrection: false, isExtended: true) == R.bitFood1 | R.bitExtended)  // 5
-        #expect(R.typeBitmask(hasCarbs: false, hasCorrection: true, isExtended: false) == R.bitFood2 | R.bitCorrection)  // 10
+        // 3
+        #expect(R.typeBitmask(hasCarbs: true, hasCorrection: true, isExtended: false) == R.bitFood1 | R.bitCorrection)
+        // 5
+        #expect(R.typeBitmask(hasCarbs: true, hasCorrection: false, isExtended: true) == R.bitFood1 | R.bitExtended)
+        // 10
+        #expect(R.typeBitmask(hasCarbs: false, hasCorrection: true, isExtended: false) == R.bitFood2 | R.bitCorrection)
         // FOOD2 is never OR-ed into a carb bolus.
         #expect(R.typeBitmask(hasCarbs: true, hasCorrection: false, isExtended: false) & R.bitFood2 == 0)
     }

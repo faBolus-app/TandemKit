@@ -86,14 +86,19 @@ jobs:
           # controlX2 is a full Android app, never vendored/compiled — track it with a lightweight
           # tracked-SHA baseline read straight out of PINNED.md's '## Upstream controlX2 watch'
           # table instead of a git submodule pin.
+          # The backticks below are literal Markdown code marks in PINNED.md, not command substitution.
+          # shellcheck disable=SC2016
           BASELINE_DEV=$(grep -A2 'Last-reviewed dev commit' PINNED.md | grep -oE '`[0-9a-f]{7,40}`' | head -1 | tr -d '`' || true)
+          # shellcheck disable=SC2016
           BASELINE_MAIN=$(grep -A2 'Last-reviewed main commit' PINNED.md | grep -oE '`[0-9a-f]{7,40}`' | head -1 | tr -d '`' || true)
           UPSTREAM_DEV=$(git ls-remote https://github.com/jwoglom/controlx2 dev | cut -f1)
           UPSTREAM_MAIN=$(git ls-remote https://github.com/jwoglom/controlx2 main | cut -f1)
-          echo "baseline_dev=${BASELINE_DEV:-unknown}" >> "$GITHUB_OUTPUT"
-          echo "baseline_main=${BASELINE_MAIN:-unknown}" >> "$GITHUB_OUTPUT"
-          echo "upstream_dev=$UPSTREAM_DEV" >> "$GITHUB_OUTPUT"
-          echo "upstream_main=$UPSTREAM_MAIN" >> "$GITHUB_OUTPUT"
+          {
+            echo "baseline_dev=${BASELINE_DEV:-unknown}"
+            echo "baseline_main=${BASELINE_MAIN:-unknown}"
+            echo "upstream_dev=$UPSTREAM_DEV"
+            echo "upstream_main=$UPSTREAM_MAIN"
+          } >> "$GITHUB_OUTPUT"
           # Fail OPEN toward more alerting: an unreadable/missing baseline reports changed=true
           # rather than silently reporting no-drift.
           if [ -n "$BASELINE_DEV" ] && [ "$BASELINE_DEV" = "$UPSTREAM_DEV" ]; then

@@ -7,14 +7,17 @@ the goal is one well-tested library everyone builds on. All work is for **experi
 delivery** — keep it so.
 
 ## The one hard rule: byte-exact vs the oracle
+
 Every outgoing (request) message and every parsed response must **byte-match** the upstream
 `jwoglom/pumpx2` `cliparser` oracle. "Byte-exact or fail." When you add or change a message:
+
 1. Build the oracle once (see README → "The cliparser oracle"; needs JDK 17+).
 2. Add an oracle-parity test (see `Tests/TandemMessagesTests/OracleParityTests.swift`) or a direct
    byte test (`ResponseDirectTests.swift`) for messages the oracle can't construct.
 3. Run the suite: `./scripts/test.sh` (works around the CLT swift-testing rpath issue).
 
 ## Adding a message / response
+
 - Requests live in `Sources/TandemMessages/Requests/…`, responses in `…/Responses/…`.
 - Give it correct `MessageProps` (opCode, size, characteristic, `signed`, `responseOpCode`). A
   **signed** control message needs `signed: true`; a **signed response** does too (that was the
@@ -24,6 +27,7 @@ Every outgoing (request) message and every parsed response must **byte-match** t
   and macOS).
 
 ## Public API / stability
+
 - `TandemMessages`, `TandemAuth`, `TandemBLE` are the public products. Treat their public surface as
   an API other apps depend on: additive changes preferred; breaking changes get a **minor/major
   version bump** (semver) and a note in the PR.
@@ -31,6 +35,7 @@ Every outgoing (request) message and every parsed response must **byte-match** t
   in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Branch model & versioning
+
 Governance is canonical in [`../faBolus/BRANCHES.md`](../faBolus/BRANCHES.md). This repo's
 [`BRANCHES.md`](BRANCHES.md) is a pointer — do not fork the rules here.
 
@@ -39,10 +44,12 @@ faBolus consumes this package via `url:` + `revision:` in `faBolus/project.yml` 
 into this document.
 
 ## Safety
+
 - The dosing/signing path (`TandemAuth`, bolus/cancel/dismiss requests) is the most safety-critical
   code and gets extra review. Never loosen the write-policy interlock or signing.
 
 ## Before a PR
+
 - `./scripts/test.sh` green (all suites, including oracle parity).
 - Confirm the three library products still build for iOS **and** watchOS
   (`xcodebuild -scheme TandemAuth -destination 'generic/platform=watchOS' CODE_SIGNING_ALLOWED=NO build`,

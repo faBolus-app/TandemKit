@@ -50,7 +50,9 @@ import TandemMessages
     /// protocol). A type conforming to one of these, and not also to `ResponseMessage`, is a request
     /// by construction — this is what makes the resulting surface placement-immune: it is derived from
     /// what the type declares itself to be, not from which folder its file happens to sit in.
-    private static let requestConformances: Set<String> = ["Message", "EmptyCurrentStatusRequest", "JpakeChallengeMessage"]
+    private static let requestConformances: Set<String> = [
+        "Message", "EmptyCurrentStatusRequest", "JpakeChallengeMessage"
+    ]
 
     /// Parse a single source line for `public struct Name: Conformance, Conformance {` and return the
     /// name IF the declared conformance list contains a request marker and not `ResponseMessage`. Line

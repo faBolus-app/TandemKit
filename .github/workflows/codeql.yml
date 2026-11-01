@@ -15,9 +15,9 @@ name: CodeQL
 
 on:
   push:
-    branches: [main]
+    branches: [main, rebuild]
   pull_request:
-    branches: [main]
+    branches: [main, rebuild]
   schedule:
     # Weekly, so a newly published query reaches the default branch without waiting for a push.
     - cron: '17 6 * * 1'
@@ -26,7 +26,7 @@ on:
 jobs:
   analyze:
     name: Analyze Swift
-    runs-on: macos-15
+    runs-on: xcode-27
     timeout-minutes: 60
     permissions:
       security-events: write
@@ -39,15 +39,8 @@ jobs:
           # mbedtls + the pumpx2 oracle are submodules; `swift build` needs the C target present.
           submodules: recursive
 
-      # Select the NEWEST installed Xcode. A hardcoded name (`Xcode_26.app`) does not exist on the
-      # runner image and silently falls back to an older default toolchain, whose stricter concurrency
-      # checking can fail a build that compiles fine elsewhere.
-      - name: Select the newest Xcode
-        run: |
-          echo "Installed Xcodes:"; ls -d /Applications/Xcode*.app 2>/dev/null || true
-          NEWEST="$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)"
-          if [ -n "$NEWEST" ]; then sudo xcode-select -s "$NEWEST/Contents/Developer"; fi
-          echo "Selected Xcode:"; xcodebuild -version
+      - name: Select Xcode 27.2
+        run: sudo xcode-select -s /Applications/Xcode_27.2.app && xcodebuild -version
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3

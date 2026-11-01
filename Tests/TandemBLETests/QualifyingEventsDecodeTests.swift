@@ -143,10 +143,13 @@ import TandemMessages
     /// is dispatched — the default no-op extension absorbs the call.
     @Test func stubDelegateWithoutOverrideCompilesAndRunsViaDefaultNoOp() {
         let client = PumpBLEClient.forUnitTest()
-        client.delegate = NoOpStubDelegate()
+        let stub = NoOpStubDelegate()
+        client.delegate = stub
         var clearCount = 0
 
-        client.handleQualifyingEventsFrame(le4(2)) { clearCount += 1 }  // .alarm
+        withExtendedLifetime(stub) {
+            client.handleQualifyingEventsFrame(le4(2)) { clearCount += 1 }  // .alarm
+        }
 
         #expect(clearCount == 1, "dispatch to the default no-op must not prevent the clear from still firing")
     }

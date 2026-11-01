@@ -165,7 +165,8 @@ struct NoCartridgeBolusProbeTests {
 
         // Wall 2: `.allowDelivery` + `allowInsulinDelivery`. The command goes out; we RECORD the response.
         let mask = InitiateBolusRequest.typeBitmask(hasCarbs: false, hasCorrection: false, isExtended: false)
-        let req = try InitiateBolusRequest(validating: 100, bolusID: permission.bolusId, bolusTypeBitmask: mask)  // 0.10u
+        // 0.10u
+        let req = try InitiateBolusRequest(validating: 100, bolusID: permission.bolusId, bolusTypeBitmask: mask)
         let initiate = try await s.request(req, expect: InitiateBolusResponse.self, deliver: true)
 
         if initiate.accepted {

@@ -1,6 +1,7 @@
 # Bench command-coverage harness
 
 A resumable, per-command coverage matrix for validating **every** TandemKit command across **every** pump
+
 + peripheral configuration, safely, on the **saline bench**. This complements the cliparser/OracleRunner
 **byte-parity** CI check (which proves the bytes we *compose* match upstream): coverage proves each command
 is *accepted and behaves* on real hardware, across models/firmware/cartridge/CGM, with delivery verified by
@@ -47,17 +48,17 @@ exercisable cells to `pass`/`fail`. Merge precedence guarantees a real result is
 `BenchCommandCatalog` derives every fact from the command's existing `MessageProps` so the classification
 does not rot as messages are added:
 
-- `modifiesDelivery` ← `props.modifiesInsulinDelivery`
-- `requiresCartridge` ← `modifiesDelivery` (a delivery needs a cartridge to dispense + read back)
-- `applicablePumpModels` ← `props.supportedDevices ?? [all]`
-- `minApi` ← `props.minApi`
-- `requiresCGM` ← a documented name-token predicate (`cgm`/`egv`/`dexcom`/`sensor`/`transmitter`/`g6`/`g7`)
-- `lane` ← AUTHORIZATION → `pairing`; `modifiesInsulinDelivery` → `delivery`; signed/CONTROL → `signedWrite`; else `read`
++ `modifiesDelivery` ← `props.modifiesInsulinDelivery`
++ `requiresCartridge` ← `modifiesDelivery` (a delivery needs a cartridge to dispense + read back)
++ `applicablePumpModels` ← `props.supportedDevices ?? [all]`
++ `minApi` ← `props.minApi`
++ `requiresCGM` ← a documented name-token predicate (`cgm`/`egv`/`dexcom`/`sensor`/`transmitter`/`g6`/`g7`)
++ `lane` ← AUTHORIZATION → `pairing`; `modifiesInsulinDelivery` → `delivery`; signed/CONTROL → `signedWrite`; else `read`
 
 ### Delivery surface (14 = 3 universal + 11 Mobi-only)
 
-- **Universal** (t:slim + Mobi): `InitiateBolusRequest`, `AdditionalBolusRequest`, `EnterChangeCartridgeModeRequest`
-- **Mobi-only** (need a Mobi session): `SetModesRequest`, `SetActiveIDPRequest`, `FillCannulaRequest`,
++ **Universal** (t:slim + Mobi): `InitiateBolusRequest`, `AdditionalBolusRequest`, `EnterChangeCartridgeModeRequest`
++ **Mobi-only** (need a Mobi session): `SetModesRequest`, `SetActiveIDPRequest`, `FillCannulaRequest`,
   `EnterFillTubingModeRequest`, `SetTempRateRequest`, `StopTempRateRequest`, `SuspendPumpingRequest`,
   `ResumePumpingRequest`, `CreateIDPRequest`, `DeleteIDPRequest`, `RenameIDPRequest`
 
@@ -77,6 +78,7 @@ On a t:slim session the 11 Mobi-only deliveries record as `notApplicable`; only 
 > onto the request would be an unverified guess.
 >
 > **At the bench, for each dose type — {units-only, carb, correction, extended} — capture BOTH:**
+>
 > 1. what TandemKit SENDS (the emitted `bolusTypeBitmask`; the harness logs it in the InitiateBolus oracle), and
 > 2. what the pump RECORDS in its history log (`BolusDeliveryHistoryLog` bolus-type),
 >
@@ -87,32 +89,32 @@ On a t:slim session the 11 Mobi-only deliveries record as `notApplicable`; only 
 
 ## Lanes and the safety gate for auto-firing
 
-- **Lane A — reads / status / query:** always bench-safe; sent read-only; PASS when a typed response parses.
-- **Lane A — signed non-delivery writes (now driven via reversible affordances):** the runner drives every
++ **Lane A — reads / status / query:** always bench-safe; sent read-only; PASS when a typed response parses.
++ **Lane A — signed non-delivery writes (now driven via reversible affordances):** the runner drives every
   signed write that has a wired, self-reversing affordance in `BenchAffordanceCatalog` — NO
   `PUMPX2_DELIVER_SALINE` needed, because these do not dispense. Two strategies:
-  - **captureReapply** — read the CURRENT value, re-send the SAME value (a provable no-op), verify the
+  + **captureReapply** — read the CURRENT value, re-send the SAME value (a provable no-op), verify the
     read-back is unchanged: `ChangeTimeDate`, `SetMaxBolusLimit`, `SetMaxBasalLimit`,
     `ChangeControlIQSettings`, `SetLowInsulinAlert`.
-  - **benignProbe** — signed accept/NACK with no persistent setting change: the `BolusPermission`(+release)
+  + **benignProbe** — signed accept/NACK with no persistent setting change: the `BolusPermission`(+release)
     pair, `PlaySound`, `UserInteraction`, `RemoteCarbEntry`/`RemoteBgEntry` (benign metadata), and
     `CancelBolus` (with no active bolus).
   The `benchExercisableSignedWrites` allowlist is now **derived** from the affordance catalog, so it grows
   automatically. Everything else stays a documented `gap`: `.manualOnly` (destructive / irreversible /
   session-disrupting — owner-only) or `.bespokePending` (reversible but its generic driver isn't wired yet).
-- **Lane B — delivery (14 commands):** attempted ONLY behind the SINGLE saline gate
++ **Lane B — delivery (14 commands):** attempted ONLY behind the SINGLE saline gate
   (`PUMPX2_DELIVER_SALINE=1`, plus cartridge + `PUMP_SALINE_ATTESTED=1` in the session detection). Every one
   of the 14 is now driven by a reversible affordance, verified by the pump's OWN read-back:
-  - **deliverOracle** — `InitiateBolus` / `AdditionalBolus`: deliver a small saline dose, confirm via the
+  + **deliverOracle** — `InitiateBolus` / `AdditionalBolus`: deliver a small saline dose, confirm via the
     pump's recorded units (history log) / current-bolus status.
-  - **reversiblePair** — `SuspendPumping`↔`ResumePumping`, `SetTempRate`↔`StopTempRate`,
+  + **reversiblePair** — `SuspendPumping`↔`ResumePumping`, `SetTempRate`↔`StopTempRate`,
     `EnterFillTubingMode`↔exit, `EnterChangeCartridgeMode`↔exit: drive, confirm via read-back, ALWAYS restore.
-  - **throwawayCreateDelete** — `CreateIDP`→`DeleteIDP`: create a throwaway profile, confirm, delete it.
-  - **captureSetRestore** — `SetActiveIDP` / `SetModes` / `RenameIDP`: capture prior value, set, verify, restore.
-  - **fill exercise** — `FillCannula`: a one-way saline prime (records + confirms; nothing to un-fill).
+  + **throwawayCreateDelete** — `CreateIDP`→`DeleteIDP`: create a throwaway profile, confirm, delete it.
+  + **captureSetRestore** — `SetActiveIDP` / `SetModes` / `RenameIDP`: capture prior value, set, verify, restore.
+  + **fill exercise** — `FillCannula`: a one-way saline prime (records + confirms; nothing to un-fill).
   Every restore is attempted even on a mid-sequence failure, and prints a LOUD warning if a restore is NACKed.
   The `PUMPX2_NO_CARTRIDGE_BOLUS_PROBE` escape (no-cartridge rejection test) is unchanged.
-- **Pairing:** exercised implicitly on connect; attributed by scheme (JPAKE vs legacy V1) + API floor.
++ **Pairing:** exercised implicitly on connect; attributed by scheme (JPAKE vs legacy V1) + API floor.
 
 See **[Reversible affordances](#reversible-affordances)** below for the full per-command table and the
 explicit MANUAL / owner-judgment exceptions, and the **[per-config runbook](#per-config-bench-runbook)** for
@@ -145,8 +147,8 @@ export PUMPX2_NO_CARTRIDGE_BOLUS_PROBE=1
 `PUMPX2_ALLOW_ORACLE_SKIP` is never set by the harness. Artifacts are written to `bench-coverage/`
 (override the dir with `PUMPX2_BENCH_COVERAGE_DIR`):
 
-- `COVERAGE-MATRIX.json` — the machine-readable accumulator the next session resumes from.
-- `COVERAGE-MATRIX.md` — the human-readable rendered matrix + a "still uncovered, and the config that would
++ `COVERAGE-MATRIX.json` — the machine-readable accumulator the next session resumes from.
++ `COVERAGE-MATRIX.md` — the human-readable rendered matrix + a "still uncovered, and the config that would
   cover it" section.
 
 At the end of each run the harness prints exactly which commands remain uncovered and which session config
@@ -180,12 +182,12 @@ Strategies (`BenchAffordanceKind`):
 
 These are `gap` on purpose and are listed in `COVERAGE-MATRIX.md`'s "Not auto-fired" section every run:
 
-- **Destructive / irreversible:** `FactoryResetRequest`, `FactoryResetBRequest`, `ActivateShelfModeRequest`,
++ **Destructive / irreversible:** `FactoryResetRequest`, `FactoryResetBRequest`, `ActivateShelfModeRequest`,
   `DisconnectPumpRequest` (drops the link the sweep needs).
-- **CGM-session / pairing-disrupting:** `StartDexcomG6SensorSessionRequest`,
++ **CGM-session / pairing-disrupting:** `StartDexcomG6SensorSessionRequest`,
   `StopDexcomCGMSensorSessionRequest`, `SetSensorTypeRequest`, `SetG6TransmitterIdRequest`,
   `SetDexcomG7PairingCodeRequest`.
-- **Undocumented / not-on-known-firmware:** `SendTipsControlGenericTestRequest`,
++ **Undocumented / not-on-known-firmware:** `SendTipsControlGenericTestRequest`,
   `StreamDataPreflightRequest` (`minApi` API_FUTURE — defers on all known firmware).
 
 To exercise any of these the owner drives it manually and records the result by hand — they are surfaced,
@@ -210,13 +212,13 @@ config **T-1** — but the whole grid is spelled out so any future pump is immed
 
 ### Universal pre-flight safety checklist (EVERY session)
 
-- [ ] The pump is a **bench / spare** — NOT the pump anyone wears, and NOT on a body.
-- [ ] If a cartridge is loaded it is **SALINE** (never insulin) — human-attested. Dispensing into a container
++ [ ] The pump is a **bench / spare** — NOT the pump anyone wears, and NOT on a body.
++ [ ] If a cartridge is loaded it is **SALINE** (never insulin) — human-attested. Dispensing into a container
       on a scale, never into tubing on a person.
-- [ ] `PUMP_PAIRING_CODE` is the code off THIS pump's screen (6-digit → JPAKE; 16-char → legacy V1).
-- [ ] Run from an **interactive GUI Terminal** (CoreBluetooth is TCC-aborted under `swift test`).
-- [ ] `PUMPX2_ALLOW_ORACLE_SKIP` is **unset** (the harness never sets it; neither should you).
-- [ ] After a delivery/write session, glance at the run log for any `⚠️ VERIFY …` restore warning and
++ [ ] `PUMP_PAIRING_CODE` is the code off THIS pump's screen (6-digit → JPAKE; 16-char → legacy V1).
++ [ ] Run from an **interactive GUI Terminal** (CoreBluetooth is TCC-aborted under `swift test`).
++ [ ] `PUMPX2_ALLOW_ORACLE_SKIP` is **unset** (the harness never sets it; neither should you).
++ [ ] After a delivery/write session, glance at the run log for any `⚠️ VERIFY …` restore warning and
       confirm that state on the pump UI.
 
 ### Common invocation
@@ -264,8 +266,8 @@ owner-judgment command so nothing is silently dropped.
 Command-coverage above is the *wire* surface. On-device **app-UI** objectives are run from BOTH faBolus
 builds, because the shipped app deliberately hides surfaces the full build exposes:
 
-- **`main` (shipped, narrow):** validate the production dose path + the surfaces a real user sees.
-- **`experimental` (full surfaces):** exercise the advanced-control / Mobi / IDP / settings UI that `main`
++ **`main` (shipped, narrow):** validate the production dose path + the surfaces a real user sees.
++ **`experimental` (full surfaces):** exercise the advanced-control / Mobi / IDP / settings UI that `main`
   gates off, against the same bench pump.
 
 Run each app-UI objective on the build that exposes it; the harness `coverage` sweep is build-independent
@@ -280,6 +282,7 @@ prerequisite gating (`plan`), matrix cell classification, and accumulation/merge
 state-changing command has an affordance (completeness), the 14 delivery affordances are saline-gated, the
 reversible pairs are symmetric, all partner/oracle cross-references are real catalog commands, destructive
 commands are `manualOnly` and never runner-drivable, the `benchExercisableSignedWrites` allowlist is derived
+
 + grown, and the Lane-B delivery planning is correct across configs. The BLE driving itself can only be
 validated on a real pump at the bench — **nothing in the committed matrix is a verified PASS until a bench
 session records one.**

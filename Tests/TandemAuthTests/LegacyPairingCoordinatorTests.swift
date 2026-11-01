@@ -118,7 +118,8 @@ import TandemMessages
         var failure: Error?
         coord.onError = { failure = $0 }
         coord.onSendRequest = { msg in
-            if msg is CentralChallengeRequest { coord.handle(frame: self.frame(19, self.withAppId([1]))) }  // wrong step
+            // wrong step
+            if msg is CentralChallengeRequest { coord.handle(frame: self.frame(19, self.withAppId([1]))) }
         }
         coord.start()
         #expect(coord.step == .failed)

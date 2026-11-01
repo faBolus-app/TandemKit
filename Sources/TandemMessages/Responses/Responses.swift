@@ -48,7 +48,7 @@ public struct ApiVersionResponse: ResponseMessage {
         .v3_4: .tslim,
         .mobi_v3_5: .mobi,
         .mobi_v3_6: .mobi,
-        .mobi_v3_8: .mobi,
+        .mobi_v3_8: .mobi
     ]
 
     /// Family classification for this response's negotiated version. `.unknown` for any version

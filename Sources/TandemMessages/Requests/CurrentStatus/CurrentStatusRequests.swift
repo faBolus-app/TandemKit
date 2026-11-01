@@ -96,7 +96,8 @@ public struct LastBGRequest: EmptyCurrentStatusRequest {
     public init(emptyCargo: Void = ()) { self.cargo = [] }
 }
 public struct CurrentEgvGuiDataV2Request: EmptyCurrentStatusRequest {
-    public static let props = statusProps(0xC0, minApi: .future)  // -64; response 0xC1 (193). V2; upstream minApi API_FUTURE
+    // -64; response 0xC1 (193). V2; upstream minApi API_FUTURE
+    public static let props = statusProps(0xC0, minApi: .future)
     public var cargo: [UInt8] = []
     public init(emptyCargo: Void = ()) { self.cargo = [] }
 }
@@ -163,12 +164,14 @@ public struct PumpFeaturesV1Request: EmptyCurrentStatusRequest {
     public init(emptyCargo: Void = ()) { self.cargo = [] }
 }
 public struct LoadStatusRequest: EmptyCurrentStatusRequest {
-    public static let props = statusProps(20, minApi: .benchConservativeUnverifiedFloor)  // response 21; CONSERVATIVE/UNVERIFIED bench floor (T-1 op-77, >2.5 only)
+    // response 21; CONSERVATIVE/UNVERIFIED bench floor (T-1 op-77, >2.5 only)
+    public static let props = statusProps(20, minApi: .benchConservativeUnverifiedFloor)
     public var cargo: [UInt8] = []
     public init(emptyCargo: Void = ()) { self.cargo = [] }
 }
 public struct ExtendedBolusStatusV2Request: EmptyCurrentStatusRequest {
-    public static let props = statusProps(0xB6, minApi: .benchConservativeUnverifiedFloor)  // -74; response 0xB7 (183); CONSERVATIVE/UNVERIFIED bench floor (T-1 op-77, >2.5 only)
+    // -74; response 0xB7 (183); CONSERVATIVE/UNVERIFIED bench floor (T-1 op-77, >2.5 only)
+    public static let props = statusProps(0xB6, minApi: .benchConservativeUnverifiedFloor)
     public var cargo: [UInt8] = []
     public init(emptyCargo: Void = ()) { self.cargo = [] }
 }
@@ -178,7 +181,8 @@ public struct CGMStatusRequest: EmptyCurrentStatusRequest {
     public init(emptyCargo: Void = ()) { self.cargo = [] }
 }
 public struct CgmStatusV2Request: EmptyCurrentStatusRequest {
-    public static let props = statusProps(0xBE, supportedDevices: [.mobi], minApi: .mobi_v3_5)  // -66; response 0xBF (191); upstream MOBI_ONLY
+    // -66; response 0xBF (191); upstream MOBI_ONLY
+    public static let props = statusProps(0xBE, supportedDevices: [.mobi], minApi: .mobi_v3_5)
     public var cargo: [UInt8] = []
     public init(emptyCargo: Void = ()) { self.cargo = [] }
 }

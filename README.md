@@ -90,4 +90,4 @@ consumes TandemKit (the Garmin remote lives in
 [`faBolusGarmin`](https://github.com/faBolus-app/faBolusGarmin)). Its documentation — a
 no-experience-required build guide, usage, and customization — is the best starting point:
 
-### 👉 https://fabolus.org/
+### 👉 <https://fabolus.org/>

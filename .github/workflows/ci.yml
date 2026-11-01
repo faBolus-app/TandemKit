@@ -2,201 +2,87 @@ name: CI
 
 on:
   push:
-    branches: [master, main, experimental]
+    branches: [main, rebuild]
   pull_request:
   workflow_dispatch:
 
+# Every job is a gate except "report". The gates live in scripts/check.sh, so a local run and CI
+# always agree.
 jobs:
-  build-and-test:
-    runs-on: macos-15
+  swift:
+    name: Build and test (Xcode 27.2)
+    runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_26.app || sudo xcode-select -s /Applications/Xcode.app
+      - name: Select Xcode 27.2
+        run: sudo xcode-select -s /Applications/Xcode_27.2.app && xcodebuild -version
 
-      - name: Set up JDK 21 (for the cliparser oracle)
+      - name: Set up JDK 21 for the pumpx2 oracle
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
 
-      - name: Build cliparser oracle JAR
+      - name: Build the cliparser oracle JAR
         working-directory: vendor/pumpx2-oracle
         run: ./gradlew :cliparser:shadowJar
 
-      - name: Assert the oracle JVM is >= 21
-        # cliparser.jar's Main.class is class-file major 58 (Java 14); a runner image that drops
-        # JDK 21 must fail LOUDLY here, not silently skip byte-parity downstream (D-07). Reads the
-        # SAME java the parity step passes as PUMPX2_JAVA below -- not a different `java` on PATH.
-        run: |
-          JAVA_BIN="${{ env.JAVA_HOME }}/bin/java"
-          VERSION_LINE=$("$JAVA_BIN" -version 2>&1 | head -1)
-          echo "oracle JVM: $VERSION_LINE"
-          RAW=$(echo "$VERSION_LINE" | sed -E 's/^[^"]*"([0-9]+)(\.([0-9]+))?.*"?.*$/\1 \3/')
-          MAJOR=$(echo "$RAW" | awk '{print $1}')
-          LEGACY_MINOR=$(echo "$RAW" | awk '{print $2}')
-          if [ "$MAJOR" = "1" ] && [ -n "$LEGACY_MINOR" ]; then
-            MAJOR="$LEGACY_MINOR"
-          fi
-          if ! [ "$MAJOR" -ge 21 ] 2>/dev/null; then
-            echo "::error::Oracle JVM major version is '$MAJOR' (< 21) from: $VERSION_LINE. cliparser.jar is class-file major 58 and cannot load on a sub-21 JVM -- byte-parity would silently misreport as a parity failure or skip. Fix the JDK setup step, not this check."
-            exit 1
-          fi
-          echo "oracle JVM major $MAJOR >= 21 ✓"
+      - name: Build (warnings are errors)
+        run: ./scripts/check.sh build
 
-      - name: swift build
-        run: swift build
-
-      - name: Guard — the oracle graph stays LoopKit-free
-        # The optional TandemLoopKit driver (integrations/TandemLoopKit) links LoopKit, which is
-        # iOS-only and HealthKit-bearing. It must NEVER enter the root package graph, or this
-        # dependency-free byte-exact oracle build would change. Fail loudly if it ever leaks in.
+      - name: The root dependency graph stays LoopKit-free
         run: |
           if swift package show-dependencies --format json | grep -qi loopkit; then
-            echo "::error::LoopKit leaked into the root TandemKit dependency graph — the oracle-parity build must stay dependency-free."
+            echo "::error::LoopKit is in the root TandemKit dependency graph"
             exit 1
           fi
-          echo "root dependency graph is LoopKit-free ✓"
 
-      - name: swift test (byte-exact oracle parity)
-        env:
-          # OracleRunner finds the JAR at the default vendor path; point it at CI's JDK.
-          PUMPX2_JAVA: ${{ env.JAVA_HOME }}/bin/java
-        run: swift test
+      - name: Test (byte-exact oracle parity)
+        run: ./scripts/check.sh test
 
-  # Style / lint report (advisory). SwiftLint here is a REPORT, never a gate: continue-on-error keeps
-  # it from turning CI red. `.swiftlint.yml` documents which rules are deliberately configured away
-  # (wire-field names, message-constructor metrics). `swift-format lint` proves the formatter was run.
-  style:
-    runs-on: macos-15
-    continue-on-error: true
+  swift-lint:
+    name: swift-format and SwiftLint
+    runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
-      # PIN the formatter rather than using the runner's Xcode: the image lags Xcode by several point
-      # releases, and swift-format's output is version-dependent. Homebrew's 603.0.0 is
-      # byte-identical to Xcode 26.6's 6.3.0, so it is a stable single source of truth.
-      - name: Install the pinned swift-format
-        run: brew list swift-format >/dev/null 2>&1 || brew install swift-format
-      # `format.sh --lint` exits 2 (not 1) when swift-format itself cannot run or cannot read the
-      # config — a stale runner Xcode, not an unformatted tree. Treat that as a skip-with-notice
-      # rather than a finding, so the report never tells anyone to reformat for an older tool.
-      - name: swift-format — is the tree formatted?
-        env:
-          SWIFT_FORMAT: /opt/homebrew/bin/swift-format
-        run: |
-          set +e
-          ./scripts/format.sh --lint
-          rc=$?
-          set -e
-          if [ "$rc" -eq 2 ]; then
-            echo "::notice::swift-format on this runner cannot read .swift-format — skipping the format report"
-            exit 0
-          fi
-          exit "$rc"
-      - name: SwiftLint
-        run: |
-          brew list swiftlint >/dev/null 2>&1 || brew install swiftlint
-          swiftlint lint --quiet --reporter github-actions-logging Sources Tests || true
-          # JSON, not CSV: the `reason` column can contain commas, so a `cut -d,` slice silently
-          # mis-reads the columns. That bug made this step report "at error severity: 0" on a tree
-          # that had 7, and histogram `reason` (one bucket per character count) instead of rule_id.
-          swiftlint lint --quiet --reporter json Sources Tests > /tmp/sl.json || true
-          python3 - <<'PY'
-          import collections, json
-          rows = json.load(open("/tmp/sl.json"))
-          by_rule = collections.Counter(r["rule_id"] for r in rows)
-          by_sev = collections.Counter(r["severity"] for r in rows)
-          print("SwiftLint findings by rule:")
-          for rule, n in by_rule.most_common():
-              print(f"{n:6d}  {rule}")
-          print(f"total: {len(rows)}; at error severity: {by_sev.get('Error', 0)}")
-          PY
+      - name: Select Xcode 27.2
+        run: sudo xcode-select -s /Applications/Xcode_27.2.app && xcrun swift-format --version
+      - name: Install SwiftLint
+        run: brew list swiftlint >/dev/null 2>&1 || brew install swiftlint
+      - run: ./scripts/check.sh format swiftlint
 
-  # Semgrep — the shared local ruleset lives in ONE place (faBolus `.semgrep/deslop.yml`) rather than
-  # being copied into each repo. Flags AI-process residue and vacuous tests. Advisory: every hit needs
-  # human triage, because a genuine safety comment can match a residue pattern.
-  semgrep:
+  lint:
+    name: ShellCheck, actionlint, markdownlint, SBOM
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Tolerate a missing ruleset rather than failing the job: this file lives in a SIBLING repo, so
-      # a rename there (or a transient outage) must not turn this repo's CI red for a lint concern.
-      - name: Fetch the shared deslop ruleset
-        id: rules
+      - name: Install actionlint and markdownlint-cli2
         run: |
-          if curl -fsSL -o /tmp/deslop.yml \
-              https://raw.githubusercontent.com/faBolus-app/faBolus/main/.semgrep/deslop.yml; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::shared deslop ruleset not reachable — skipping the Semgrep report"
-            echo "available=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Semgrep (local deslop rules)
-        if: steps.rules.outputs.available == 'true'
-        run: |
-          pipx install semgrep || pip install --user semgrep
-          # No --error: semgrep exits 0 with findings by default, which is what "advisory" means here.
-          # Scan the repo: the agent-doc rule targets AGENTS.md / llms.txt at the root, which a
-          # `Sources Tests` target can never reach.
-          semgrep --config /tmp/deslop.yml --metrics=off .
-      - name: Deslop residue ratchet
-        if: steps.rules.outputs.available == 'true'
-        run: |
-          semgrep --config /tmp/deslop.yml --metrics=off --json -q . > /tmp/sg.json
-          python3 - <<'PY'
-          # Reports every rule; FAILS only when a RESIDUE rule rises above its committed baseline.
-          #
-          # `source-text-scanning-test` and `working-tree-absence-scanner` are deliberately NOT gated.
-          # They do not flag slop -- they inventory this repo's source-scanning guard tests and
-          # working-tree absence guards, which are load-bearing safety machinery. Their count going UP
-          # means somebody added a guard, so gating them would punish the right behaviour.
-          import collections, json, sys
-
-          INVENTORY = {"source-text-scanning-test", "working-tree-absence-scanner"}
-          base = json.load(open(".semgrep/baseline.json"))["residue"]
-          results = json.load(open("/tmp/sg.json"))["results"]
-          cur = collections.Counter(r["check_id"].split(".")[-1] for r in results)
-
-          risen = []
-          print("rule                                now  baseline")
-          for rule in sorted(set(cur) | set(base) | INVENTORY):
-              n = cur.get(rule, 0)
-              if rule in INVENTORY:
-                  print(f"  {rule:34s} {n:4d}   (inventory, not gated)")
-                  continue
-              b = base.get(rule, 0)
-              note = ""
-              if n > b:
-                  note = "  <== ABOVE BASELINE"
-                  risen.append((rule, b, n))
-              elif n < b:
-                  note = "  (below baseline -- lower it to lock this in)"
-              print(f"  {rule:34s} {n:4d}  {b:4d}{note}")
-
-          if risen:
-              print()
-              for rule, b, n in risen:
-                  print(f"::error::deslop residue rose: {rule} {b} -> {n}. Remove the new "
-                        f"phase/ticket breadcrumb, migration note or drifted line reference. If the "
-                        f"hit is a genuine KEEP (a measurement, an ISO date, an oracle .java "
-                        f"citation, a display-width budget), raise the number in "
-                        f".semgrep/baseline.json in the same commit and say why.")
-              sys.exit(1)
-          print(f"\nresidue total: {sum(v for k, v in cur.items() if k not in INVENTORY)} "
-                f"(baseline {sum(base.values())}) -- no regression")
-          PY
-
-  # SBOM / license-provenance check (P16 §3.1). Independent of the oracle job so it can NEVER affect
-  # the build. Non-blocking-if-risky: continue-on-error keeps a heuristic provenance false-positive
-  # from turning CI red, but the check is expected to stay green.
-  sbom-provenance:
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-        # No submodules: the check scans the committed source tree (Sources/) + docs/SBOM.md only.
-      - name: SBOM / provenance check
+          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
+          sudo mv actionlint /usr/local/bin/
+          npm install --global markdownlint-cli2@0.24.0
+      - run: ./scripts/check.sh shell actions markdown
+      - name: Every vendored or linked package carries a LICENSE and an SBOM row
         run: ./scripts/check-sbom.sh
+
+  report:
+    name: Semgrep and Periphery (report only)
+    runs-on: xcode-27
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode 27.2
+        run: sudo xcode-select -s /Applications/Xcode_27.2.app
+      - name: Install Semgrep and Periphery
+        run: |
+          pipx install semgrep
+          brew list periphery >/dev/null 2>&1 || brew install periphery
+      - name: Semgrep (faBolus's shared residue rules)
+        run: |
+          curl -fsSL -o /tmp/deslop.yml https://raw.githubusercontent.com/faBolus-app/faBolus/main/.semgrep/deslop.yml
+          semgrep --config /tmp/deslop.yml --metrics=off .
+      - name: Periphery (unused code)
+        run: periphery scan --retain-public

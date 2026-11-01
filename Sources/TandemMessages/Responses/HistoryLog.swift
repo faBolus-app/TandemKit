@@ -118,7 +118,8 @@ public enum HistoryLog {
     /// history search, never a sentinel to discard. Only the upper bound (`< 100`, an implausible-
     /// units guard against a garbage/corrupted float) stays a fail-closed sanity check.
     static func parseBolusRecord(_ raw: [UInt8]) -> BolusHistoryRecord? {
-        guard raw.count >= recordSize else { return nil }  // recordSize (26) covers byte 25, the last requested-amount byte
+        // recordSize (26) covers byte 25, the last requested-amount byte
+        guard raw.count >= recordSize else { return nil }
         let typeId = Bytes.readShort(raw, 0) & 0x0FFF
         guard typeId == bolusCompletedTypeId else { return nil }
         let delivered = Double(Bytes.readFloat(raw, 18))

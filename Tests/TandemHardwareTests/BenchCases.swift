@@ -153,7 +153,8 @@ enum BenchCases {
         verify: { s, _, _ in
             #expect(!s.authKey.isEmpty, "signing key not derived after re-auth (scheme=\(s.pairingScheme.rawValue))")
             #expect(s.client.writePolicy == .readOnly, "policy must stay read-only for a monitor cycle")
-            _ = try await s.request(InsulinStatusRequest(), expect: InsulinStatusResponse.self)  // parses post-reconnect
+            // parses post-reconnect
+            _ = try await s.request(InsulinStatusRequest(), expect: InsulinStatusResponse.self)
         })
 
     // ─────────────────────────────────────────────────────────────────────────────────────────
@@ -195,7 +196,8 @@ enum BenchCases {
             _ = try await s.request(CurrentBasalStatusRequest(), expect: CurrentBasalStatusResponse.self)
             _ = try await s.request(ControlIQIOBRequest(), expect: ControlIQIOBResponse.self)
             _ = try await s.request(ControlIQInfoV2Request(), expect: ControlIQInfoV2Response.self)
-            _ = try await s.request(CurrentEgvGuiDataV2Request(), expect: CurrentEgvGuiDataV2Response.self)  // parse only
+            // parse only
+            _ = try await s.request(CurrentEgvGuiDataV2Request(), expect: CurrentEgvGuiDataV2Response.self)
             _ = try await s.request(HomeScreenMirrorRequest(), expect: HomeScreenMirrorResponse.self)
         })
 

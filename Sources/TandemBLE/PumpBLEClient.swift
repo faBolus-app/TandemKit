@@ -1289,7 +1289,8 @@ extension PumpBLEClient: CBPeripheralDelegate {
     private func revokeReadiness(lost: Characteristic? = nil) {
         state = .discovering
         if let lost, let peripheral, let cb = characteristics[lost] {
-            peripheral.setNotifyValue(true, for: cb)  // re-drive the subscription-ready barrier over the still-live link
+            // re-drive the subscription-ready barrier over the still-live link
+            peripheral.setNotifyValue(true, for: cb)
         }
         armEstablishmentWatchdog()  // bounded backstop → reconnect ladder if the re-subscribe never confirms
     }

@@ -59,6 +59,7 @@ import Testing
         #expect(ApiVersion.v2_5 < ApiVersion.mobi_v3_5)
         #expect(ApiVersion.v3_2 < ApiVersion.v3_4)
         #expect(ApiVersion.mobi_v3_8 < ApiVersion.future)
+        // swiftlint:disable:next identical_operands - checks that < is irreflexive
         #expect(!(ApiVersion.mobi_v3_5 < ApiVersion.mobi_v3_5))
     }
 

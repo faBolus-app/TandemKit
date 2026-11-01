@@ -144,7 +144,7 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
             case .short6Char: coord = try PairingCoordinator(pairingCode: pairingCode)  // JPAKE 6-digit
             case .long16Char: coord = try LegacyPairingCoordinator(pairingCode: pairingCode)  // legacy V1 16-char
             }
-            coord.onSendRequest = { msg in try? c.send(msg) }  // AUTHORIZATION msgs pass the interlock
+            coord.onSendRequest = { msg in _ = try? c.send(msg) }  // AUTHORIZATION msgs pass the interlock
             coord.onError = { print("[pairing] error: \($0)") }
             coord.onPaired = { [weak self] authKey, _ in
                 guard let self else { return }
@@ -173,12 +173,12 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
                     }
                 case .permissionTest, .deliverBolus:
                     print("[write] reading pump time for signing…")
-                    try? c.send(TimeSinceResetRequest())  // read (allowed); triggers the signed flow
+                    _ = try? c.send(TimeSinceResetRequest())  // read (allowed); triggers the signed flow
                 case .carbBolus:
                     print("[carb-bolus] reading pump time + calculator settings (carb ratio/ISF/target) + IOB…")
-                    try? c.send(TimeSinceResetRequest())
-                    try? c.send(BolusCalcDataSnapshotRequest())
-                    try? c.send(ControlIQIOBRequest())
+                    _ = try? c.send(TimeSinceResetRequest())
+                    _ = try? c.send(BolusCalcDataSnapshotRequest())
+                    _ = try? c.send(ControlIQIOBRequest())
                 case .scan: break
                 }
             }
@@ -209,7 +209,7 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
 
     func releasePermission(bolusId: Int) {
         print("[permission-test] releasing bolus permission id \(bolusId)…")
-        try? client.send(
+        _ = try? client.send(
             BolusPermissionReleaseRequest(bolusID: bolusId),
             authenticationKey: authKey, pumpTimeSinceReset: signingTimestamp)
     }
@@ -296,7 +296,7 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     func cancelBolus() {
         guard currentBolusId != 0 else { return }
         print("[bolus] CANCELLING bolus id \(currentBolusId)…")
-        try? client.send(
+        _ = try? client.send(
             CancelBolusRequest(bolusId: currentBolusId),
             authenticationKey: authKey, pumpTimeSinceReset: signingTimestamp)
     }
@@ -314,9 +314,9 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     /// hold on another). All reads are read-only. PumpVersion / PumpFeaturesV1 may go unanswered on
     /// an older pump — tolerated (no failure); a missing capability bitmask is itself a finding.
     func readFirmwareProfile() {
-        try? client.send(ApiVersionRequest())
-        try? client.send(PumpVersionRequest())
-        try? client.send(PumpFeaturesV1Request())  // op-79 capability bitmask (may be unsupported on legacy)
+        _ = try? client.send(ApiVersionRequest())
+        _ = try? client.send(PumpVersionRequest())
+        _ = try? client.send(PumpFeaturesV1Request())  // op-79 capability bitmask (may be unsupported on legacy)
     }
 
     func poll() {
@@ -1532,7 +1532,7 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
             case let m as CurrentBatteryV2Response: print("[status] battery = \(m.batteryPercent)%")
             case let m as CurrentEgvGuiDataV2Response:
                 print(
-                    "[status] glucose = \(m.hasValidReading ? "\(m.cgmReading)" : "--") mg/dL \(m.trendArrow) (status=\(m.egvStatusId) trendRate=\(m.trendRate))"
+                    "[status] glucose = \(m.hasValidReading ? "\(m.cgmReading)" : "--") mg/dL \(m.trendArrow ?? "") (status=\(m.egvStatusId) trendRate=\(m.trendRate))"
                 )
             case let m as CurrentBasalStatusResponse:
                 print("[status] basal = \(m.currentBasalUnitsPerHour) u/hr")
