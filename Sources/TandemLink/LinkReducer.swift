@@ -347,7 +347,15 @@ private final class Step {
 
     func sendNextHandshakeRead() {
         guard var connection = state.connection, connection.inFlight == nil else { return }
-        guard !connection.handshake.isEmpty else { return becomeReady() }
+        guard !connection.handshake.isEmpty else {
+            // The handshake's reads just answered on this unit, so they are supported here: a later
+            // TimeSinceReset (read before every signed write) is never an untested probe that an
+            // unrelated op-77 could stop.
+            for read in LinkReducer.handshakeReads() where !isRecordedSupported(MessageKey(read)) {
+                recordEvidence(.supported, for: MessageKey(read), note: "answered in the handshake")
+            }
+            return becomeReady()
+        }
         let message = connection.handshake.removeFirst()
         let txId = connection.nextTxId
         guard let packets = try? Packetize.packetize(message, txId: txId) else {

@@ -471,6 +471,30 @@ import TandemMessages
         #expect(h.state.ladder.flaps == 0)
     }
 
+    /// On a pump with no evidence (P2's API 4.0), the handshake's own answers make its reads supported, so
+    /// TimeSinceReset after an unrelated probe's op-77 still goes out.
+    @Test func theHandshakeReadsAreRecordedSupported() {
+        var h = LinkHarness()
+        let p2 = PumpUnit(serialNumber: 2000, armSoftwareVersion: 7, mspSoftwareVersion: 7)
+        h.makeReady(api: (4, 0), unit: p2)
+        for read: any Message in [ApiVersionRequest(), PumpVersionRequest(), TimeSinceResetRequest()] {
+            let entry = h.state.support.entry(
+                for: MessageKey(read), unit: p2, model: .tslim, apiVersion: ApiVersion(major: 4, minor: 0))
+            #expect(entry.status == .supported, "\(type(of: read))")
+        }
+        h.advance(by: 10)
+        let probe = h.submit(HomeScreenMirrorRequest())
+        h.replyError(code: 1)
+        h.advance(by: 1.5)
+        guard case .pumpError = h.results[probe] else {
+            Issue.record("expected the probe's op-77")
+            return
+        }
+        let time = h.submit(TimeSinceResetRequest())
+        #expect(h.writes(of: TimeSinceResetRequest.self) == 2)
+        #expect(h.results[time] == nil)
+    }
+
     @Test func bolusPermissionReleaseIsAllowedAndGoesOutOnceAsAnUntestedWrite() {
         // No pump has bench evidence for the release, so it waits for the hold like any untested write,
         // then goes out once, and its verified reply is the answer.
