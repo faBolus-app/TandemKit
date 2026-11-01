@@ -58,8 +58,10 @@ jobs:
 
       # Manual build mode, not autobuild: `swift build` is exactly what ci.yml uses for the
       # oracle-parity job, so the database describes the same code the tests exercise.
+      # --disable-sandbox: under CodeQL's tracer, SwiftPM's sandbox-exec fails to launch on the Xcode 27
+      # image ("Bad CPU type in executable").
       - name: Build
-        run: swift build
+        run: swift build --disable-sandbox
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
