@@ -15,6 +15,21 @@ public enum Packetize {
     /// having explicitly enabled insulin-affecting actions. Mirrors upstream's gate.
     public struct ActionsAffectingInsulinDeliveryNotEnabledError: Error {}
 
+    /// Input that can't be framed. Upstream (pumpx2 9625c529) rejects a missing message or cargo
+    /// and a non-positive partition size rather than carrying on; these are the Swift equivalents,
+    /// thrown before any byte is built so a bad message never reaches the pump half-formed.
+    public enum PacketizeError: Error, Equatable {
+        /// A chunk size below 1 sent the whole packet as one unchunked write; one so small that
+        /// the packet needs more than 256 chunks can't be counted in the one-byte
+        /// `packetsRemaining`.
+        case invalidChunkSize(Int)
+        /// The framed length (cargo plus any 24-byte signature) doesn't fit the one-byte length
+        /// field.
+        case cargoTooLong(opCode: UInt8, framedLength: Int)
+        /// A signed message with no key would carry an HMAC the pump can't verify.
+        case missingAuthenticationKey(opCode: UInt8)
+    }
+
     static func determineMaxChunkSize(_ message: Message) -> Int {
         if message.characteristic == .control && message.type == .request {
             return controlMaxChunkSize
@@ -36,9 +51,24 @@ public enum Packetize {
         actionsAffectingInsulinDeliveryEnabled: Bool = false,
         maxChunkSize: Int? = nil
     ) throws -> [Packet] {
+        // The delivery wall first, so a closed tier is what a caller sees, not a framing error.
+        if message.props.modifiesInsulinDelivery && !actionsAffectingInsulinDeliveryEnabled {
+            throw ActionsAffectingInsulinDeliveryNotEnabledError()
+        }
         let cargo = message.cargo
         var length = 3 + cargo.count
         if message.signed { length += 24 }
+        guard length - 3 <= Int(UInt8.max) else {
+            throw PacketizeError.cargoTooLong(opCode: message.opCode, framedLength: length - 3)
+        }
+        if message.signed && authenticationKey.isEmpty {
+            throw PacketizeError.missingAuthenticationKey(opCode: message.opCode)
+        }
+        let chunkSize = maxChunkSize ?? determineMaxChunkSize(message)
+        // +2 for the CRC. packetsRemaining counts down from chunks-1, so at most 256 chunks.
+        guard chunkSize > 0, (length + 2 + chunkSize - 1) / chunkSize <= Int(UInt8.max) + 1 else {
+            throw PacketizeError.invalidChunkSize(chunkSize)
+        }
 
         var packet = [UInt8](repeating: 0, count: length)
         packet[0] = message.opCode
@@ -46,9 +76,6 @@ public enum Packetize {
         packet[2] = UInt8(length - 3)
         for (i, b) in cargo.enumerated() { packet[3 + i] = b }
 
-        if message.props.modifiesInsulinDelivery && !actionsAffectingInsulinDeliveryEnabled {
-            throw ActionsAffectingInsulinDeliveryNotEnabledError()
-        }
 
         if message.signed {
             let i = length - 20
@@ -68,7 +95,6 @@ public enum Packetize {
         let packetWithCRC = packet + crc
 
         // Chunk into maxChunkSize packets; packetsRemaining counts down from N-1 to 0.
-        let chunkSize = maxChunkSize ?? determineMaxChunkSize(message)
         let chunked = partition(packetWithCRC, chunkSize)
 
         var packets = [Packet]()
@@ -81,7 +107,7 @@ public enum Packetize {
     }
 
     static func partition(_ bytes: [UInt8], _ size: Int) -> [[UInt8]] {
-        guard size > 0 else { return [bytes] }
+        precondition(size > 0, "partition size must be positive; packetize checks it first")
         var out = [[UInt8]]()
         var i = 0
         while i < bytes.count {
