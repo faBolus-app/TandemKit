@@ -84,37 +84,8 @@ private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8]
         (36, "UsbConnectedHistoryLog"),
         (37, "UsbDisconnectedHistoryLog"),
         (67, "UsbEnumeratedHistoryLog"),
-        (307, "VersionsAHistoryLog")
-    ]
-
-    @Test(arguments: cases)
-    func decodeParity(typeId: Int, name: String) throws {
-        let rec = record(typeId: typeId, pumpTimeSec: 461_500_000, seq: 42)
-        let oracle = try OracleRunner.parseHistoryLog(hex: Hex.encode(rec))
-        #expect(oracle.typeId == typeId, "oracle typeId \(oracle.typeId) != \(typeId)")
-        #expect(oracle.className == name, "oracle class \(oracle.className) != \(name)")
-        let event = HistoryLogParser.parse(record: rec)
-        #expect(String(describing: type(of: event)) == name)
-        #expect(event.typeId == typeId)
-        #expect(event.pumpTimeSec == 461_500_000)
-        #expect(event.sequenceNum == 42)
-    }
-}
-
-/// History-log types the oracle can't cross-check — and NOT a stale-JAR problem: the vendored jar was
-/// verified byte-identical to a fresh build of the pinned oracle commit, so rebuilding it changes
-/// nothing. Do not try that first.
-///
-/// Every typeId here is in 128–255, and upstream `HistoryLog.parseBase` reads the typeId from a SIGNED
-/// byte and adds 512 for negative values, mis-decoding the whole range: most read as "unknown" and a
-/// couple collide with other types (230→486, 191→447). Swift reads the typeId as a clean unsigned
-/// value, so this port is actually *more* correct than the reference — which is why these can only be
-/// Swift-dispatch-verified here rather than byte-compared.
-///
-/// Promoting them to byte-exact parity requires an UPSTREAM `parse()` fix in a newer pumpx2 plus a
-/// submodule re-pin. It is not reachable from this repo alone.
-@Suite struct HistoryLogSwiftDispatchTests {
-    static let cases: [(Int, String)] = [
+        (307, "VersionsAHistoryLog"),
+        // typeIds an older oracle mis-decoded (it read the low typeId byte as signed).
         (171, "CgmAlertActivatedHistoryLog"),
         (172, "CgmAlertClearedHistoryLog"),
         (210, "CgmCalibrationGxHistoryLog"),
@@ -184,13 +155,27 @@ private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8]
         (302, "WumpCartridgeRemovedHistoryLog"),
         (283, "WumpOcclusionDebugHistoryLog")
     ]
+
     @Test(arguments: cases)
+    func decodeParity(typeId: Int, name: String) throws {
+        let rec = record(typeId: typeId, pumpTimeSec: 461_500_000, seq: 42)
+        let oracle = try OracleRunner.parseHistoryLog(hex: Hex.encode(rec))
+        #expect(oracle.typeId == typeId, "oracle typeId \(oracle.typeId) != \(typeId)")
+        #expect(oracle.className == name, "oracle class \(oracle.className) != \(name)")
+        let event = HistoryLogParser.parse(record: rec)
+        #expect(String(describing: type(of: event)) == name)
+        #expect(event.typeId == typeId)
+        #expect(event.pumpTimeSec == 461_500_000)
+        #expect(event.sequenceNum == 42)
+    }
+}
+
+/// The same dispatch table checked without the oracle, so a checkout with no JDK 21 still catches a
+/// registry regression.
+@Suite struct HistoryLogSwiftDispatchTests {
+    @Test(arguments: HistoryLogOracleParityTests.cases)
     func dispatch(typeId: Int, name: String) {
-        var r = [UInt8](repeating: 0, count: 26)
-        let t = Bytes.firstTwoBytesLittleEndian(typeId)
-        r[0] = t[0]
-        r[1] = t[1]
-        let event = HistoryLogParser.parse(record: r)
+        let event = HistoryLogParser.parse(record: record(typeId: typeId, pumpTimeSec: 1, seq: 2))
         #expect(String(describing: type(of: event)) == name)
         #expect(event.typeId == typeId)
     }

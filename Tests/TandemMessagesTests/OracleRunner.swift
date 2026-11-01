@@ -4,6 +4,9 @@ import Foundation
 /// produces for a given message. Swift-produced bytes are asserted equal to this ("byte-exact
 /// or fail").
 ///
+/// Requests go to one long-lived `cliparser serve` JVM (see `OracleServer`) rather than a JVM per
+/// call: start-up costs about 0.4 s, which is most of the time a one-shot call takes.
+///
 /// Resolution order (all overridable by env so CI can point at its own build):
 ///   - JDK:  $PUMPX2_JAVA, else Homebrew openjdk@21, else `java` on PATH.
 ///   - JAR:  $PUMPX2_ORACLE_JAR, else vendor/pumpx2-oracle/cliparser/build/libs/cliparser.jar.
@@ -134,13 +137,7 @@ enum OracleRunner {
         var env: [String: String] = [:]
         if let pairingCode { env["PUMP_PAIRING_CODE"] = pairingCode }
         if let pumpTimeSinceReset { env["PUMP_TIME_SINCE_RESET"] = String(pumpTimeSinceReset) }
-        let (out, err, status) = try run(
-            [
-                "-jar", jarPath, "encode", String(txId), messageName, json
-            ], extraEnv: env)
-        guard status == 0 else {
-            throw OracleError.failed("exit \(status): \(err)")
-        }
+        let (out, err) = try OracleServer.shared.call(["encode", String(txId), messageName, json], env: env)
         // The oracle prints the JSON result on stdout; diagnostics go to stderr.
         guard let line = out.split(separator: "\n").last(where: { $0.contains("\"packets\"") }),
             let data = line.data(using: .utf8)
@@ -170,8 +167,7 @@ enum OracleRunner {
                 "jar=\(jarPath) java=\(javaPath) resolvedJavaMajor=\(resolvedJavaMajorVersion.map(String.init) ?? "unknown") (need >= \(minimumJavaMajor))"
             )
         }
-        let (out, err, status) = try run(["-jar", jarPath, "historylog", hex])
-        guard status == 0 else { throw OracleError.failed("exit \(status): \(err)") }
+        let (out, err) = try OracleServer.shared.call(["historylog", hex])
         guard let line = out.split(separator: "\n").last(where: { $0.contains("\t") }) else {
             throw OracleError.failed("no tab-delimited output: \(out)\n\(err)")
         }
@@ -184,29 +180,99 @@ enum OracleRunner {
             typeId: tid, className: shortName,
             description: parts.count >= 4 ? parts[3] : "")
     }
+}
 
-    private static func run(_ args: [String], extraEnv: [String: String] = [:]) throws
-        -> (out: String, err: String, status: Int32)
-    {
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: javaPath)
-        proc.arguments = args
-        if !extraEnv.isEmpty {
-            var env = ProcessInfo.processInfo.environment
-            for (k, v) in extraEnv { env[k] = v }
-            proc.environment = env
+/// One `cliparser serve` process shared by every oracle test. `serve` reads one JSON request per
+/// line, `{"id", "args", "env"}`, runs `args` as the one-shot command would, and answers with one
+/// JSON line, `{"id", "ok", "stdout", "stderr", "error"}`. Each request's environment comes only from
+/// its `env`, so tests can't leak a pairing code into each other.
+///
+/// `@unchecked Sendable`: Swift Testing runs suites in parallel, and every use of the pipes and the
+/// process goes through `lock`, one request at a time (the server itself answers in order).
+final class OracleServer: @unchecked Sendable {
+    static let shared = OracleServer()
+
+    private let lock = NSLock()
+    private var process: Process?
+    private var input: FileHandle?
+    private var output: FileHandle?
+    private var buffered = Data()
+    private var nextId = 0
+
+    /// Runs one command and returns its stdout and stderr. Throws `OracleError.failed` when the
+    /// command fails (the one-shot command's non-zero exit) or the server dies.
+    func call(_ args: [String], env: [String: String] = [:]) throws -> (out: String, err: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        if process?.isRunning != true { try start() }
+        nextId += 1
+        let request: [String: Any] = ["id": nextId, "args": args, "env": env]
+        var line = try JSONSerialization.data(withJSONObject: request)
+        line.append(0x0A)
+        do {
+            try input?.write(contentsOf: line)
+            let reply = try readLine()
+            guard let json = try JSONSerialization.jsonObject(with: reply) as? [String: Any],
+                (json["id"] as? Int) == nextId
+            else {
+                // Out of step with the server: every later reply would answer an earlier request.
+                stop()
+                throw OracleRunner.OracleError.failed(
+                    "unexpected serve reply: \(String(decoding: reply, as: UTF8.self))")
+            }
+            let out = json["stdout"] as? String ?? ""
+            let err = json["stderr"] as? String ?? ""
+            guard json["ok"] as? Bool == true else {
+                throw OracleRunner.OracleError.failed(
+                    "\(args.first ?? ""): \(json["error"] ?? "unknown error")\n\(err)")
+            }
+            return (out, err)
+        } catch let error as OracleRunner.OracleError {
+            throw error
+        } catch {
+            stop()
+            throw OracleRunner.OracleError.failed("serve I/O: \(error)")
         }
-        let outPipe = Pipe(), errPipe = Pipe()
+    }
+
+    private func start() throws {
+        // A write to a server that has just died must throw, not kill the test process.
+        signal(SIGPIPE, SIG_IGN)
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: OracleRunner.javaPath)
+        proc.arguments = ["-jar", OracleRunner.jarPath, "serve"]
+        let inPipe = Pipe(), outPipe = Pipe()
+        proc.standardInput = inPipe
         proc.standardOutput = outPipe
-        proc.standardError = errPipe
+        // The library's own logging goes to the server's real stderr; nothing reads it.
+        proc.standardError = FileHandle.nullDevice
         try proc.run()
-        let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
-        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-        proc.waitUntilExit()
-        return (
-            String(decoding: outData, as: UTF8.self),
-            String(decoding: errData, as: UTF8.self),
-            proc.terminationStatus
-        )
+        process = proc
+        input = inPipe.fileHandleForWriting
+        output = outPipe.fileHandleForReading
+        buffered = Data()
+    }
+
+    private func stop() {
+        process?.terminate()
+        process = nil
+        input = nil
+        output = nil
+        buffered = Data()
+    }
+
+    private func readLine() throws -> Data {
+        while true {
+            if let newline = buffered.firstIndex(of: 0x0A) {
+                let line = buffered[buffered.startIndex..<newline]
+                buffered = Data(buffered[buffered.index(after: newline)...])
+                return Data(line)
+            }
+            guard let chunk = output?.availableData, !chunk.isEmpty else {
+                stop()
+                throw OracleRunner.OracleError.failed("cliparser serve exited")
+            }
+            buffered.append(chunk)
+        }
     }
 }

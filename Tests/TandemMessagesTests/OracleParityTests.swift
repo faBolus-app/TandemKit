@@ -438,6 +438,15 @@ struct OracleParityTests {
         #expect(swift == oracle, "swift=\(swift) oracle=\(oracle)")
     }
 
+    /// A non-ASCII name goes through `Bytes.writeString` as UTF-8 bytes on both sides (upstream
+    /// 00b9bd99 fixed the Java codec).
+    @Test func renameIDPRequestNonAsciiNameMatchesOracle() throws {
+        let oracle = try oracleSignedPackets("RenameIDPRequest", txId: 34, json: "[4, 0, \"Café\"]")
+        let swift = try swiftSignedPackets(
+            RenameIDPRequest(idpId: 4, profileIndex: 0, profileName: "Café"), txId: 34)
+        #expect(swift == oracle, "swift=\(swift) oracle=\(oracle)")
+    }
+
     // --- Mobi-workflow messages that previously lacked any test (Plan A / A1) ---
 
     // SetG6TransmitterIdRequest: 6-char id written into a 16-byte field (6 chars + 10 pad). The

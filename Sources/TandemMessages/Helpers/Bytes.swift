@@ -108,14 +108,8 @@ public enum Bytes {
     /// >= 0x80) is part of the string. The prior implementation terminated on the first
     /// non-positive *signed* byte (`Int8(bitPattern: raw[idx]) > 0`, matching upstream's pre-fix
     /// Java `b > 0`), which truncated any non-ASCII string at its first byte >= 0x80 (e.g. "café"
-    /// decoded as "caf"). This is the intent of upstream jwoglom/pumpX2 PR #123.
-    ///
-    /// NO CLEAN ORACLE BACKING (deliberate): the vendored pumpx2-oracle Java `Bytes.java`
-    /// (submodule pin dad3eea2, pre-PR#123) still carries the old `b > 0` terminator, so this fix
-    /// intentionally diverges from the vendored oracle and cannot be validated by OracleParityTests.
-    /// The direct `BytesTests.readWriteStringDecodesNonAscii` case is the substitute ground truth.
-    /// Re-check the submodule pin before any future re-run: if upstream ever merges PR #123 to
-    /// pumpx2 main, this divergence note no longer applies.
+    /// decoded as "caf"). Upstream fixed its Java codec the same way (pumpx2 00b9bd99), and the
+    /// pinned oracle carries that fix; `BytesTests.readWriteStringDecodesNonAscii` tests it directly.
     public static func readString(_ raw: [UInt8], _ i: Int, _ length: Int) -> String {
         precondition(i >= 0 && i < raw.count)
         var strBytes = [UInt8]()
@@ -137,10 +131,9 @@ public enum Bytes {
     /// call sites and force a semver bump (CONTRIBUTING.md public-API stability). This is the intent
     /// of upstream jwoglom/pumpX2 PR #123 (which throws `IllegalArgumentException`).
     ///
-    /// NO CLEAN ORACLE BACKING (deliberate): the vendored pumpx2-oracle Java `Bytes.java`
-    /// (submodule pin dad3eea2, pre-PR#123) has NO overlong-reject and zero string-codec test
-    /// coverage, so no OracleParityTests vector can validate this fix by construction. The direct
-    /// `BytesTests.writeStringExactFitBoundaryAndPad` case is the substitute ground truth.
+    /// The pinned oracle rejects an overlong string too (pumpx2 00b9bd99); a non-ASCII name is
+    /// checked against it in `OracleParityTests.renameIDPRequestNonAsciiNameMatchesOracle`, and the
+    /// boundary in `BytesTests.writeStringExactFitBoundaryAndPad`.
     ///
     /// CALLER OBLIGATION: the bound is on encoded UTF-8 BYTES, not characters (a single character
     /// such as "é" is two UTF-8 bytes). Callers passing user-supplied text (e.g. IDP profile names
@@ -150,8 +143,6 @@ public enum Bytes {
     ///
     /// DOSE-PATH framing: two of the three call sites — `IdpCrudRequests.CreateIDPRequest` (name, 17)
     /// and `RenameIDPRequest` (profileName, 16) — are on `modifiesInsulinDelivery: true` messages.
-    /// This fix carries the kit's dose-path review discipline: experimental-only; the §1.4 promotion
-    /// gate is NOT cleared here; the saline bench remains the real-insulin gate.
     public static func writeString(_ input: String, _ length: Int) -> [UInt8] {
         var encoded = [UInt8](input.utf8)
         precondition(

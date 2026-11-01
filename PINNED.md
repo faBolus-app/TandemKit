@@ -8,7 +8,7 @@ re-validated before adoption (see the upstream-sync workflow in the plan / READM
 | --- | --- |
 | Upstream repo | [`jwoglom/pumpx2`](https://github.com/jwoglom/pumpx2) |
 | Submodule path | `vendor/pumpx2-oracle` |
-| Pinned commit | `dad3eea2a3f6ae1bb1a6fdc6b3eac37f3ac7132b` |
+| Pinned commit | `456018a5eb10adcec578c54855af1a2f50befa31` (upstream `main`, 2026-10) |
 | Ported by | Swift port in `Sources/` (hand-ported, not generated) |
 
 ## Upstream controlX2 watch
