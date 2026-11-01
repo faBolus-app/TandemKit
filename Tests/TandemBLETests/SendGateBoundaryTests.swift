@@ -8,10 +8,12 @@ import TandemMessages
 /// messages still fail open. Opcodes are not globally unique — the gate keys by `(characteristic, opCode)`.
 @Suite struct SendGateBoundaryTests {
 
-    // SetSleepScheduleRequest is annotated MOBI_ONLY + minApi .mobi_v3_5 (opcode 0xCE); it is signed
-    // control (.settings), so .allowNonDelivery is the minimal policy that clears the write interlock and
-    // lets execution actually reach the device/API gate.
-    private func mobiOnlyMessage() -> SetSleepScheduleRequest {
+    // CgmStatusV2Request is annotated MOBI_ONLY + minApi .mobi_v3_5 (opcode 0xBE). It is an unsigned
+    // read, so neither the write interlock nor the signed-write allowlist stands in front of the
+    // device/API gate these tests are about.
+    private func mobiOnlyMessage() -> CgmStatusV2Request { CgmStatusV2Request() }
+    // A signed Mobi-only write (opcode 0xCE), for the interlock-ordering tests.
+    private func mobiOnlySignedWrite() -> SetSleepScheduleRequest {
         SetSleepScheduleRequest(slot: 0, schedule: [0, 0, 0, 0, 0, 0], flag: 0)
     }
 
@@ -21,7 +23,7 @@ import TandemMessages
         let client = PumpBLEClient.forUnitTest()
         client.writePolicy = .allowNonDelivery
         client.setDeviceContext(model: .tslim, apiVersion: .v2_5, trusted: true)
-        #expect(throws: PumpBLEClient.ClientError.unsupportedOnDevice(opcode: 0xCE)) {
+        #expect(throws: PumpBLEClient.ClientError.unsupportedOnDevice(opcode: 0xBE)) {
             try client.send(self.mobiOnlyMessage())
         }
     }
@@ -43,7 +45,7 @@ import TandemMessages
         let client = PumpBLEClient.forUnitTest()
         client.writePolicy = .allowNonDelivery
         client.setDeviceContext(model: .mobi, apiVersion: .v3, trusted: true)
-        #expect(throws: PumpBLEClient.ClientError.unsupportedOnDevice(opcode: 0xCE)) {
+        #expect(throws: PumpBLEClient.ClientError.unsupportedOnDevice(opcode: 0xBE)) {
             try client.send(self.mobiOnlyMessage())
         }
     }
@@ -53,7 +55,7 @@ import TandemMessages
         let client = PumpBLEClient.forUnitTest()
         client.writePolicy = .allowNonDelivery
         // deliberately no setDeviceContext — model/api/trust stay nil/false (unidentified)
-        #expect(throws: PumpBLEClient.ClientError.identityNotEstablished(opcode: 0xCE)) {
+        #expect(throws: PumpBLEClient.ClientError.identityNotEstablished(opcode: 0xBE)) {
             try client.send(self.mobiOnlyMessage())
         }
     }
@@ -64,7 +66,7 @@ import TandemMessages
         let client = PumpBLEClient.forUnitTest()
         client.writePolicy = .allowNonDelivery
         client.setDeviceContext(model: .mobi, apiVersion: .mobi_v3_5, trusted: false)
-        #expect(throws: PumpBLEClient.ClientError.identityNotEstablished(opcode: 0xCE)) {
+        #expect(throws: PumpBLEClient.ClientError.identityNotEstablished(opcode: 0xBE)) {
             try client.send(self.mobiOnlyMessage())
         }
     }
@@ -86,7 +88,7 @@ import TandemMessages
         let client = PumpBLEClient.forUnitTest()  // default .readOnly
         client.setDeviceContext(model: .mobi, apiVersion: .mobi_v3_5, trusted: true)
         #expect(throws: PumpBLEClient.ClientError.writeBlocked(policy: .readOnly, opcode: 0xCE)) {
-            try client.send(self.mobiOnlyMessage())
+            try client.send(self.mobiOnlySignedWrite())
         }
     }
 
@@ -107,13 +109,41 @@ import TandemMessages
     @MainActor @Test func writePolicyInterlockStillPrecedesGateEvenWhenUntrusted() {
         let unidentified = PumpBLEClient.forUnitTest()  // default .readOnly, no device context
         #expect(throws: PumpBLEClient.ClientError.writeBlocked(policy: .readOnly, opcode: 0xCE)) {
-            try unidentified.send(self.mobiOnlyMessage())
+            try unidentified.send(self.mobiOnlySignedWrite())
         }
 
         let untrustedMobi = PumpBLEClient.forUnitTest()  // default .readOnly
         untrustedMobi.setDeviceContext(model: .mobi, apiVersion: .mobi_v3_5, trusted: false)
         #expect(throws: PumpBLEClient.ClientError.writeBlocked(policy: .readOnly, opcode: 0xCE)) {
-            try untrustedMobi.send(self.mobiOnlyMessage())
+            try untrustedMobi.send(self.mobiOnlySignedWrite())
+        }
+    }
+
+    /// A signed write outside the six is refused under any policy, before the device gates and before
+    /// readiness, even on a pump it would suit (here a trusted Mobi).
+    @MainActor @Test func signedWriteOutsideTheAllowlistIsRefused() {
+        let client = PumpBLEClient.forUnitTest()
+        client.writePolicy = .allowDestructive
+        client.setDeviceContext(model: .mobi, apiVersion: .mobi_v3_5, trusted: true)
+        #expect(throws: PumpBLEClient.ClientError.signedWriteNotAllowed(opcode: 0xCE)) {
+            try client.send(self.mobiOnlySignedWrite())
+        }
+        #expect(throws: PumpBLEClient.ClientError.signedWriteNotAllowed(opcode: PlaySoundRequest.props.opCode)) {
+            try client.send(PlaySoundRequest())
+        }
+    }
+
+    /// The six allowed signed writes pass the allowlist and reach the readiness guard.
+    @MainActor @Test func allowedSignedWritesReachReadiness() {
+        let client = PumpBLEClient.forUnitTest()
+        client.writePolicy = .allowDelivery
+        client.setDeviceContext(model: .tslim, apiVersion: .v2_5, trusted: true)
+        let allowed: [any Message] = [
+            BolusPermissionRequest(), InitiateBolusRequest(), CancelBolusRequest(bolusId: 1), RemoteCarbEntryRequest(),
+            RemoteBgEntryRequest(), DismissNotificationRequest(kind: .alert, notificationId: 1)
+        ]
+        for m in allowed {
+            #expect(throws: PumpBLEClient.ClientError.notReady) { try client.send(m) }
         }
     }
 
@@ -212,7 +242,7 @@ import TandemMessages
         let client = PumpBLEClient.forUnitTest()
         client.writePolicy = .allowNonDelivery
         client.setDeviceContext(model: .mobi, apiVersion: .mobi_v3_5, trusted: false)
-        await #expect(throws: PumpBLEClient.ClientError.identityNotEstablished(opcode: 0xCE)) {
+        await #expect(throws: PumpBLEClient.ClientError.identityNotEstablished(opcode: 0xBE)) {
             try await client.sendAwaitingResponse(self.mobiOnlyMessage(), deadline: 5)
         }
         #expect(

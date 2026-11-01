@@ -3,7 +3,7 @@ import Foundation
 /// The BLE GATT characteristics the pump exposes for messaging.
 /// Port of `com.jwoglom.pumpx2.pump.messages.bluetooth.Characteristic` +
 /// the UUID constants from `CharacteristicUUID`.
-public enum Characteristic: String, CaseIterable, Sendable {
+public enum Characteristic: String, CaseIterable, Sendable, Codable {
     case currentStatus = "7B83FFF6-9F77-4E5C-8064-AAE2C24838B9"
     case qualifyingEvents = "7B83FFF7-9F77-4E5C-8064-AAE2C24838B9"
     case historyLog = "7B83FFF8-9F77-4E5C-8064-AAE2C24838B9"

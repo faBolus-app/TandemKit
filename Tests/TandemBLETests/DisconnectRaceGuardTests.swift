@@ -60,7 +60,7 @@ import TandemMessages
         client.intentionalDisconnectForTesting = true
 
         #expect(throws: PumpBLEClient.ClientError.disconnecting) {
-            try client.send(PlaySoundRequest())
+            try client.send(DismissNotificationRequest(kind: .alert, notificationId: 0))
         }
     }
 
@@ -72,7 +72,7 @@ import TandemMessages
         client.disconnect()
 
         #expect(throws: PumpBLEClient.ClientError.disconnecting) {
-            try client.send(PlaySoundRequest())
+            try client.send(DismissNotificationRequest(kind: .alert, notificationId: 0))
         }
     }
 
@@ -85,7 +85,7 @@ import TandemMessages
         client.writePolicy = .allowBenignControl
 
         #expect(throws: PumpBLEClient.ClientError.notReady) {
-            try client.send(PlaySoundRequest())
+            try client.send(DismissNotificationRequest(kind: .alert, notificationId: 0))
         }
     }
 
@@ -97,8 +97,11 @@ import TandemMessages
         let client = PumpBLEClient(central: FakeCentral())  // default .readOnly
         client.intentionalDisconnectForTesting = true
 
-        #expect(throws: PumpBLEClient.ClientError.writeBlocked(policy: .readOnly, opcode: PlaySoundRequest().opCode)) {
-            try client.send(PlaySoundRequest())
+        #expect(
+            throws: PumpBLEClient.ClientError.writeBlocked(
+                policy: .readOnly, opcode: DismissNotificationRequest.props.opCode)
+        ) {
+            try client.send(DismissNotificationRequest(kind: .alert, notificationId: 0))
         }
     }
 }

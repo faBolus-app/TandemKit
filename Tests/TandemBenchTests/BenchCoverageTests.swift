@@ -274,56 +274,30 @@ import TandemMessages
         } else {
             Issue.record("expected N/A on new t:slim")
         }
-        #expect(plan("SetTempRateRequest", Self.mobiSaline) == .exercise(.delivery))
+        // On a Mobi it is still never sent: not one of the six allowed signed writes.
+        if case .notApplicable(let r) = plan("SetTempRateRequest", Self.mobiSaline) {
+            #expect(r.contains("never sent"))
+        } else {
+            Issue.record("expected never-sent on a Mobi")
+        }
     }
 
-    /// Signed-write disposition now follows the reversible-affordance catalog: destructive/irreversible →
-    /// MANUAL gap; reversible-but-not-yet-wired → pending gap; a wired reversible affordance → exercise.
-    @Test func signedWriteDispositionFollowsAffordanceCatalog() {
-        // Destructive → MANUAL gap (never auto-fired).
-        if case .gap(let r) = plan("FactoryResetRequest", Self.oldTslim) {
-            #expect(r.contains("MANUAL"))
-        } else {
-            Issue.record("expected MANUAL gap for FactoryReset")
+    /// A signed write outside TandemKit's six allowed ones is never sent, so the bench can't cover it,
+    /// whatever its affordance; the allowed ones follow the affordance catalog.
+    @Test func signedWriteDispositionFollowsTheAllowlistThenTheAffordanceCatalog() {
+        for name in [
+            "FactoryResetRequest", "ActivateShelfModeRequest", "SetBgReminderRequest", "SetMaxBolusLimitRequest",
+            "ChangeTimeDateRequest", "PlaySoundRequest", "BolusPermissionReleaseRequest"
+        ] {
+            if case .notApplicable(let r) = plan(name, Self.oldTslim) {
+                #expect(r.contains("never sent"), "\(name): \(r)")
+            } else {
+                Issue.record("\(name) should be never-sent on the old t:slim")
+            }
         }
-        if case .gap(let r) = plan("ActivateShelfModeRequest", Self.oldTslim) {
-            #expect(r.contains("MANUAL"))
-        } else {
-            Issue.record("expected MANUAL gap for ActivateShelfMode")
-        }
-        // Reversible-but-unwired → pending gap.
-        if case .gap(let r) = plan("SetBgReminderRequest", Self.oldTslim) {
-            #expect(r.contains("pending"))
-        } else {
-            Issue.record("expected pending gap for SetBgReminder")
-        }
-        // Wired reversible affordances → exercise (no PUMPX2_DELIVER_SALINE needed).
-        // SetMaxBolusLimit / ChangeTimeDate / PlaySound now carry the conservative minApi floor
-        // (`.benchConservativeUnverifiedFloor` = 3.4), which the classifier checks BEFORE the affordance
-        // logic, so the API-2.5 oldTslim session correctly DEFERS them instead of exercising.
-        if case .deferred(let r) = plan("SetMaxBolusLimitRequest", Self.oldTslim) {
-            #expect(r.contains("3.4"))
-        } else {
-            Issue.record("SetMaxBolusLimit should defer on the API-2.5 t:slim (conservative minApi floor)")
-        }
-        if case .deferred(let r) = plan("ChangeTimeDateRequest", Self.oldTslim) {
-            #expect(r.contains("3.4"))
-        } else {
-            Issue.record("ChangeTimeDate should defer on the API-2.5 t:slim (conservative minApi floor)")
-        }
-        #expect(plan("BolusPermissionRequest", Self.oldTslim) == .exercise(.signedWrite))  // benignProbe (minApi .v2_5)
-        if case .deferred(let r) = plan("PlaySoundRequest", Self.oldTslim) {
-            #expect(r.contains("3.4"))
-        } else {
-            Issue.record("PlaySound should defer on the API-2.5 t:slim (conservative minApi floor)")
-        }
+        #expect(plan("BolusPermissionRequest", Self.oldTslim) == .exercise(.signedWrite))  // benignProbe
         #expect(plan("CancelBolusRequest", Self.oldTslim) == .exercise(.signedWrite))  // benignProbe
-        // Restore-half of a delivery pair → GAP (recorded when the primary pair runs behind the saline gate).
-        if case .gap(let r) = plan("ExitChangeCartridgeModeRequest", Self.oldTslim) {
-            #expect(r.contains("restore-half"))
-        } else {
-            Issue.record("expected restore-half gap for ExitChangeCartridgeMode")
-        }
+        #expect(plan("RemoteCarbEntryRequest", Self.oldTslim) == .exercise(.signedWrite))
     }
 
     /// Pairing coverage is attributed by scheme + API floor.
@@ -349,7 +323,7 @@ import TandemMessages
         // On a fully-loaded Mobi+CGM session, at least the universal + Mobi delivery commands are exercisable.
         let untested = cells.filter { $0.state == .untested }.map { $0.command }
         #expect(untested.contains("InitiateBolusRequest"))
-        #expect(untested.contains("SetTempRateRequest"))
+        #expect(!untested.contains("SetTempRateRequest"))  // never sent
     }
 }
 
@@ -562,39 +536,23 @@ import TandemMessages
         #expect(!allow.contains("FactoryResetRequest"))
     }
 
-    /// Runner lane planning: on a saline Mobi (+CGM) every one of the 14 delivery commands is exercisable;
-    /// on a no-cartridge t:slim the universal ones defer (no cartridge) and the Mobi-only ones are N/A.
+    /// Runner lane planning: of the delivery commands, only InitiateBolus is ever sent, so it alone is
+    /// exercisable on a saline Mobi; on a no-cartridge t:slim it defers for the cartridge.
     @Test func l0BdeliveryPlanningAcrossConfigs() {
         let mobiFull = BenchCoveragePlanTests.mobiSalineCgm
         for a in BenchAffordanceCatalog.deliveryAffordances {
-            let c = cmd(a.command)
-            // Mobi + CGM + saline: exercisable regardless of model (all 14 are Mobi-legal or universal).
-            #expect(
-                BenchCoverage.plan(for: c, in: mobiFull) == .exercise(.delivery),
-                "\(a.command) should be exercisable on a saline Mobi+CGM session")
+            let plan = BenchCoverage.plan(for: cmd(a.command), in: mobiFull)
+            if a.command == "InitiateBolusRequest" {
+                #expect(plan == .exercise(.delivery))
+            } else if case .notApplicable(let r) = plan {
+                #expect(r.contains("never sent"), "\(a.command): \(r)")
+            } else {
+                Issue.record("\(a.command) should be never-sent: \(plan)")
+            }
         }
-        // No-cartridge t:slim: universal delivery defers on cartridge; Mobi-only delivery is N/A.
-        if case .deferred = BenchCoverage.plan(
-            for: cmd("EnterChangeCartridgeModeRequest"), in: BenchCoveragePlanTests.oldTslim)
-        {
+        if case .deferred = BenchCoverage.plan(for: cmd("InitiateBolusRequest"), in: BenchCoveragePlanTests.oldTslim) {
         } else {
-            Issue.record("universal delivery should defer (no cartridge) on the old t:slim")
-        }
-        if case .notApplicable = BenchCoverage.plan(
-            for: cmd("SuspendPumpingRequest"), in: BenchCoveragePlanTests.oldTslim)
-        {
-        } else {
-            Issue.record("Mobi-only delivery should be N/A on a t:slim")
-        }
-        // Drivable signed writes need no saline gate, but SetMaxBolusLimitRequest now carries the
-        // conservative minApi floor (3.4) which gates it ahead of the affordance check — it correctly
-        // DEFERS on the API-2.5 old t:slim rather than exercising.
-        if case .deferred(let r) = BenchCoverage.plan(
-            for: cmd("SetMaxBolusLimitRequest"), in: BenchCoveragePlanTests.oldTslim)
-        {
-            #expect(r.contains("3.4"))
-        } else {
-            Issue.record("SetMaxBolusLimit should defer on the API-2.5 t:slim (conservative minApi floor)")
+            Issue.record("InitiateBolus should defer (no cartridge) on the old t:slim")
         }
     }
 }

@@ -23,6 +23,9 @@ oracle-parity test.**
 - `Sources/TandemMessages/` — messages + framing. `MessageProps` per type (`opCode`, `size`, `signed`,
   `characteristic`, `modifiesInsulinDelivery`, `responseOpCode`). `ResponseParser` dispatches on
   **(characteristic, opCode)** — opcodes are not globally unique.
+- `Sources/TandemMessages/Core/SupportMatrix.swift` — which commands a pump answers (supported,
+  unsupported, untested), with evidence per pump unit and firmware, and the six signed writes that
+  are ever sent (`allowedSignedWrites`; `PumpBLEClient.send` refuses every other signed write).
 - `Sources/TandemAuth/` — `PairingCoordinator`, `JpakeAuth` / `EcJpakeContext` (EC-JPAKE via vendored
   mbedTLS), `Crypto`.
 - `Sources/TandemBLE/` — `PumpBLEClient`. `WritePolicy` is risk-tiered: `.readOnly` (default),

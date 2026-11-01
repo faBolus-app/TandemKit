@@ -9,7 +9,7 @@ import Foundation
 /// trailing pad byte that a strict reader rejects. pumpx2 fixed both directions (3af6d36a pads its
 /// own scalars; 6ef10609 accepts a short round from the peer); this is the same fix for a client
 /// built on mbedTLS. Every reader turns the length-prefixed scalar into an integer, so a padded
-/// scalar is still read correctly by a peer that writes minimal length (F23).
+/// scalar is still read correctly by a peer that writes minimal length.
 ///
 /// Layout (each `opaque<1..255>` is a one-byte length and that many bytes):
 /// - ECJPAKEKeyKP = ECPoint X, ECSchnorrZKP { ECPoint V, opaque r };

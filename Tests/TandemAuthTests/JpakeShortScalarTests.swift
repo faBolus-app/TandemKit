@@ -2,7 +2,7 @@ import Testing
 import TandemMessages
 @testable import TandemAuth
 
-/// A ZKP scalar comes out a byte short about 1 time in 256 per scalar (F23). These handshakes are
+/// A ZKP scalar comes out a byte short about 1 time in 256 per scalar. These handshakes are
 /// seeded so each one has a short scalar in exactly one place, in our rounds and in the pump's, and
 /// run on every test run instead of turning up as a 1-in-100 pairing failure. Adapted from pumpx2's
 /// `JpakeShortScalarTest` (b5fb3069), with mbedTLS on both sides of the handshake.

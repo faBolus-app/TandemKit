@@ -10,8 +10,7 @@ import Foundation
 public struct SetMaxBolusLimitRequest: Message {
     public static let props = MessageProps(
         opCode: 0x86, size: 2, signed: true, type: .request,
-        characteristic: .control, responseOpCode: 0x87,
-        minApi: .benchConservativeUnverifiedFloor)  // CONSERVATIVE/UNVERIFIED bench floor (T-1, >2.5 only)
+        characteristic: .control, responseOpCode: 0x87)
 
     /// Matches pumpX2's own unconditionally-enforced floor/ceiling (`SetMaxBolusLimitRequest.java`
     /// MIN/MAX_BOLUS_LIMIT_MILLIUNITS), but the app team has not independently bench-confirmed it, so it is
@@ -52,8 +51,7 @@ public struct SetMaxBolusLimitRequest: Message {
 public struct SetMaxBasalLimitRequest: Message {
     public static let props = MessageProps(
         opCode: 0x88, size: 4, signed: true, type: .request,
-        characteristic: .control, responseOpCode: 0x89,
-        minApi: .benchConservativeUnverifiedFloor)  // CONSERVATIVE/UNVERIFIED bench floor (T-1, >2.5 only)
+        characteristic: .control, responseOpCode: 0x89)
 
     /// Matches pumpX2's own unconditionally-enforced floor/ceiling (`SetMaxBasalLimitRequest.java`
     /// MIN/MAX_BASAL_LIMIT_MILLIUNITS), CONSERVATIVE/UNVERIFIED pending bench.

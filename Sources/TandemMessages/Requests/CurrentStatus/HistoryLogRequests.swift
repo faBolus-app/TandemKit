@@ -23,8 +23,7 @@ public struct HistoryLogStatusRequest: EmptyCurrentStatusRequest {
 public struct HistoryLogRequest: Message {
     public static let props = MessageProps(
         opCode: 60, size: 5, type: .request,
-        characteristic: .currentStatus, responseOpCode: 61,
-        minApi: .benchConservativeUnverifiedFloor)  // CONSERVATIVE/UNVERIFIED bench floor (T-1 op-77, >2.5 only)
+        characteristic: .currentStatus, responseOpCode: 61)
     public var cargo: [UInt8]
     public private(set) var startLog: UInt32 = 0
     public private(set) var numberOfLogs: Int = 0

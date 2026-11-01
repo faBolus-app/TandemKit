@@ -14,10 +14,10 @@ import Testing
         let m = try #require(HistoryLogParser.parse(record: rec) as? PumpingSuspendedHistoryLog)
         #expect(m.pumpTimeSec == 587_315_465)
         #expect(m.sequenceNum == 744_310)
-        #expect(m.preSuspendState == 106)   // uint32 @10
+        #expect(m.preSuspendState == 106)  // uint32 @10
         #expect(m.insulinAmount == 150)
         #expect(m.reasonId == 1)
-        #expect(m.rpaTimeout == 15)         // byte @17
+        #expect(m.rpaTimeout == 15)  // byte @17
     }
 
     @Test func pumpingSuspendedUserAbortedWithRpaTimeout() throws {
@@ -27,7 +27,7 @@ import Testing
         #expect(m.sequenceNum == 748_755)
         #expect(m.preSuspendState == 106)
         #expect(m.insulinAmount == 105)
-        #expect(m.reasonId == 0)            // USER_ABORTED
+        #expect(m.reasonId == 0)  // USER_ABORTED
         #expect(m.rpaTimeout == 15)
     }
 
@@ -36,7 +36,7 @@ import Testing
         let m = try #require(HistoryLogParser.parse(record: rec) as? PumpingResumedHistoryLog)
         #expect(m.pumpTimeSec == 587_315_910)
         #expect(m.sequenceNum == 744_340)
-        #expect(m.preResumeState == 100)    // uint32 @10
+        #expect(m.preResumeState == 100)  // uint32 @10
         #expect(m.insulinAmount == 150)
     }
 
@@ -57,9 +57,9 @@ import Testing
         #expect(m.pumpTimeSec == 446_033_777)
         #expect(m.sequenceNum == 182_751)
         #expect(m.bolusId == 1037)
-        #expect(m.selectedIob == 1)         // byte @12
+        #expect(m.selectedIob == 1)  // byte @12
         #expect(m.iob == 0.0)
-        #expect(abs(m.bolusSize - 1.1) < 0.0001) // existing, unchanged
+        #expect(abs(m.bolusSize - 1.1) < 0.0001)  // existing, unchanged
     }
 
     @Test func bolusActivatedSelectedIob2() throws {
@@ -81,9 +81,9 @@ import Testing
         let m = try #require(HistoryLogParser.parse(record: rec) as? CgmAlertAckDexHistoryLog)
         #expect(m.pumpTimeSec == 580_750_504)
         #expect(m.sequenceNum == 489_859)
-        #expect(m.alertId == 2)             // byte @10 (was 770 under the old 4-byte read)
-        #expect(m.sensorType == 3)          // byte @11
-        #expect(m.ackSource == 0)           // uint32 @14
+        #expect(m.alertId == 2)  // byte @10 (was 770 under the old 4-byte read)
+        #expect(m.sensorType == 3)  // byte @11
+        #expect(m.ackSource == 0)  // uint32 @14
     }
 
     @Test func cgmAlertAckDex2NonDefaultAckSource() throws {
@@ -91,9 +91,9 @@ import Testing
         let m = try #require(HistoryLogParser.parse(record: rec) as? CgmAlertAckDexHistoryLog)
         #expect(m.pumpTimeSec == 579_789_268)
         #expect(m.sequenceNum == 449_784)
-        #expect(m.alertId == 32)            // byte @10 (was 800 under the old 4-byte read)
+        #expect(m.alertId == 32)  // byte @10 (was 800 under the old 4-byte read)
         #expect(m.sensorType == 3)
-        #expect(m.ackSource == 1)           // non-default source
+        #expect(m.ackSource == 1)  // non-default source
     }
 
     @Test func cgmAlertActivatedDex1() throws {
@@ -103,9 +103,9 @@ import Testing
         #expect(m.sequenceNum == 490_757)
         #expect(m.alertId == 2)
         #expect(m.sensorType == 3)
-        #expect(m.faultLocatorData == 8468) // uint32 @14
-        #expect(m.param1 == 208)            // uint32 @18
-        #expect(m.param2 == 200.0)          // float @22
+        #expect(m.faultLocatorData == 8468)  // uint32 @14
+        #expect(m.param1 == 208)  // uint32 @18
+        #expect(m.param2 == 200.0)  // float @22
     }
 
     @Test func cgmAlertActivatedDex2() throws {
@@ -147,11 +147,11 @@ import Testing
         #expect(m.sequenceNum == 490_889)
         #expect(m.currentPcmId == 0)
         #expect(m.previousPcmId == 3)
-        #expect(m.pumpSuspendedRaw == 1)       // byte @12
-        #expect(m.calculationAvailableRaw == 1) // byte @13
-        #expect(m.cgmAvailableRaw == 1)        // byte @14
-        #expect(m.closedLoopPreferredRaw == 1) // byte @15
-        #expect(m.sufficientClosedLoopParamsRaw == 1) // byte @16
+        #expect(m.pumpSuspendedRaw == 1)  // byte @12
+        #expect(m.calculationAvailableRaw == 1)  // byte @13
+        #expect(m.cgmAvailableRaw == 1)  // byte @14
+        #expect(m.closedLoopPreferredRaw == 1)  // byte @15
+        #expect(m.sufficientClosedLoopParamsRaw == 1)  // byte @16
     }
 
     @Test func controlIQPcmChange2() throws {
@@ -175,13 +175,13 @@ import Testing
         #expect(m.sequenceNum == 456_965)
         #expect(m.currentUserMode == 1)
         #expect(m.previousUserMode == 2)
-        #expect(m.requestedActionRaw == 4)     // byte @12
-        #expect(m.sleepStartedByGuiRaw == 0)   // byte @14
-        #expect(m.activeSleepSchedule == 1) // byte @15
-        #expect(m.exerciseStoppedByTimerRaw == 0) // byte @18
-        #expect(m.exerciseChoiceRaw == 0)      // byte @19
-        #expect(m.exerciseTime == 0)        // uint16 @20
-        #expect(m.eatingSoonStoppedByTimerRaw == 0) // byte @22
+        #expect(m.requestedActionRaw == 4)  // byte @12
+        #expect(m.sleepStartedByGuiRaw == 0)  // byte @14
+        #expect(m.activeSleepSchedule == 1)  // byte @15
+        #expect(m.exerciseStoppedByTimerRaw == 0)  // byte @18
+        #expect(m.exerciseChoiceRaw == 0)  // byte @19
+        #expect(m.exerciseTime == 0)  // uint16 @20
+        #expect(m.eatingSoonStoppedByTimerRaw == 0)  // byte @22
     }
 
     @Test func controlIQUserModeChange2() throws {

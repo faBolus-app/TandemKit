@@ -63,57 +63,25 @@ import Testing
         #expect(!(ApiVersion.mobi_v3_5 < ApiVersion.mobi_v3_5))
     }
 
-    // MARK: - Nine API-2.5 op-77 signed writes carry `.benchConservativeUnverifiedFloor`
+    // MARK: - The 22 commands the old bench floor blocked carry no API floor
     //
-    // Each of these MessageProps declares `minApi: .benchConservativeUnverifiedFloor` (= .v3_4).
-    // A known below-floor apiVersion is gated; a nil apiVersion still fails open.
-    @Test func nineSignedWritesCarryTheConservativeFloor() {
-        let floored: [MessageProps] = [
-            SetLowInsulinAlertRequest.props,
-            SetAutoOffAlertRequest.props,
-            ChangeControlIQSettingsRequest.props,
-            UserInteractionRequest.props,
-            SetMaxBolusLimitRequest.props,
-            SetMaxBasalLimitRequest.props,
-            PlaySoundRequest.props,
-            SetPumpSoundsRequest.props,
-            ChangeTimeDateRequest.props
-        ]
-        for props in floored {
-            #expect(props.minApi == .benchConservativeUnverifiedFloor)
-            // Known below-floor apiVersion (2.5, the bench-observed op-77 firmware) ⇒ gated (no-send).
-            #expect(props.isSupported(onModel: .tslim, apiVersion: .v2_5) == false)
-            // Known at-floor apiVersion ⇒ supported (floor is inclusive minimum).
-            #expect(props.isSupported(onModel: .tslim, apiVersion: .v3_4))
-            // Unknown apiVersion ⇒ fails open (apiVersion is still nil at every call site).
-            #expect(props.isSupported(onModel: .tslim, apiVersion: nil))
-        }
-    }
-
-    // MARK: - Bench-observed op-77-class reads carry the same conservative floor
-    //
-    // Same assertion shape as the writes above: known below-floor apiVersion is gated; nil fails open.
-    @Test func benchObservedReadsCarryTheConservativeFloor() {
-        let flooredReads: [MessageProps] = [
-            LoadStatusRequest.props,
-            ExtendedBolusStatusV2Request.props,
-            TempRateStatusRequest.props,
-            BasalIQStatusRequest.props,
-            BasalIQSettingsRequest.props,
-            BasalIQAlertInfoRequest.props,
-            BleSoftwareInfoRequest.props,
-            SecretMenuRequest.props,
-            HistoryLogRequest.props,
-            IDPSettingsRequest.props,
-            IDPSegmentRequest.props,
-            CreateHistoryLogRequest.props,
+    // Upstream leaves all of them unannotated. Whether a pump answers one is now the support matrix's
+    // question (per unit and firmware), and no signed write among them is ever sent.
+    @Test func formerlyFlooredCommandsCarryNoApiFloor() {
+        let props: [MessageProps] = [
+            SetLowInsulinAlertRequest.props, SetAutoOffAlertRequest.props, ChangeControlIQSettingsRequest.props,
+            UserInteractionRequest.props, SetMaxBolusLimitRequest.props, SetMaxBasalLimitRequest.props,
+            PlaySoundRequest.props, SetPumpSoundsRequest.props, ChangeTimeDateRequest.props,
+            LoadStatusRequest.props, ExtendedBolusStatusV2Request.props, TempRateStatusRequest.props,
+            BasalIQStatusRequest.props, BasalIQSettingsRequest.props, BasalIQAlertInfoRequest.props,
+            BleSoftwareInfoRequest.props, SecretMenuRequest.props, HistoryLogRequest.props,
+            IDPSettingsRequest.props, IDPSegmentRequest.props, CreateHistoryLogRequest.props,
             StreamDataReadinessRequest.props
         ]
-        for props in flooredReads {
-            #expect(props.minApi == .benchConservativeUnverifiedFloor)
-            #expect(props.isSupported(onModel: .tslim, apiVersion: .v2_5) == false)
-            #expect(props.isSupported(onModel: .tslim, apiVersion: .v3_4))
-            #expect(props.isSupported(onModel: .tslim, apiVersion: nil))
+        #expect(props.count == 22)
+        for p in props {
+            #expect(p.minApi == nil)
+            #expect(p.isSupported(onModel: .tslim, apiVersion: .v2_5))
         }
     }
 

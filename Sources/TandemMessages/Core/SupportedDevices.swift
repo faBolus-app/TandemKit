@@ -15,7 +15,7 @@ public enum PumpModel: Sendable, Equatable, CaseIterable {
 /// `com.jwoglom.pumpx2.pump.messages.models.ApiVersion`. `Comparable` so a message's `minApi`
 /// floor can be compared against the connected pump's negotiated version. The named constants
 /// mirror upstream `KnownApiVersion` — the exact values the `@MessageProps` `minApi=` tags carry.
-public struct ApiVersion: Sendable, Comparable, Equatable, Hashable {
+public struct ApiVersion: Sendable, Comparable, Equatable, Hashable, Codable {
     public let major: Int
     public let minor: Int
 
@@ -51,18 +51,6 @@ public extension ApiVersion {
     /// message is gated for any KNOWN target (and, per fail-open, still sent to an unknown target).
     static let future = ApiVersion(major: 99, minor: 99)
 
-    /// ⚠️ CONSERVATIVE, UNVERIFIED bench placeholder — **NOT a proven firmware floor; DO NOT treat as fact.**
-    /// Bench T-1 (2026-08-23, old t:slim) observed 9 non-remote-bolus signed writes (PlaySound, UserInteraction,
-    /// ChangeControlIQSettings, SetMaxBolus/BasalLimit, SetLowInsulin/AutoOffAlert, SetPumpSounds, ChangeTimeDate)
-    /// op-77 + drop the BLE link on an API-2.5 pump — which proves ONLY that the floor is **> 2.5**. This
-    /// tag reaches 22 commands total (13 reads + 9 signed writes) across the annotated request families; only
-    /// the 9 signed writes were bench-exercised, and the 13 reads carry the same conservative tag by
-    /// inheritance, not by their own bench observation. The exact floor is UNDETERMINED: upstream pumpX2
-    /// (pinned + latest `main`) leaves all 9 unannotated. `.v3_4` is the conservative upper bound we can
-    /// currently reach; it fails SAFE for the send-gate (`isSupported`) — a pump below 3.4 gets a NO-SEND,
-    /// never a link-drop. Tighten to the REAL floor once an N-1 (API 3.4) / API 3.2 bench confirms acceptance.
-    /// See `faBolus/.planning/debug/bench-t1-coverage-resilience.md`.
-    static let benchConservativeUnverifiedFloor = ApiVersion.v3_4
 }
 
 /// Bootstrap-read allowlist key. Keyed by **(Characteristic, opCode)** — never a raw opcode —
@@ -73,13 +61,25 @@ public extension ApiVersion {
 /// cannot confuse them by construction — the read is `(.currentStatus, 0xA4)`, the delivery command
 /// `(.control, 0xA4)`, distinct Hashable values even though the raw byte matches. Pinned by
 /// faBolus's `PumpDeliveryOpcodeScopeGuardTests` (that suite lives in the app repo, not here).
-public struct SendGateAllowlistKey: Hashable, Sendable {
+public typealias SendGateAllowlistKey = MessageKey
+
+/// A message's identity on the wire: **(Characteristic, opCode)**, since opcodes are only unique per
+/// characteristic.
+public struct MessageKey: Hashable, Sendable, Codable {
     public let characteristic: Characteristic
     public let opCode: UInt8
 
     public init(characteristic: Characteristic, opCode: UInt8) {
         self.characteristic = characteristic
         self.opCode = opCode
+    }
+
+    public init(_ type: (some Message).Type) {
+        self.init(characteristic: type.props.characteristic, opCode: type.props.opCode)
+    }
+
+    public init(_ message: some Message) {
+        self.init(type(of: message))
     }
 }
 

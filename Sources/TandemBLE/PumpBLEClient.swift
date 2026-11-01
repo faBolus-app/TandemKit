@@ -88,6 +88,9 @@ public final class PumpBLEClient: NSObject {
         case writeFailed(Characteristic)
         /// A message was refused by the current `writePolicy`.
         case writeBlocked(policy: WritePolicy, opcode: UInt8)
+        /// A signed write outside `SupportMatrix.allowedSignedWrites`. Only those six are ever sent,
+        /// whatever the policy or the pump (P1 drops the link after rejecting one).
+        case signedWriteNotAllowed(opcode: UInt8)
         /// Known connected pump does not support this opcode (wrong family, or API below `minApi`).
         /// Refusal, not a delivery outcome — thrown BEFORE any byte is emitted, like `writeBlocked`.
         /// Unknown target fails open.
@@ -798,6 +801,9 @@ public final class PumpBLEClient: NSObject {
         // `.notReady`. `.readOnly` blocks any control/signed/delivery; `.allowNonDelivery` blocks
         // destructive too; `.allowBenignControl` permits only benign ops.
         if let authError = authorizationError(for: message) { throw authError }
+        if !SupportMatrix.isAllowedSignedWrite(message) {
+            throw ClientError.signedWriteNotAllowed(opcode: message.opCode)
+        }
         // Device/API send gate: refuse — do NOT emit — a message the known pump does not
         // support. Checked before readiness so a known-incompatible send can't hide behind
         // `.notReady`. Fail-open on an unknown target.

@@ -39,7 +39,8 @@ import Testing
             rec[10] = UInt8(id)
             let oracle = try OracleRunner.parseHistoryLog(hex: Hex.encode(rec))
             let fields = HistoryLogFieldParityTests.fields(fromToString: oracle.description)
-            let expected = CGMAlertStatusResponse.identifiers[id]?.constant ?? "<null>"  // how ToStringBuilder prints null
+            // "<null>" is how ToStringBuilder prints a null field.
+            let expected = CGMAlertStatusResponse.identifiers[id]?.constant ?? "<null>"
             #expect(fields["alert"] == expected, "CGM alert \(id)")
         }
     }

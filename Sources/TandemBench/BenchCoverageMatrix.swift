@@ -122,6 +122,15 @@ public enum BenchCoverage {
             return .exercise(.pairing)
         }
 
+        // TandemKit never sends any other signed write (`SupportMatrix.allowedSignedWrites`); the client
+        // refuses one before a byte is built, so the bench can't cover it.
+        if cmd.signed
+            && !SupportMatrix.allowedSignedWrites.contains(
+                MessageKey(characteristic: cmd.characteristic, opCode: cmd.opCode))
+        {
+            return .notApplicable("never sent — not one of TandemKit's six allowed signed writes")
+        }
+
         // Model gate: a command not legal for this model is N/A here (covered in that model's sessions).
         guard cmd.applicablePumpModels.contains(cfg.model) else {
             let models = cmd.applicablePumpModels.map { BenchSessionConfig.name(for: $0) }.joined(separator: "/")

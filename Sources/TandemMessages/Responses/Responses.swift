@@ -2009,7 +2009,7 @@ public struct ErrorResponse: ResponseMessage {
 
 /// An op-77 error on CONTROL whose HMAC trailer is absent, couldn't be checked, or doesn't verify.
 /// Anyone on the link can write a CRC-valid frame, so this is not evidence the pump refused the
-/// write: a signed write answered only by this has an unknown outcome (R2, R5). It is a separate
+/// write: a signed write answered only by this has an unknown outcome. It is a separate
 /// type so code that matches `ErrorResponse` can't treat it as a refusal by accident.
 public struct UnverifiedErrorResponse: ResponseMessage {
     public enum Reason: Sendable, Equatable {

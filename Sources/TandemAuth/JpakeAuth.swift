@@ -75,7 +75,7 @@ public final class EcJpakeContext {
 ///
 /// Round one (330 bytes) is split into the 1a/1b halves the pump expects, one KeyKP each. Every
 /// round we send has its ZKP scalars at full length, and every round we read is re-encoded the
-/// same way first, so a short scalar on either side can't shift the halves (`JpakeRound`, F23).
+/// same way first, so a short scalar on either side can't shift the halves (`JpakeRound`).
 /// The final signing
 /// key is `HKDF(serverNonce, derivedSecret)` — the same key `Packetize` uses to HMAC signed
 /// (insulin-affecting) commands. Validated in-process (client↔server derive equal secrets);

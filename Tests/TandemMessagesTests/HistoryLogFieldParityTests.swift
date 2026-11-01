@@ -34,15 +34,19 @@ import Testing
             let swiftNames = Set(Mirror(reflecting: event).children.compactMap(\.label))
             let javaOnly = Set(javaFields.keys).subtracting(swiftNames)
             let allowed = Self.upstreamEnumViews[oracle.className] ?? []
-            #expect(javaOnly.isSubset(of: allowed), "\(oracle.className) lacks upstream fields \(javaOnly.subtracting(allowed).sorted())")
+            #expect(
+                javaOnly.isSubset(of: allowed),
+                "\(oracle.className) lacks upstream fields \(javaOnly.subtracting(allowed).sorted())")
             for child in Mirror(reflecting: event).children {
                 guard let name = child.label, name != "cargo" else { continue }
                 guard let java = javaFields[name] else {
-                    Issue.record("\(type(of: event)).\(name) has no Java field of that name (java: \(javaFields.keys.sorted()))")
+                    Issue.record(
+                        "\(type(of: event)).\(name) has no Java field of that name (java: \(javaFields.keys.sorted()))")
                     continue
                 }
                 if !Self.equal(swift: child.value, java: java) {
-                    Issue.record("\(type(of: event)).\(name): swift=\(child.value) java=\(java) record=\(Hex.encode(rec))")
+                    Issue.record(
+                        "\(type(of: event)).\(name): swift=\(child.value) java=\(java) record=\(Hex.encode(rec))")
                 }
                 compared += 1
             }

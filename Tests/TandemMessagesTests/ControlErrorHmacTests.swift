@@ -3,7 +3,7 @@ import Testing
 
 /// An op-77 error on CONTROL answers a signed write, so it is trusted only when its HMAC trailer
 /// verifies. Anything else parses as `UnverifiedErrorResponse`, never as `ErrorResponse`, so a forged
-/// or damaged NACK can't make a write look refused (R5; the write's outcome stays unknown, R2).
+/// or damaged NACK can't make a write look refused; the write's outcome stays unknown.
 @Suite struct ControlErrorHmacTests {
     private let key = Array("6VeDeRAL5DCigGw2".utf8)
 
