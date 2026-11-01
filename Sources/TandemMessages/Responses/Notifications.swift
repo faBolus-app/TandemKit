@@ -20,12 +20,18 @@ public struct PumpNotification: Sendable, Equatable, Identifiable {
     public let detail: String?
     /// Malfunctions are hardware faults that can't be dismissed remotely (view-only).
     public let dismissable: Bool
-    public init(id: Int, kind: NotificationKind, title: String, detail: String?, dismissable: Bool = true) {
+    /// Upstream's identifier and the firmware's name for this id, for diagnostics; nil if unknown.
+    public let identifier: NotificationIdentifier?
+    public init(
+        id: Int, kind: NotificationKind, title: String, detail: String?, dismissable: Bool = true,
+        identifier: NotificationIdentifier? = nil
+    ) {
         self.id = id
         self.kind = kind
         self.title = title
         self.detail = detail
         self.dismissable = dismissable
+        self.identifier = identifier
     }
 }
 
@@ -33,7 +39,7 @@ public struct PumpNotification: Sendable, Equatable, Identifiable {
 enum NotificationBitmap {
     static func decode(
         _ bitmap: UInt64, kind: NotificationKind, names: [Int: (String, String?)],
-        fallbackLabel: String? = nil, dismissable: Bool = true
+        identifiers: [Int: NotificationIdentifier] = [:], fallbackLabel: String? = nil, dismissable: Bool = true
     ) -> [PumpNotification] {
         var out: [PumpNotification] = []
         for bit in 0..<64 where (bitmap >> UInt64(bit)) & 1 == 1 {
@@ -45,7 +51,8 @@ enum NotificationBitmap {
             out.append(
                 PumpNotification(
                     id: bit, kind: kind,
-                    title: info?.0 ?? "\(label) \(bit)", detail: info?.1, dismissable: dismissable))
+                    title: info?.0 ?? "\(label) \(bit)", detail: info?.1, dismissable: dismissable,
+                    identifier: identifiers[bit]))
         }
         return out
     }
@@ -66,7 +73,7 @@ public struct AlertStatusResponse: ResponseMessage {
     }
     public mutating func parse(_ raw: [UInt8]) { self = AlertStatusResponse(cargo: raw) }
     public var notifications: [PumpNotification] {
-        NotificationBitmap.decode(bitmap, kind: .alert, names: Self.names)
+        NotificationBitmap.decode(bitmap, kind: .alert, names: Self.names, identifiers: Self.identifiers)
     }
     /// id → (title, detail) lookup. The history-log `AlertActivatedHistoryLog.alertId` shares this
     /// numbering (upstream resolves it via AlertStatusResponse), so the Logbook can name events.
@@ -122,7 +129,7 @@ public struct AlarmStatusResponse: ResponseMessage {
     }
     public mutating func parse(_ raw: [UInt8]) { self = AlarmStatusResponse(cargo: raw) }
     public var notifications: [PumpNotification] {
-        NotificationBitmap.decode(bitmap, kind: .alarm, names: Self.names)
+        NotificationBitmap.decode(bitmap, kind: .alarm, names: Self.names, identifiers: Self.identifiers)
     }
     /// id → (title, detail) lookup, for naming `AlarmActivatedHistoryLog` events in the Logbook.
     public static func name(for id: Int) -> (title: String, detail: String?)? { names[id] }
@@ -160,7 +167,7 @@ public struct CGMAlertStatusResponse: ResponseMessage {
     }
     public mutating func parse(_ raw: [UInt8]) { self = CGMAlertStatusResponse(cargo: raw) }
     public var notifications: [PumpNotification] {
-        NotificationBitmap.decode(bitmap, kind: .cgmAlert, names: Self.names)
+        NotificationBitmap.decode(bitmap, kind: .cgmAlert, names: Self.names, identifiers: Self.identifiers)
     }
     /// id → (title, detail) lookup, for naming CGM-alert history-log events in the Logbook.
     public static func name(for id: Int) -> (title: String, detail: String?)? { names[id] }
