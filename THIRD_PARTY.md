@@ -13,7 +13,7 @@ canonical sources — it points to them:
 
 | Component | Upstream | License (SPDX) | Vendored at | Usage |
 |---|---|---|---|---|
-| pumpX2 protocol port | jwoglom/pumpx2 (© 2022 James Woglom) | MIT | hand-ported into `Sources/` | The Tandem message framing, opcodes, pairing (JPAKE + legacy V1), and HMAC signing are a Swift port of pumpX2. Covered by the root `LICENSE`; each ported type cites its Java origin. |
+| pumpX2 protocol port | jwoglom/pumpx2 (© 2022 James Woglom) | MIT | hand-ported into `Sources/` | The Tandem message framing, opcodes, pairing (JPAKE + legacy V1), and HMAC signing are a Swift port of pumpX2. Covered by the root `LICENSE`; each ported type cites its Java origin. Some tests adapt pumpx2's own: the captured history-log records (`HistoryLogCapturedRecordTests`) and the seeded short-scalar JPAKE tests (`JpakeShortScalarTests`, after `JpakeShortScalarTest`). |
 | pumpx2-oracle | jwoglom/pumpx2 (© 2022 James Woglom) | MIT | `vendor/pumpx2-oracle` (submodule) | The `cliparser` byte-parity oracle — **tests only**, never shipped. |
 | Mbed TLS | Mbed-TLS/mbedtls (v3.6.7) | Apache-2.0 OR GPL-2.0-or-later | `vendor/mbedtls` (submodule) | EC-JPAKE (secp256r1 / SHA-256) for the modern pairing handshake, compiled into `CMbedTLSJPAKE`. Used as Apache-2.0 (see `NOTICE.md`). |
 

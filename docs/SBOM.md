@@ -14,7 +14,7 @@ Format per row: component · version/revision · SPDX license · source · how T
 
 | Component | Version | License (SPDX) | Source | Usage |
 |---|---|---|---|---|
-| TandemKit (the Swift port) | in-repo | MIT | `Sources/` | Tandem t:slim X2 / Mobi protocol, auth (pairing + HMAC signing), and BLE transport. A hand-written Swift port of jwoglom/pumpx2 (MIT); each ported type's doc-comment cites its Java origin. Covered by the root `LICENSE`. |
+| TandemKit (the Swift port) | in-repo | MIT | `Sources/` | Tandem t:slim X2 / Mobi protocol, auth (pairing + HMAC signing), and BLE transport. A hand-written Swift port of jwoglom/pumpx2 (MIT); each ported type's doc-comment cites its Java origin. Covered by the root `LICENSE`. Tests adapted from pumpx2's (captured history-log records, short-scalar JPAKE) are covered the same way. |
 
 ## Vendored submodules
 
