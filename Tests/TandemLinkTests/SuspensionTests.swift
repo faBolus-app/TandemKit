@@ -9,7 +9,8 @@ import TandemMessages
 @Suite struct SuspensionTests {
     static let id = LinkHarness.pumpID
     let drop = BluetoothError(domain: "CBErrorDomain", code: 7)
-    let target = PumpTarget(peripheralID: LinkHarness.pumpID, model: .tslim, credentials: .legacy(code: LinkHarness.legacyCode))
+    let target = PumpTarget(
+        peripheralID: LinkHarness.pumpID, model: .tslim, credentials: .legacy(code: LinkHarness.legacyCode))
 
     @Test func linkThatHeldWhileSuspendedIsAHeldDropNotAFlap() {
         var h = LinkHarness()
@@ -37,7 +38,9 @@ import TandemMessages
         #expect(h.state.telemetry.spans.last?.reason == .linkLost(drop))
         let struck = h.allEvents.contains {
             if case .supportMatrixChanged(let m) = $0 {
-                return m.recorded.values.contains { $0.values.contains { $0.contains { $0.result == .droppedAfterError } } }
+                return m.recorded.values.contains {
+                    $0.values.contains { $0.contains { $0.result == .droppedAfterError } }
+                }
             }
             return false
         }
@@ -132,5 +135,40 @@ import TandemMessages
         h.apply(.stop)
         h.apply(.retest(MessageKey(LoadStatusRequest.self)))
         #expect(h.state.support.recorded[LinkHarness.p2Unit]?[MessageKey(LoadStatusRequest.self)] == nil)
+    }
+
+    @Test func queuedCopyOfACommandJustRejectedIsNeverSent() {
+        var h = LinkHarness()
+        h.makeReady()
+        let first = h.submit(LastBolusStatusV2Request())
+        let second = h.submit(LastBolusStatusV2Request())
+        h.replyError(code: 6)
+        h.advance(by: 1)
+        #expect(h.results[second] == .notSent(.unsupported))
+        #expect(h.writes(of: LastBolusStatusV2Request.self) == 1)
+        #expect(h.results[first] != nil)
+    }
+
+    @Test func connectingAgainKeepsTheMatrixTheLinkRecorded() {
+        var h = LinkHarness()
+        h.makeReady()
+        _ = h.submit(LastBolusStatusV2Request())
+        h.replyError(code: 6)
+        h.advance(by: 1)
+        h.apply(.connect(target, SupportMatrix()))  // the caller's older copy
+        let id = h.submit(LastBolusStatusV2Request())
+        #expect(h.results[id] == .notSent(.unsupported))
+    }
+
+    @Test func dropWhileSettingUpARestoredLinkIsNotAFlap() {
+        var h = LinkHarness()
+        h.apply(.restored([RestoredPeripheral(peripheralID: Self.id, isConnected: true, name: "tslim X2 ***693")]))
+        h.apply(.power(.resetting))  // may come before poweredOn at launch
+        h.apply(.connect(target, SupportMatrix()))
+        h.apply(.power(.poweredOn))
+        #expect(h.phase == .discovering)  // adopted, not reconnected
+        h.apply(.disconnected(peripheralID: Self.id, drop))
+        #expect(h.state.ladder.flaps == 0)
+        #expect(h.commands.contains(.connect(Self.id)))
     }
 }

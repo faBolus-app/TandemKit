@@ -124,15 +124,17 @@ import TandemMessages
     @Test func bluetoothOffAndOn() async {
         let r = rig()
         r.connection.connect(to: target, support: SupportMatrix())
+        r.pump.silent = true
         let pending = Task { await r.connection.send(CurrentBatteryV1Request(), deadline: 30) }
-        await Task.yield()
+        while r.pump.writes.last?.1 != CurrentBatteryV1Request.props.opCode { await Task.yield() }
         r.transport.bluetooth(on: false)
+        #expect(await pending.value == .unknown(.connectionLost))
         #expect(r.connection.state.phase == .waitingForBluetooth)
         r.clock.advance(by: 120)
+        r.pump.silent = false
         r.transport.bluetooth(on: true)
         #expect(r.connection.state.phase == .ready)
         #expect(r.connection.state.ladder.flaps == 0)
-        _ = await pending.value  // resumed, whatever the timing; never left hanging
     }
 
     @Test func outOfRangeForFiveMinutesAndBackInTheForeground() {
@@ -182,13 +184,19 @@ import TandemMessages
     @Test func cancelledCallerGetsAnAnswerAndTheLinkCarriesOn() async {
         let r = rig()
         r.connection.connect(to: target, support: SupportMatrix())
-        let task = Task { await r.connection.send(CurrentBatteryV1Request()) }
+        r.pump.silent = true
+        let task = Task { await r.connection.send(CurrentBatteryV1Request(), deadline: 10) }
+        while r.pump.writes.last?.1 != CurrentBatteryV1Request.props.opCode { await Task.yield() }
         task.cancel()
-        let result = await task.value
-        #expect(result == .notSent(.cancelled) || { if case .reply = result { return true } else { return false } }())
-        let next = await r.connection.send(CurrentBatteryV1Request())
-        guard case .reply = next else {
-            Issue.record("expected a reply, got \(next)")
+        #expect(await task.value == .unknown(.cancelled))
+        // Its slot stays busy until its deadline, so the next request waits, then goes out.
+        r.pump.silent = false
+        let next = Task { await r.connection.send(CurrentBatteryV1Request()) }
+        for _ in 0..<20 { await Task.yield() }
+        #expect(r.pump.writes.filter { $0.1 == CurrentBatteryV1Request.props.opCode }.count == 1)
+        r.clock.advance(by: 10)
+        guard case .reply = await next.value else {
+            Issue.record("expected a reply")
             return
         }
     }

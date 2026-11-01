@@ -113,6 +113,8 @@ public struct Connection: Sendable {
     var lastError: ErrorReply?
     /// Set when a probe on this connection drew an op-77; untested reads are refused after that.
     public internal(set) var probingStopped = false
+    /// Adopted from state restoration rather than connected by this process.
+    public internal(set) var adoptedFromRestore = false
     /// A dropped subscription being restored.
     var resubscribing: Set<Characteristic> = []
 }

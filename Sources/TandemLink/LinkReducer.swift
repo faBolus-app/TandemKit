@@ -116,16 +116,17 @@ private final class Step {
     // MARK: Caller
 
     func connect(_ target: PumpTarget, _ matrix: SupportMatrix) {
-        state.support = matrix
         state.wantsPairingScan = false
         if let model = target.model, !config.supportedModels.contains(model) {
             stopEverything(reason: .requested)
             state.target = target
+            state.support = matrix
             setPhase(.failed(.unsupportedModel(model)))
             return
         }
-        // Already connected or reconnecting to this pump: take the new credentials and matrix, and keep
-        // the link and the ladder, so calling connect again can't skip the backoff.
+        // Already connected or reconnecting to this pump: take the new credentials, and keep the link,
+        // the ladder and the matrix the link has been recording (the caller's copy may be older), so
+        // calling connect again can't skip the backoff or forget a rejected command.
         if state.target?.peripheralID == target.peripheralID {
             switch state.phase {
             case .idle, .failed, .exhausted, .scanning(forPairing: true): break
@@ -136,6 +137,7 @@ private final class Step {
         }
         stopEverything(reason: .requested)
         state.target = target
+        state.support = matrix
         state.ladder = ReconnectLadder()
         startConnecting()
     }
@@ -266,14 +268,14 @@ private final class Step {
 
     /// Sends the next request if the wire is free.
     func dispatch() {
-        guard let connection = state.connection, connection.inFlight == nil, connection.settleUntil == nil else {
-            return
-        }
+        guard let wire = state.connection, wire.inFlight == nil, wire.settleUntil == nil else { return }
         if state.phase == .handshaking {
             sendNextHandshakeRead()
             return
         }
         guard state.phase == .ready else { return }
+        refuseQueuedThatBecameUnsendable()
+        guard let connection = state.connection else { return }
         let held = connection.heldAt != nil
         for index in connection.queue.indices {
             let pending = connection.queue[index]
@@ -283,6 +285,29 @@ private final class Step {
             state.connection?.queue.remove(at: index)
             send(pending)
             return
+        }
+    }
+
+    /// While a request waited, its command may have been recorded unsupported or started sitting out
+    /// (another request for it drew an op-77). It's refused then, so it never reaches the pump.
+    func refuseQueuedThatBecameUnsendable() {
+        guard let connection = state.connection else { return }
+        let identity = connection.identity
+        var refused: [RequestID: NotSentReason] = [:]
+        for pending in connection.queue {
+            let key = pending.request.key
+            if state.sittingOut.contains(key) {
+                refused[pending.request.id] = .sittingOut
+            } else if state.support.entry(
+                for: key, unit: identity.unit, model: identity.model, apiVersion: identity.apiVersion
+            ).status == .unsupported {
+                refused[pending.request.id] = .unsupported
+            }
+        }
+        guard !refused.isEmpty else { return }
+        state.connection?.queue = connection.queue.filter { refused[$0.request.id] == nil }
+        for pending in connection.queue {
+            if let reason = refused[pending.request.id] { complete(pending.request.id, .notSent(reason)) }
         }
     }
 
@@ -331,7 +356,9 @@ private final class Step {
         guard power == .poweredOn else {
             // didDisconnect doesn't reliably follow a power-off, so the connection closes here.
             if state.connection != nil { closeConnection(.bluetoothUnavailable(power)) }
-            state.restored = []
+            // Off, unauthorized or unsupported ends every link iOS kept; unknown and resetting can come
+            // before poweredOn at launch, with the restored link still up.
+            if power != .unknown && power != .resetting { state.restored = [] }
             cancelTimer(.backoff)
             if case .scanning = state.phase { cancelTimer(.scan) }
             switch state.phase {
@@ -361,9 +388,12 @@ private final class Step {
         }
         state.restored = []
         if let restored, restored.isConnected {
-            // The link survived the app's termination; rediscover and authenticate on it.
+            // The link survived the app's termination; rediscover and authenticate on it. Unverified on a
+            // pump: pumpx2 notes a pump drops a link that sends a CentralChallenge after it already
+            // authenticated, so a drop before ready here isn't counted as a flap.
             setPhase(.connecting)
             connected(restored.peripheralID, restored.name)
+            state.connection?.adoptedFromRestore = true
             return
         }
         transport(.connect(target.peripheralID))
@@ -418,7 +448,7 @@ private final class Step {
         }
         setPhase(.discovering)
         startTimer(.establishment, after: config.establishmentTimeout)
-        transport(.discover)
+        transport(.discover(id))
         transport(.readDeviceInformation)
     }
 
@@ -463,8 +493,9 @@ private final class Step {
     func dropped(_ reason: DisconnectReason, exempt: Bool, cancel: Bool) {
         guard let connection = state.connection else { return }
         let held = connection.heldAt != nil
+        let restoredSetup = connection.adoptedFromRestore && connection.readyAt == nil
         if cancel { transport(.cancelConnection(connection.peripheralID)) }
-        if exempt || held {
+        if exempt || held || restoredSetup {
             closeConnection(reason)
             startConnecting()
         } else {

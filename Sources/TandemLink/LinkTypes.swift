@@ -396,7 +396,8 @@ public enum TransportCommand: Sendable, Equatable {
     /// `peripheralUnavailable` when it can't be resolved.
     case connect(UUID)
     case cancelConnection(UUID)
-    case discover
+    /// Set up this connected peripheral: it becomes the one the transport writes to and listens to.
+    case discover(UUID)
     case subscribe(Characteristic)
     case readDeviceInformation
     /// Write each packet, in order, with response.

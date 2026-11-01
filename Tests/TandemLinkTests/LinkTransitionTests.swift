@@ -96,7 +96,7 @@ import TandemMessages
         h.apply(.connect(target, SupportMatrix()))
         h.apply(.connected(peripheralID: LinkHarness.pumpID, name: "tslim X2 ***693"))
         #expect(h.phase == .discovering)
-        #expect(h.commands == [.discover, .readDeviceInformation])
+        #expect(h.commands == [.discover(LinkHarness.pumpID), .readDeviceInformation])
         #expect(h.timers[.establishment] == 30)
 
         h.apply(.characteristicsDiscovered(Set(Characteristic.allCases)))

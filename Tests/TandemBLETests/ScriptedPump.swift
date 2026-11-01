@@ -105,7 +105,7 @@ final class ScriptedTransport: LinkTransport {
                 pump.linked = false
                 report?(.disconnected(peripheralID: ScriptedPump.id, nil))
             }
-        case .discover:
+        case .discover(let id) where id == ScriptedPump.id:
             report?(.characteristicsDiscovered(Set(Characteristic.allCases)))
         case .subscribe(let c):
             report?(.subscription(c, isNotifying: true, failed: false))

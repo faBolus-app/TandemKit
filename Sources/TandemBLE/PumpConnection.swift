@@ -37,6 +37,9 @@ public typealias AuthenticatorFactory = @MainActor (PairingCredentials) throws -
 /// The link to one pump: runs `LinkReducer` and performs its effects. Everything the link knows is in
 /// `state`; this class keeps only what can't be a value (the transport, timers, the handshake object and
 /// the callers' continuations), and each of those is driven by an effect.
+///
+/// Keep one for the life of the pairing. Call `stop()` before releasing it: that answers every request
+/// still waiting, which a released connection can't do.
 @MainActor
 public final class PumpConnection {
     public private(set) var state: LinkState
@@ -100,8 +103,8 @@ public final class PumpConnection {
     /// Forgets this pump's recorded result for a command, so it's probed again (a developer setting).
     public func retest(_ key: MessageKey) { feed(.retest(key)) }
 
-    /// Sends `message` and waits for how it ended. `allowing` is the highest risk this one call grants
-    ///: pass `.delivery` only for the single delivery call. A signed write is sent at most once;
+    /// Sends `message` and waits for how it ended. `allowing` is the highest risk this one call grants:
+    /// pass `.delivery` only for the single delivery call. A signed write is sent at most once;
     /// anything but `.reply` or `.pumpError` after it went out is `.unknown`.
     public func send(
         _ message: any Message, allowing: OperationRisk = .read, deadline: Double = 10

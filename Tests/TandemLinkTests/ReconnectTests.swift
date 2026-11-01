@@ -262,7 +262,7 @@ import TandemMessages
         #expect(h.phase == .waitingForBluetooth)
         h.apply(.power(.poweredOn))
         #expect(h.phase == .discovering)
-        #expect(h.commands == [.discover, .readDeviceInformation])
+        #expect(h.commands == [.discover(LinkHarness.pumpID), .readDeviceInformation])
         h.apply(.characteristicsDiscovered(Set(Characteristic.allCases)))
         for c in ServiceUUID.notificationCharacteristics { h.apply(.subscription(c, isNotifying: true, failed: false)) }
         #expect(h.phase == .authenticating)

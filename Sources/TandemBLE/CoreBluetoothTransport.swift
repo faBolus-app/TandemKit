@@ -55,9 +55,13 @@ public final class CoreBluetoothTransport: NSObject, LinkTransport {
             central.connect(peripheral, options: [CBConnectPeripheralOptionNotifyOnDisconnectionKey: true])
         case .cancelConnection(let id):
             if let peripheral = peripherals[id] { central.cancelPeripheralConnection(peripheral) }
-        case .discover:
+        case .discover(let id):
+            // The link decides which peripheral is being set up; a stray that connects meanwhile
+            // doesn't take its place.
+            current = peripherals[id]
             characteristics = [:]
             modelNumber = nil
+            unacknowledged = [:]
             current?.discoverServices([Self.pumpService, Self.deviceInformationService])
         case .subscribe(let characteristic):
             guard let peripheral = current, let cb = characteristics[characteristic] else {
@@ -99,11 +103,7 @@ public final class CoreBluetoothTransport: NSObject, LinkTransport {
 
     fileprivate func connected(_ peripheral: CBPeripheral) {
         adopt(peripheral)
-        current = peripheral
-        characteristics = [:]
-        modelNumber = nil
         wantsModelNumber = false
-        unacknowledged = [:]
         report?(.connected(peripheralID: peripheral.identifier, name: peripheral.name))
     }
 
@@ -194,14 +194,13 @@ extension CoreBluetoothTransport: CBCentralManagerDelegate {
         // only; the compiler can't see that through the non-Sendable dictionary it comes from.
         nonisolated(unsafe) let restored = dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral] ?? []
         MainActor.assumeIsolated {
-            for peripheral in restored { adopt(peripheral) }
+            for peripheral in restored { adopt(peripheral) }  // the link picks which one to set up
             report?(
                 .restored(
                     restored.map {
                         RestoredPeripheral(
                             peripheralID: $0.identifier, isConnected: $0.state == .connected, name: $0.name)
                     }))
-            if let connected = restored.first(where: { $0.state == .connected }) { current = connected }
         }
     }
 
