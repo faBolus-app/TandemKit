@@ -179,8 +179,10 @@ public struct SupportMatrix: Sendable, Equatable, Codable {
     /// any error, not only BAD_OPCODE).
     static let classEvidence: [MessageKey: [SupportEvidence]] = {
         var e: [MessageKey: [SupportEvidence]] = [:]
-        func add(_ types: [any Message.Type], _ result: SupportEvidence.Result, _ source: SupportEvidence.Source,
-                 _ scope: SupportEvidence.Scope, _ note: String) {
+        func add(
+            _ types: [any Message.Type], _ result: SupportEvidence.Result, _ source: SupportEvidence.Source,
+            _ scope: SupportEvidence.Scope, _ note: String
+        ) {
             for t in types {
                 let key = MessageKey(characteristic: t.props.characteristic, opCode: t.props.opCode)
                 e[key, default: []].append(SupportEvidence(result: result, source: source, scope: scope, note: note))
@@ -230,7 +232,10 @@ public struct SupportMatrix: Sendable, Equatable, Codable {
         // P1, signed writes. Accepted: the remote-bolus family. BolusPermission was accepted but not
         // granted, because P1 has no cartridge.
         add(
-            [BolusPermissionRequest.self, CancelBolusRequest.self, RemoteCarbEntryRequest.self, RemoteBgEntryRequest.self],
+            [
+                BolusPermissionRequest.self, CancelBolusRequest.self, RemoteCarbEntryRequest.self,
+                RemoteBgEntryRequest.self
+            ],
             .supported, .bench, p1, "signed write accepted on P1")
         // Rejected with op-77 and a drop. Not allowed anyway; kept so the evidence is in one place.
         add(
@@ -245,8 +250,10 @@ public struct SupportMatrix: Sendable, Equatable, Codable {
 
         // P2, from the old app in use.
         add(
-            [BolusPermissionRequest.self, InitiateBolusRequest.self, CancelBolusRequest.self,
-             RemoteCarbEntryRequest.self, RemoteBgEntryRequest.self, DismissNotificationRequest.self],
+            [
+                BolusPermissionRequest.self, InitiateBolusRequest.self, CancelBolusRequest.self,
+                RemoteCarbEntryRequest.self, RemoteBgEntryRequest.self, DismissNotificationRequest.self
+            ],
             .supported, .device, p2, "used by the old app on P2 with a cartridge")
         add(
             [HistoryLogStatusRequest.self, HistoryLogRequest.self], .supported, .device, p2,
@@ -255,7 +262,10 @@ public struct SupportMatrix: Sendable, Equatable, Codable {
             [LastBolusStatusV2Request.self], .unsupported, .device, p2,
             "op-77 on P2, so a completed bolus can't be settled from it")
         add(
-            [LoadStatusRequest.self, InsulinStatusRequest.self, HomeScreenMirrorRequest.self, CurrentBatteryV2Request.self],
+            [
+                LoadStatusRequest.self, InsulinStatusRequest.self, HomeScreenMirrorRequest.self,
+                CurrentBatteryV2Request.self
+            ],
             .unsupported, .device, p2,
             "listed as rejected by the old app on P2, which rejected a read on any error; unconfirmed")
         return e

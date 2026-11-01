@@ -399,7 +399,10 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
             let frame = try await client.withWritePolicy(.readOnly) {
                 try await self.client.sendAwaitingResponse(req, deadline: 10)
             }
-            guard let typed = try ResponseParser.parse(frame: frame, characteristic: req.characteristic).message as? R
+            guard
+                let typed = try ResponseParser.parse(
+                    frame: frame, characteristic: req.characteristic, authenticationKey: authKey
+                ).message as? R
             else {
                 print("  ❓ \(label): unexpected response opcode")
                 return nil
@@ -668,7 +671,8 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
 
         print("\n--- Phase 3: signed-write ACCEPTANCE (BolusPermission → release; NO insulin) ---")
         if let f = await probeWrite(BolusPermissionRequest(), "signed BolusPermission"),
-            let resp = try? ResponseParser.parse(frame: f, characteristic: .control).message as? BolusPermissionResponse
+            let resp = try? ResponseParser.parse(frame: f, characteristic: .control, authenticationKey: authKey).message
+                as? BolusPermissionResponse
         {
             print("  → granted=\(resp.granted) bolusId=\(resp.bolusId) — the pump ACCEPTS our V1-signed write")
             if resp.granted {
@@ -946,7 +950,8 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
             // Cancel with no active bolus: the pump cleanly reports already-delivered/invalid — proves the
             // signed cancel path with no state change (never cancels a real in-progress bolus here).
             if let f = await probeWrite(CancelBolusRequest(bolusId: 0), "coverage CancelBolus (no active bolus)"),
-                let resp = try? ResponseParser.parse(frame: f, characteristic: .control).message as? CancelBolusResponse
+                let resp = try? ResponseParser.parse(frame: f, characteristic: .control, authenticationKey: authKey)
+                    .message as? CancelBolusResponse
             {
                 return (
                     .pass,
@@ -957,7 +962,8 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
             return (.pass, "signed cancel NACKed as expected (no active bolus)")
         case "BolusPermissionRequest":
             guard let f = await probeWrite(BolusPermissionRequest(), "coverage BolusPermission"),
-                let resp = try? ResponseParser.parse(frame: f, characteristic: .control).message
+                let resp = try? ResponseParser.parse(frame: f, characteristic: .control, authenticationKey: authKey)
+                    .message
                     as? BolusPermissionResponse,
                 resp.granted
             else { return (.fail, "permission not granted") }
@@ -1116,7 +1122,8 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
     private func driveAdditionalBolus() async -> (BenchCellState, String) {
         guard await awaitPaired() else { return (.fail, "not paired") }
         guard let permFrame = await probeWrite(BolusPermissionRequest(), "add-bolus permission"),
-            let perm = try? ResponseParser.parse(frame: permFrame, characteristic: .control).message
+            let perm = try? ResponseParser.parse(frame: permFrame, characteristic: .control, authenticationKey: authKey)
+                .message
                 as? BolusPermissionResponse,
             perm.granted
         else { return (.fail, "permission not granted") }
@@ -1236,7 +1243,8 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
             profileInsulinDuration: 300, timeSegmentBitmask: 1, bolusSettingsBitmask: 0,
             carbEntry: 1, idpSourceId: 0)
         guard let f = await probeWrite(create, "CreateIDP (throwaway)"),
-            let resp = try? ResponseParser.parse(frame: f, characteristic: .control).message as? CreateIDPResponse
+            let resp = try? ResponseParser.parse(frame: f, characteristic: .control, authenticationKey: authKey).message
+                as? CreateIDPResponse
         else {
             return (.fail, "CreateIDP not accepted")
         }
@@ -1367,7 +1375,8 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         let requestedUnits = Double(requestedMU) / 1000.0
         guard await awaitPaired() else { return .fail }
         guard let permFrame = await probeWrite(BolusPermissionRequest(), "coverage-deliver BolusPermission"),
-            let perm = try? ResponseParser.parse(frame: permFrame, characteristic: .control).message
+            let perm = try? ResponseParser.parse(frame: permFrame, characteristic: .control, authenticationKey: authKey)
+                .message
                 as? BolusPermissionResponse,
             perm.granted
         else { return .fail }
@@ -1375,7 +1384,7 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
             let mask = InitiateBolusRequest.typeBitmask(hasCarbs: false, hasCorrection: false, isExtended: false)
             // BENCH-CONFIRM (dose path, opcode-158): log the EMITTED type mask so the operator can compare it
             // against the pump's own BolusDeliveryHistoryLog bolus-type. Pre-#120 labels FOOD1(1)/CORRECTION(2)/
-            // EXTENDED(4)/FOOD2(8); this units-only bolus emits FOOD2. See docs/BENCH-COVERAGE.md → BENCH-CONFIRM.
+            // EXTENDED(4)/FOOD2(8); this units-only bolus emits FOOD2. See Bench/docs/BENCH-COVERAGE.md → BENCH-CONFIRM.
             print(
                 "  🔬 BENCH-CONFIRM (opcode-158 type bits): units-only bolus emits bolusTypeBitmask=0x"
                     + "\(String(mask, radix: 16)) (FOOD2) — compare vs the pump's recorded BolusDeliveryHistoryLog type"
@@ -1387,7 +1396,8 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
                     allowInsulinDelivery: true, deadline: 10, serialized: true)
             }
             guard
-                let resp = try? ResponseParser.parse(frame: frame, characteristic: .control).message
+                let resp = try? ResponseParser.parse(frame: frame, characteristic: .control, authenticationKey: authKey)
+                    .message
                     as? InitiateBolusResponse,
                 resp.accepted
             else { return .fail }
@@ -1439,7 +1449,8 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
         print("  Driving a 0.10 u bolus through BOTH walls with NO cartridge; recording the REJECTION.")
         var passed = false, note = ""
         if let f = await probeWrite(BolusPermissionRequest(), "no-cart BolusPermission"),
-            let perm = try? ResponseParser.parse(frame: f, characteristic: .control).message as? BolusPermissionResponse
+            let perm = try? ResponseParser.parse(frame: f, characteristic: .control, authenticationKey: authKey).message
+                as? BolusPermissionResponse
         {
             if !perm.granted {
                 passed = true
@@ -1454,7 +1465,9 @@ final class Monitor: NSObject, PumpBLEClientDelegate {
                             req, authenticationKey: self.authKey, pumpTimeSinceReset: self.signingTimestamp,
                             allowInsulinDelivery: true, deadline: 10, serialized: true)
                     }
-                    if let resp = try? ResponseParser.parse(frame: frame, characteristic: .control).message
+                    if let resp = try? ResponseParser.parse(
+                        frame: frame, characteristic: .control, authenticationKey: authKey
+                    ).message
                         as? InitiateBolusResponse
                     {
                         passed = !resp.accepted

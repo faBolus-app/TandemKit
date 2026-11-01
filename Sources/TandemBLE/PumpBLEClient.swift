@@ -67,7 +67,7 @@ extension CBCentralManager: PumpCentral {}
 /// 2026-08-07). This BLE path can only be exercised on hardware through the `TandemBenchHarness`
 /// executable, not `swift test` — a macOS test host lacks `NSBluetoothAlwaysUsageDescription` and is
 /// TCC-aborted at scan. Cartridge-dependent items (saline delivery on the legacy pump, mid-delivery
-/// cancel) remain bench-gated (see `docs/BENCH-SESSION-PLAN.md`).
+/// cancel) remain bench-gated (see `Bench/docs/BENCH-SESSION-PLAN.md`).
 @MainActor
 public final class PumpBLEClient: NSObject {
     public enum State: Equatable, Sendable {

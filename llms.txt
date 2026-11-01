@@ -8,7 +8,8 @@ Thin map. Working guide: [`AGENTS.md`](AGENTS.md). Oracle workflow: [`README.md`
 Pinned upstream + hardware log: [`PINNED.md`](PINNED.md). Branch policy:
 [`../faBolus/BRANCHES.md`](../faBolus/BRANCHES.md).
 
-- Products: `TandemMessages`, `TandemAuth`, `TandemBLE` (+ `TandemBenchHarness` executable).
+- Products: `TandemMessages`, `TandemAuth`, `TandemBLE`. Bench tooling (the `TandemBenchHarness`
+  executable, the planner, hardware tests) is a separate package, `Bench/`, never linked by the library.
 - **Never change message bytes without a matching oracle-parity test.**
 - `ResponseParser` dispatches on **(characteristic, opcode)** — opcodes are not globally unique.
 - `WritePolicy`: `.readOnly`, `.allowBenignControl`, `.allowNonDelivery`, `.allowDestructive`,

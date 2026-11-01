@@ -47,7 +47,8 @@ import Testing
     /// Class evidence is per API version: P1's results say nothing about P2.
     @Test func classEvidenceIsScopedToItsApiVersion() {
         let m = SupportMatrix()
-        #expect(m.entry(for: LastBolusStatusV2Request(), unit: nil, model: .tslim, apiVersion: .v2_5).status == .supported)
+        #expect(
+            m.entry(for: LastBolusStatusV2Request(), unit: nil, model: .tslim, apiVersion: .v2_5).status == .supported)
         let p2 = m.entry(for: LastBolusStatusV2Request(), unit: nil, model: .tslim, apiVersion: p2API)
         #expect(p2.status == .untested && p2.suspected)
     }
@@ -56,7 +57,8 @@ import Testing
     @Test func unitEvidenceDecidesAndStaysWithTheUnit() {
         var m = SupportMatrix()
         m.record(.unsupported, for: MessageKey(LoadStatusRequest.self), on: p1Unit, note: "op-77 BAD_OPCODE")
-        #expect(m.entry(for: LoadStatusRequest(), unit: p1Unit, model: .tslim, apiVersion: .v2_5).status == .unsupported)
+        #expect(
+            m.entry(for: LoadStatusRequest(), unit: p1Unit, model: .tslim, apiVersion: .v2_5).status == .unsupported)
         #expect(!m.mayProbe(LoadStatusRequest(), unit: p1Unit, model: .tslim, apiVersion: .v2_5))
         // Same serial on new firmware starts over.
         let updated = PumpUnit(serialNumber: 1693, armSoftwareVersion: 2, mspSoftwareVersion: 1)
@@ -71,7 +73,10 @@ import Testing
     /// Signed writes and non-reads are never probed.
     @Test func signedWritesAreNeverProbed() {
         let m = SupportMatrix()
-        #expect(!m.mayProbe(DismissNotificationRequest(kind: .alert, notificationId: 1), unit: p1Unit, model: .tslim, apiVersion: .v2_5))
+        #expect(
+            !m.mayProbe(
+                DismissNotificationRequest(kind: .alert, notificationId: 1), unit: p1Unit, model: .tslim,
+                apiVersion: .v2_5))
         #expect(!m.mayProbe(PlaySoundRequest(), unit: p1Unit, model: .tslim, apiVersion: .v2_5))
     }
 
@@ -83,9 +88,13 @@ import Testing
     /// The six allowed writes have evidence on a t:slim X2; DismissNotification on P1 is unknown.
     @Test func allowedWritesCarryTheirEvidence() {
         let m = SupportMatrix()
-        #expect(m.entry(for: CancelBolusRequest(bolusId: 1), unit: nil, model: .tslim, apiVersion: .v2_5).status == .supported)
+        #expect(
+            m.entry(for: CancelBolusRequest(bolusId: 1), unit: nil, model: .tslim, apiVersion: .v2_5).status
+                == .supported)
         #expect(m.entry(for: InitiateBolusRequest(), unit: nil, model: .tslim, apiVersion: p2API).status == .supported)
-        let dismissOnP1 = m.entry(for: DismissNotificationRequest(kind: .alert, notificationId: 1), unit: nil, model: .tslim, apiVersion: .v2_5)
+        let dismissOnP1 = m.entry(
+            for: DismissNotificationRequest(kind: .alert, notificationId: 1), unit: nil, model: .tslim,
+            apiVersion: .v2_5)
         #expect(dismissOnP1.status == .untested && !dismissOnP1.suspected)
     }
 
@@ -114,7 +123,9 @@ import Testing
     /// The matrix round-trips through Codable, so the app can persist it with the pairing.
     @Test func matrixRoundTripsThroughCodable() throws {
         var m = SupportMatrix()
-        m.record(.unsupported, for: MessageKey(LoadStatusRequest.self), on: p2Unit, note: "op-77", at: Date(timeIntervalSince1970: 1))
+        m.record(
+            .unsupported, for: MessageKey(LoadStatusRequest.self), on: p2Unit, note: "op-77",
+            at: Date(timeIntervalSince1970: 1))
         let data = try JSONEncoder().encode(m)
         #expect(try JSONDecoder().decode(SupportMatrix.self, from: data) == m)
     }

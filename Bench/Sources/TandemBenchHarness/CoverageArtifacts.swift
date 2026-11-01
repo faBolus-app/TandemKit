@@ -11,12 +11,16 @@ import TandemBench
 
 enum BenchCoverageStore {
     /// Directory holding the coverage artifacts. Override with `PUMPX2_BENCH_COVERAGE_DIR`; defaults to
-    /// `./bench-coverage` relative to the process working dir (the package root under `swift run`).
+    /// the bench package's own `bench-coverage/`, found from this source file, so the committed matrix
+    /// is the one a session resumes from wherever `swift run` was started.
     static var directory: URL {
         if let env = ProcessInfo.processInfo.environment["PUMPX2_BENCH_COVERAGE_DIR"], !env.isEmpty {
             return URL(fileURLWithPath: env, isDirectory: true)
         }
-        return URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
+        return URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()  // TandemBenchHarness
+            .deletingLastPathComponent()  // Sources
+            .deletingLastPathComponent()  // Bench
             .appendingPathComponent("bench-coverage", isDirectory: true)
     }
 

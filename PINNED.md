@@ -89,7 +89,7 @@ this needed now exists (`PairingAuth.createV1`, `LegacyPairingCoordinator`, op-1
   reported 0.10 u (id 1774); the **pump screen agreed**. Signed CancelBolus round-trips.
   Full delivery path (BLE + JPAKE + signed permission + signed initiate + status + cancel) is
   proven on the real pump, with every outgoing message byte-exact vs the cliparser oracle.
-- **Pending niceties — BOOKED as one saline session, see [`docs/BENCH-SESSION-PLAN.md`](docs/BENCH-SESSION-PLAN.md):**
+- **Pending niceties — BOOKED as one saline session, see [`Bench/docs/BENCH-SESSION-PLAN.md`](Bench/docs/BENCH-SESSION-PLAN.md):**
   cancel *mid*-delivery (extended/large bolus) for partial-delivery reporting (group B indeterminate
   case, WIP item 5); whether the pump echoes the request txId in `frame[1]` (WIP item 12, gates
   retiring R3-D delivery-class serialization); and a mass/accuracy check at a larger dose. Bundled

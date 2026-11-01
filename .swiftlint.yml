@@ -46,6 +46,9 @@ included:
   - Package.swift
   - Sources
   - Tests
+  - Bench/Package.swift
+  - Bench/Sources
+  - Bench/Tests
 
 excluded:
   - .build

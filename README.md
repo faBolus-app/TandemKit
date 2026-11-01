@@ -25,7 +25,9 @@ Garmin remotes build on.
 | `TandemMessages` | Message framing, opcodes, request/response models, packetization. Portable, no platform deps. |
 | `TandemAuth` | Pairing handshake (legacy CentralChallenge + modern JPAKE) and per-command HMAC signing. **Safety-critical.** |
 | `TandemBLE` | Core Bluetooth central: scan / connect / bond / discover / notify. Platform-agnostic (iOS + watchOS). |
-| `TandemBenchHarness` | Executable bench/oracle CLI: connect → status → saline bolus → cancel. |
+
+Bench tooling lives in a separate package, [`Bench/`](Bench/README.md): the `TandemBenchHarness` CLI,
+its session planner and coverage matrix, and the gated hardware tests. The library never links it.
 
 ## Use it in your project
 
@@ -43,7 +45,7 @@ import the products you need:
 
 Typical entry points: `PumpBLEClient` (scan/connect/subscribe/write), `PairingCoordinator`
 (JPAKE / legacy pairing), and the request/response types in `TandemMessages`. For a worked example
-of driving a full connect → status → bolus → cancel flow, see `TandemBenchHarness` and the faBolus
+of driving a full connect → status → bolus → cancel flow, see `Bench/Sources/TandemBenchHarness` and the faBolus
 app's `TandemBackend` (which adapts this library to faBolus's `PumpBackend` interface). To build a
 non-faBolus app on it, depend on these products directly — you don't need faBolus. Contributions go
 through PR, not fork; see [`CONTRIBUTING.md`](CONTRIBUTING.md).

@@ -43,6 +43,9 @@ jobs:
       - name: Test (byte-exact oracle parity)
         run: ./scripts/check.sh test
 
+      - name: Bench package builds and tests (never linked by the library)
+        run: ./scripts/check.sh bench
+
   swift-lint:
     name: swift-format and SwiftLint
     runs-on: xcode-27

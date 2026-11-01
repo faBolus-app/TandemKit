@@ -157,7 +157,7 @@ would cover each — so you know what hardware to bring to the next sitting.
 ## Reversible affordances
 
 The runner drives every state-changing command through a **reversible affordance** declared in the PURE,
-unit-tested `Sources/TandemBench/BenchAffordanceCatalog.swift`. The executable is a thin driver over
+unit-tested `Bench/Sources/TandemBench/BenchAffordanceCatalog.swift`. The executable is a thin driver over
 that metadata (exactly like `BenchCommandCatalog`); the affordance strategy, the restore partner, the oracle
 read, and whether the runner can auto-drive it are all data, so they cannot rot as messages are added (a
 completeness test asserts every delivery + signed-write command has an entry).
