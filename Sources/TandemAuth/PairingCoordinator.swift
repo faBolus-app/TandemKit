@@ -37,6 +37,12 @@ public final class PairingCoordinator {
         self.isResume = false
     }
 
+    /// Full pairing over a given `JpakeAuth` (a seeded one, in tests).
+    init(auth: JpakeAuth) {
+        self.auth = auth
+        self.isResume = false
+    }
+
     /// Resume ("quick-pair") using a stored derived secret — no 6-digit code, rounds 3–4 only.
     public init(resumeDerivedSecret: [UInt8], appInstanceId: Int = 0) {
         self.auth = JpakeAuth(resumeDerivedSecret: resumeDerivedSecret, appInstanceId: appInstanceId)

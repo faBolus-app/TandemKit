@@ -67,8 +67,8 @@ import TandemMessages
         let (r1a, r1b) = try auth.makeRound1Requests()
         let sR1 = try server.writeRoundOne()
         try server.readRoundOne(r1a.centralChallenge + r1b.centralChallenge)
-        let mid = sR1.count / 2
-        try auth.readServerRound1(challenge1a: Array(sR1[0..<mid]), challenge1b: Array(sR1[mid...]))
+        let (sR1a, sR1b) = try pumpRoundOneHalves(sR1)
+        try auth.readServerRound1(challenge1a: sR1a, challenge1b: sR1b)
         let r2 = try auth.makeRound2Request()
         let sR2 = try server.writeRoundTwo()
         try server.readRoundTwo(r2.centralChallenge)

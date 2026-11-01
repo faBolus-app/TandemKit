@@ -52,11 +52,9 @@ import TandemMessages
     @Test func jpakeAuthProducesRoundMessages() throws {
         let auth = try JpakeAuth(pairingCode: "123456")
         let (r1a, r1b) = try auth.makeRound1Requests()
-        // Ranges, not exact counts: the 1a/1b lengths inherit the same nonce-dependent ZKP-scalar
-        // variation as the round-one message above (see inProcessHandshakeDerivesEqualSecret).
-        #expect((162...165).contains(r1a.centralChallenge.count))
-        #expect((162...165).contains(r1b.centralChallenge.count))
-        #expect((164...167).contains(r1a.cargo.count) && (164...167).contains(r1b.cargo.count))
+        // Exact: our scalars are written at full length (JpakeShortScalarTests pins the short case).
+        #expect(r1a.centralChallenge.count == 165 && r1b.centralChallenge.count == 165)
+        #expect(r1a.cargo.count == 167 && r1b.cargo.count == 167)
     }
 
     /// Rounds 3–4: authKey = HKDF(serverNonce, derivedSecret); round-4 HMAC + server verify.
@@ -67,8 +65,8 @@ import TandemMessages
         let (r1a, r1b) = try auth.makeRound1Requests()
         let sR1 = try server.writeRoundOne()
         try server.readRoundOne(r1a.centralChallenge + r1b.centralChallenge)
-        let mid = sR1.count / 2
-        try auth.readServerRound1(challenge1a: Array(sR1[0..<mid]), challenge1b: Array(sR1[mid...]))
+        let (sR1a, sR1b) = try pumpRoundOneHalves(sR1)
+        try auth.readServerRound1(challenge1a: sR1a, challenge1b: sR1b)
         let r2 = try auth.makeRound2Request()
         let sR2 = try server.writeRoundTwo()
         try server.readRoundTwo(r2.centralChallenge)

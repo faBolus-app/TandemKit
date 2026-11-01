@@ -9,6 +9,8 @@ public final class EcJpakeContext {
     public enum JpakeError: Error { case setupFailed, roundFailed(Int32) }
 
     private let ctx: OpaquePointer
+    /// Kept alive for the C callback while a seeded test context exists; nil in production.
+    private var randomSource: RandomSource?
 
     public init(role: Role, secret: [UInt8]) throws {
         let made: OpaquePointer? = secret.withUnsafeBufferPointer { buf in
@@ -21,7 +23,30 @@ public final class EcJpakeContext {
         self.ctx = made
     }
 
+    /// A context whose randomness comes from `randomBytes` instead of the OS CSPRNG, so a test can
+    /// reproduce a particular round (for example one with a short ZKP scalar). Tests only.
+    convenience init(role: Role, secret: [UInt8], randomBytes: @escaping (Int) -> [UInt8]) throws {
+        try self.init(role: role, secret: secret)
+        let source = RandomSource(randomBytes)
+        randomSource = source
+        cjpake_set_rng(
+            ctx,
+            { p, out, len in
+                guard let p, let out else { return -1 }
+                let bytes = Unmanaged<RandomSource>.fromOpaque(p).takeUnretainedValue().next(len)
+                guard bytes.count == len else { return -1 }
+                for i in 0..<len { out[i] = bytes[i] }
+                return 0
+            },
+            Unmanaged.passUnretained(source).toOpaque())
+    }
+
     deinit { cjpake_free(ctx) }
+
+    private final class RandomSource {
+        let next: (Int) -> [UInt8]
+        init(_ next: @escaping (Int) -> [UInt8]) { self.next = next }
+    }
 
     private func write(_ fn: (OpaquePointer, UnsafeMutablePointer<UInt8>, Int, UnsafeMutablePointer<Int>) -> Int32)
         throws -> [UInt8]
@@ -48,7 +73,10 @@ public final class EcJpakeContext {
 /// Modern (6-digit) JPAKE pairing state machine (client side). Wraps EC-JPAKE rounds 1–2 +
 /// derive (mbedTLS) and the Tandem session-key/key-confirmation rounds 3–4 (HKDF + HMAC-256).
 ///
-/// Round one (330 bytes) is split into the 1a/1b halves the pump expects. The final signing
+/// Round one (330 bytes) is split into the 1a/1b halves the pump expects, one KeyKP each. Every
+/// round we send has its ZKP scalars at full length, and every round we read is re-encoded the
+/// same way first, so a short scalar on either side can't shift the halves (`JpakeRound`, F23).
+/// The final signing
 /// key is `HKDF(serverNonce, derivedSecret)` — the same key `Packetize` uses to HMAC signed
 /// (insulin-affecting) commands. Validated in-process (client↔server derive equal secrets);
 /// interop with the pump's implementation is validated via the oracle `jpake-server` handshake
@@ -72,6 +100,12 @@ public final class JpakeAuth {
         self.ec = try EcJpakeContext(role: .client, secret: Self.pairingCodeToBytes(pairingCode))
     }
 
+    /// Full pairing over a given context (a seeded one, in tests).
+    init(context: EcJpakeContext, appInstanceId: Int = 0) {
+        self.appInstanceId = appInstanceId
+        self.ec = context
+    }
+
     /// Resume ("quick-pair") using a derived secret from a prior full pairing — no code, no
     /// EC-JPAKE rounds 1–2. Only the session-key + key-confirmation rounds (3–4) run.
     public init(resumeDerivedSecret: [UInt8], appInstanceId: Int = 0) {
@@ -87,23 +121,28 @@ public final class JpakeAuth {
 
     // MARK: rounds 1–2 (full pairing only)
 
-    /// Writes round one and splits it into the 1a/1b request messages.
+    /// Writes round one and splits it into the 1a/1b request messages, one KeyKP (165 bytes) each.
+    /// Splitting at the byte midpoint instead would move a byte between the halves whenever the
+    /// second scalar came out short.
     public func makeRound1Requests() throws -> (Jpake1aRequest, Jpake1bRequest) {
-        let round1 = try ec!.writeRoundOne()  // 330 bytes for secp256r1
-        let mid = round1.count / 2
+        let kps = try JpakeRound.roundOne(ec!.writeRoundOne())
         return (
-            Jpake1aRequest(appInstanceId: appInstanceId, centralChallenge: Array(round1[0..<mid])),
-            Jpake1bRequest(appInstanceId: appInstanceId, centralChallenge: Array(round1[mid...]))
+            Jpake1aRequest(appInstanceId: appInstanceId, centralChallenge: kps[0].encoded),
+            Jpake1bRequest(appInstanceId: appInstanceId, centralChallenge: kps[1].encoded)
         )
     }
 
-    /// Feeds the pump's round one (1a challenge ++ 1b challenge) into the context.
+    /// Feeds the pump's round one into the context. Each half is read on its own, so a half that
+    /// arrives short, or zero-padded to the fixed cargo, still lines up.
     public func readServerRound1(challenge1a: [UInt8], challenge1b: [UInt8]) throws {
-        try ec!.readRoundOne(challenge1a + challenge1b)
+        let a = try JpakeRound.keyKPs(challenge1a, count: 1)[0]
+        let b = try JpakeRound.keyKPs(challenge1b, count: 1)[0]
+        try ec!.readRoundOne(a.encoded + b.encoded)
     }
 
     public func makeRound2Request() throws -> Jpake2Request {
-        Jpake2Request(appInstanceId: appInstanceId, centralChallenge: try ec!.writeRoundTwo())
+        let round2 = try JpakeRound.normalizedRoundTwo(ec!.writeRoundTwo(), server: false)
+        return Jpake2Request(appInstanceId: appInstanceId, centralChallenge: round2)
     }
 
     /// Round 3 request (session-key exchange) — the first message in a resume handshake.
@@ -111,7 +150,11 @@ public final class JpakeAuth {
         Jpake3SessionKeyRequest(challengeParam: 0)
     }
 
-    public func readServerRound2(challenge: [UInt8]) throws { try ec!.readRoundTwo(challenge) }
+    /// Feeds the pump's round two (ECParameters + one KeyKP) into the context, trimmed of any
+    /// cargo padding and with its scalar at full length.
+    public func readServerRound2(challenge: [UInt8]) throws {
+        try ec!.readRoundTwo(JpakeRound.normalizedRoundTwo(challenge, server: true))
+    }
 
     /// Derives the pre-master secret (must follow rounds 1 and 2).
     @discardableResult

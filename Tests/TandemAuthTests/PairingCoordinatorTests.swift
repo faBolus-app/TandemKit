@@ -32,8 +32,7 @@ import TandemMessages
                 case let m as Jpake1aRequest:
                     clientR1a = m.centralChallenge
                     let r1 = try pump.writeRoundOne()
-                    pumpR1a = Array(r1[0..<165])
-                    pumpR1b = Array(r1[165...])
+                    (pumpR1a, pumpR1b) = try pumpRoundOneHalves(r1)
                     coord.handle(frame: self.frame(33, self.withAppId(pumpR1a)))
                 case let m as Jpake1bRequest:
                     clientR1b = m.centralChallenge
