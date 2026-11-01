@@ -97,6 +97,10 @@ public struct SupportEntry: Sendable, Equatable {
 /// Signed writes are separate: `allowedSignedWrites` is policy, not evidence. No other signed write
 /// is ever sent, and none is ever probed.
 public struct SupportMatrix: Sendable, Equatable, Codable {
+    /// How many observations are kept per unit and command; older ones add nothing once newer ones
+    /// agree, and the matrix is persisted with the pairing.
+    public static let observationsKept = 8
+
     /// Per-unit evidence, newest last.
     public private(set) var recorded: [PumpUnit: [MessageKey: [SupportEvidence]]] = [:]
 
@@ -145,7 +149,9 @@ public struct SupportMatrix: Sendable, Equatable, Codable {
         _ result: SupportEvidence.Result, for key: MessageKey, on unit: PumpUnit, note: String, at date: Date = Date()
     ) {
         let evidence = SupportEvidence(result: result, source: .probe, scope: .unit(unit), note: note, recordedAt: date)
-        recorded[unit, default: [:]][key, default: []].append(evidence)
+        var kept = recorded[unit]?[key] ?? []
+        kept.append(evidence)
+        recorded[unit, default: [:]][key] = Array(kept.suffix(Self.observationsKept))
     }
 
     // MARK: Signed writes

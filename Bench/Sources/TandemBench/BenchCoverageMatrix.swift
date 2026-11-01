@@ -146,6 +146,14 @@ public enum BenchCoverage {
             if cmd.requiresCGM && !cfg.cgmPresent {
                 return .deferred("needs a CGM-present session (PUMP_CGM_PRESENT=1)")
             }
+            // A read pumps of this class rejected with op-77 and a dropped link is not swept: one
+            // careful probe at a time (`probe`), or the sweep costs a connection per command.
+            let key = MessageKey(characteristic: cmd.characteristic, opCode: cmd.opCode)
+            if SupportMatrix().entry(for: key, unit: nil, model: cfg.model, apiVersion: cfg.apiVersion).suspected {
+                return .deferred(
+                    "suspected unsupported on \(cfg.modelName) API \(cfg.apiVersion.major).\(cfg.apiVersion.minor)"
+                        + " (op-77 and a drop on the bench) — probe it on its own")
+            }
             return .exercise(.read)
 
         case .signedWrite:

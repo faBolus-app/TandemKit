@@ -556,3 +556,26 @@ import TandemMessages
         }
     }
 }
+
+/// The bench doesn't sweep a read the support matrix calls suspected for the session's class: each one
+/// drew op-77 and a dropped link on P1.
+@Suite struct BenchSuspectedReadTests {
+    @Test func suspectedReadsDeferOnTheOldTslim() {
+        let cfg = BenchCoveragePlanTests.oldTslim
+        for name in ["LoadStatusRequest", "SecretMenuRequest", "CurrentEgvGuiDataV2Request"] {
+            guard let cmd = BenchCommandCatalog.all.first(where: { $0.name == name }) else {
+                Issue.record("\(name) not in the catalog")
+                continue
+            }
+            if case .deferred(let r) = BenchCoverage.plan(for: cmd, in: cfg) {
+                #expect(r.contains("suspected") || r.contains("API ≥"), "\(name): \(r)")
+            } else {
+                Issue.record("\(name) should defer on the old t:slim")
+            }
+        }
+        // HistoryLog is never pre-marked: it is still swept.
+        if let history = BenchCommandCatalog.all.first(where: { $0.name == "HistoryLogRequest" }) {
+            #expect(BenchCoverage.plan(for: history, in: cfg) == .exercise(.read))
+        }
+    }
+}

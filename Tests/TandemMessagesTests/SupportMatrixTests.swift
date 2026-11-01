@@ -70,6 +70,15 @@ import Testing
         #expect(e.evidence.first?.note == "answered")
     }
 
+    @Test func onlyTheLatestObservationsAreKept() {
+        var m = SupportMatrix()
+        let key = MessageKey(PumpVersionRequest.self)
+        for i in 0..<20 { m.record(.supported, for: key, on: p1Unit, note: "answer \(i)") }
+        let kept = m.recorded[p1Unit]?[key] ?? []
+        #expect(kept.count == SupportMatrix.observationsKept)
+        #expect(kept.last?.note == "answer 19")
+    }
+
     /// Signed writes and non-reads are never probed.
     @Test func signedWritesAreNeverProbed() {
         let m = SupportMatrix()

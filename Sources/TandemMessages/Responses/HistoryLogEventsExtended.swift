@@ -236,6 +236,7 @@ public struct BleDailyConnectionsHistoryLog: HistoryLogEvent {
 }
 
 /// BLE Link Stats — history-log event (typeId 473). Ported from BleLinkStatsHistoryLog.java.
+/// Bytes 10-15 are signed (upstream: probably link RSSI in dBm, -95 to -18).
 public struct BleLinkStatsHistoryLog: HistoryLogEvent {
     public static let typeId = 473
     public var cargo: [UInt8]
@@ -256,12 +257,12 @@ public struct BleLinkStatsHistoryLog: HistoryLogEvent {
         guard raw.count >= 26 else { return }
         pumpTimeSec = Bytes.readUint32(raw, 2)
         sequenceNum = Bytes.readUint32(raw, 6)
-        minimum = Int(raw[10])
-        maximum = Int(raw[11])
-        unknown12 = Int(raw[12])
-        unknown13 = Int(raw[13])
-        unknown14 = Int(raw[14])
-        unknown15 = Int(raw[15])
+        minimum = Int(Int8(bitPattern: raw[10]))
+        maximum = Int(Int8(bitPattern: raw[11]))
+        unknown12 = Int(Int8(bitPattern: raw[12]))
+        unknown13 = Int(Int8(bitPattern: raw[13]))
+        unknown14 = Int(Int8(bitPattern: raw[14]))
+        unknown15 = Int(Int8(bitPattern: raw[15]))
         unknown16 = Bytes.readShort(raw, 16)
         unknown18 = Bytes.readShort(raw, 18)
         intervalSeconds = Bytes.readShort(raw, 20)
