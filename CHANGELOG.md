@@ -1,54 +1,63 @@
 # Changelog
 
-All notable changes to TandemKit are documented here.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project aims
-to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-Releases are annotated git tags (`vX.Y.Z`). Two non-version pointers track goodness over time and are
-described in [`BRANCHES.md`](BRANCHES.md): `safe-baseline/*` (the moving last-known-good rollback
-target) and `deprecated/*` (an immovable pre-round-3 snapshot — **not** a supported fallback).
-
-> **Not FDA-cleared. Disposition: NO-GO for real insulin delivery.** Every entry below preserves that
-> disposition; none of it enables or changes delivery/dosing behavior.
+Notable changes to TandemKit. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Releases are annotated
+git tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+The library as the rebuilt faBolus app uses it, on the `rebuild` branch. The last `main` before it is
+tagged `v1-final`.
+
 ### Added
 
-- Legacy **V1 (16-character) pump pairing** at the library layer: `PairingAuth.createV1`,
-  `LegacyPairingCoordinator`, op-17/op-19 response parsers, and `PairingAuth.detectType` /
-  `LiveSession.beginPairing()` auto-selecting the legacy CentralChallenge→PumpChallenge handshake vs
-  the modern 6-digit EC-JPAKE scheme from the pairing code (#8).
-- **Legacy-V1 hardware harness** and bench-validated results (#9): `TandemBenchHarness` V1 wiring,
-  `PumpFirmwareProfile` capture (API version + pump SW + auth scheme), and the 26-byte CONTROL-variant
-  `ErrorResponse` (op-77). Validated on a spare t:slim X2 (API 2.5): legacy V1 pairing, a read sweep,
-  txId echo, and signed `BolusPermission` acceptance — logged in [`PINNED.md`](PINNED.md).
+- `TandemLink`: the connection as a pure state machine. `LinkReducer.reduce(state, input)` returns the new
+  state and the effects, and owns the phases, the reconnect ladder, the one-in-flight request queue with
+  txId matching, op-77 classification and probing. `PumpConnection` (TandemBLE) runs it over
+  CoreBluetooth and replaces `PumpBLEClient`.
+- `SupportMatrix`: which commands a pump answers, with evidence per unit and firmware, replacing the
+  static minimum-API floor. `allowedSignedWrites` lists the signed writes ever sent; the link refuses any
+  other before a byte is built.
+- `PumpConnection.send(_:allowing:)` grants write risk for one call, so no elevation can stick.
+- Every history-log type pumpx2 decodes, field for field, and upstream's alert identifiers and firmware
+  names.
+- `BolusPermissionRelease` among the allowed signed writes.
 
-### Notes
+### Changed
 
-- `safe-baseline/2026-08-04` advanced to the P12 cold-launch retrieve-before-scan commit (#6).
-- Consuming TandemKit as a URL+version SwiftPM dependency remains **UNMET** by owner decision — see
-  the §1.3 versioning contract in [`CONTRIBUTING.md`](CONTRIBUTING.md) / [`AGENTS.md`](AGENTS.md) and
-  WIP item 8. faBolus continues to consume this package by local path.
+- The pumpx2 oracle is re-pinned to `456018a5`, and the parity tests run it as one long-lived JVM.
+- The bench tooling moved into its own package, `Bench/`, which the library never links.
+- The quality gates run on Xcode 27.2 through `scripts/check.sh`.
+
+### Fixed
+
+- EC-JPAKE sends full-length proof scalars and accepts short incoming rounds, as pumpx2 does. Before,
+  a scalar written a byte short corrupted round 1, and roughly 1 pairing in 100 failed.
+- The HMAC on an op-77 error reply on the CONTROL characteristic is verified, like every signed reply.
+- `Packetize` rejects input it can't frame.
+
+## [v1-final] — 2026-10-31
+
+The last `main` before the rebuild. Since 0.2.0 it added legacy (16-character) pairing for older
+firmware (`PairingAuth.createV1`, `LegacyPairingCoordinator`, chosen automatically from the code) and the
+26-byte CONTROL form of the op-77 error reply, both checked on an API 2.5 t:slim X2.
 
 ## [0.2.0] — 2026-07-20
 
 ### Changed
 
-- Build hygiene: gitignore the top-level `build/` directory (xcodebuild dependency output).
-  (Lightweight tag `v0.2.0`.)
+- The top-level `build/` directory is git-ignored.
 
 ## [0.1.0] — 2026-07-18
 
 ### Added
 
-- **Milestone 1** — the end-to-end pump protocol stack: `TandemMessages` (framing, opcodes,
-  request/response models, packetization), `TandemAuth` (6-digit EC-JPAKE pairing + per-command HMAC
-  signing, via vendored Mbed TLS), and `TandemBLE` (Core Bluetooth central). A signed **0.10 u saline
-  bolus was delivered on real hardware**, with every outgoing message byte-exact against the
-  jwoglom/pumpx2 `cliparser` oracle. (Annotated tag `v0.1.0`.)
+- The protocol stack: `TandemMessages` (framing, opcodes, request and response models, packetization),
+  `TandemAuth` (6-digit EC-JPAKE pairing and per-command HMAC signing, through vendored Mbed TLS) and
+  `TandemBLE` (the CoreBluetooth central), with every outgoing message byte-exact against pumpx2's
+  `cliparser` oracle. A signed 0.10 U saline bolus was delivered on a pump.
 
-[Unreleased]: https://github.com/faBolus-app/TandemKit/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/faBolus-app/TandemKit/compare/v1-final...HEAD
+[v1-final]: https://github.com/faBolus-app/TandemKit/compare/v0.2.0...v1-final
 [0.2.0]: https://github.com/faBolus-app/TandemKit/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/faBolus-app/TandemKit/releases/tag/v0.1.0
