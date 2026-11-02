@@ -26,7 +26,7 @@ Run `python3 scripts/coverage_report.py --missing` to see which upstream message
 Swift port yet. Cross-reference against the drift issue's changed-files list (main tier) and the
 dev-tier "coming soon" list.
 
-**(b) Prioritize per D-03** (locked order — do not force-adopt lower-priority churn):
+**(b) Prioritize** in this order (do not force-adopt lower-priority churn):
 
 1. New/changed opcodes + response-field parsing.
 2. Firmware-compatibility gates.
@@ -42,31 +42,22 @@ history-log-record test for history-log types the oracle can't reach. **Never ch
 without a matching byte-exact test** (`CONTRIBUTING.md`'s golden rule) — this applies to
 dev-sourced adoptions exactly as it does to main-sourced ones.
 
-**(d) Route dose-path items through the full review discipline.** Anything that sets
-`modifiesInsulinDelivery: true`, or touches a bolus/status-read path, follows faBolus
-`BRANCHES.md` §1.4's promotion criteria: it stays on `experimental` (never lands directly on
-`main`), gets an adversarial audit in addition to the oracle-parity test, and is
-**saline-bench-only — never real insulin — until validated in Phase 11.** This applies
-identically whether the source was upstream `main` or upstream `dev`; `dev` provenance is never a
-shortcut around this gate.
+**(d) Route dose-path items through the full review.** An adopted change lands on `main` by pull
+request, with its oracle-parity (or history-record) test and a `/code-review`. Anything that sets
+`modifiesInsulinDelivery: true`, or touches a bolus or status-read path, also gets an adversarial review.
+Pump behavior a change relies on that isn't confirmed on hardware goes in faBolus
+`docs/UNVERIFIED-GUESSES.md`. This applies whether the source was upstream `main` or upstream `dev`.
 
 **(e) Update the baselines only AFTER the adoption PR merges.** Bump `PINNED.md`'s pumpx2 submodule
 pin (`vendor/pumpx2-oracle`) and/or the `## Upstream controlX2 watch` tracked dev/main SHA at merge
 time, not before — the baseline is what the detector measures against on the *next* cycle, so
 moving it early would silently swallow anything landed in between.
 
-## dev → main promotion rule
+## Where adoptions land
 
-`dev` is the **default landing zone** for adopted upstream deltas — matching how upstream itself
-develops. A change is **fast-tracked to `main`** only when it is urgent (actively breaking
-something in production) or a confident, well-evidenced fix for something outright wrong (the kind
-of "this is just a bug and the fix is obviously correct" finding, backed by a hardware capture or
-oracle byte-diff). Anything else waits on `experimental`/`dev` until it has soaked.
-
-**Any promotion to `main` that touches a bolus or status-read path still clears the full NO-GO
-discipline** from step (d) above regardless of urgency: oracle/test-backed, faBolus `BRANCHES.md`
-§1.4-reviewed, `experimental`-first, and saline-bench-only until Phase 11. Urgency justifies
-*skipping the queue*, never skipping the safety gate.
+TandemKit has one branch, `main`. Every adopted upstream change goes there by pull request, after the
+steps above; there is no separate landing branch. Urgency can move a change up the queue, never past
+step (d).
 
 ## Reminders
 

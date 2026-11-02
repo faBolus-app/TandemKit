@@ -42,4 +42,4 @@ allowed signed writes. The only signed write the harness sends is DismissNotific
 
 The committed `bench-coverage/` matrix is the T-1 run on the old t:slim X2 (API 2.5, legacy pairing,
 no cartridge, no CGM), which `SupportMatrix` cites as evidence. The sweep runner that produced it was
-removed with the old client; `docs/BENCH-COVERAGE.md` and `docs/BENCH-SESSION-PLAN.md` record how.
+removed with the old client; `docs/BENCH-COVERAGE.md` records how.

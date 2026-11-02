@@ -70,9 +70,9 @@ Every entry names the pump, firmware and pairing scheme, e.g. `[t:slim X2 · CIQ
 - **2026-07-18: signed bolus delivered.** `bolus 100` delivered 0.10 U: permission, signed InitiateBolus
   (FOOD2) accepted, LastBolusStatus reported 0.10 U (id 1774), and the pump's screen agreed. A signed
   CancelBolus round-trips. Every outgoing message was byte-exact against the oracle.
-- **Still to run**, in one saline session ([`Bench/docs/BENCH-SESSION-PLAN.md`](Bench/docs/BENCH-SESSION-PLAN.md)):
-  a cancel mid-delivery, to check partial-delivery reporting; whether the pump echoes the request txId
-  in `frame[1]` on a delivery; and an accuracy check at a larger dose.
+- **Still to run**, on a pump with a saline cartridge: a cancel mid-delivery, to check partial-delivery
+  reporting, and an accuracy check at a larger dose (faBolus `docs/UNVERIFIED-GUESSES.md` #21); and
+  whether the pump echoes the request txId in `frame[1]` on a delivery reply (`WIP-REGISTER.md`).
 
 The 2026-08-07 entries are the spare pump, `[t:slim X2 · API 2.5 · V1/16-char]`, with no cartridge and no
 CGM.

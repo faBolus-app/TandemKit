@@ -90,7 +90,7 @@ On a t:slim session the 11 Mobi-only deliveries record as `notApplicable`; only 
 >
 > then confirm the emitted mask is what the pump expects for that dose type. Only after this confirmation on
 > real hardware should any re-labeling of the opcode-158 bits be considered. Until then the current
-> byte-locked masks stand (they match every captured vector). Tracked as a Phase-11 bench-confirm item; it
+> byte-locked masks stand (they match every captured vector). Tracked as faBolus `docs/UNVERIFIED-GUESSES.md` #4; it
 > does not block the reversible-affordance coverage above.
 
 ## Lanes and the safety gate for auto-firing
@@ -202,9 +202,9 @@ never silently dropped.
 ## Other affordances wired into `coverage`
 
 1. **Raw `currentTargetBg` cargo logging** — logs the raw `CurrentActiveIdpValuesResponse` cargo hex + the
-   byte-4 vs byte-5 targetBg decode (BENCH-SESSION-PLAN Obj 4 / D-07) before trusting the typed value.
+   byte-4 vs byte-5 targetBg decode (faBolus `docs/UNVERIFIED-GUESSES.md` #7) before trusting the typed value.
 2. **`setDeviceContext(model:apiVersion:)` send-gate wiring** — after reading `ApiVersion`, the runner
-   activates the D-08 device/API send gate so model/API-restricted messages are refused client-side (the
+   activates the device/API send gate so model/API-restricted messages are refused client-side (the
    same gate faBolus relies on in production).
 3. **`PUMPX2_NO_CARTRIDGE_BOLUS_PROBE`** — drives a bolus through both software walls with no cartridge and
    records the pump's rejection (recorded under a distinct synthetic command so it does not mark the real
