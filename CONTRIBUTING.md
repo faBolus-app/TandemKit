@@ -1,8 +1,7 @@
 # Contributing to TandemKit
 
 TandemKit is a reusable Swift library for the Tandem t:slim X2 Bluetooth protocol; faBolus is one user of
-it. Contributions are welcome by pull request. Until the rebuild merges, target `rebuild`; after that,
-`main` (see [BRANCHES.md](BRANCHES.md)).
+it. Contributions are welcome by pull request into `main` (see [BRANCHES.md](BRANCHES.md)).
 
 ## The rule: byte-exact against the oracle
 
