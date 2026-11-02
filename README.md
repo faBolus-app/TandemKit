@@ -27,12 +27,12 @@ planner and coverage matrix. The library never links it.
 
 ## Use it
 
-TandemKit is a SwiftPM package for iOS 16+, watchOS 9+ and macOS 13+. Pin it by revision or by a release
-tag:
+TandemKit is a SwiftPM package for iOS 16+, watchOS 9+ and macOS 13+. Pin it by a release tag (or by
+revision):
 
 ```swift
 // Package.swift
-.package(url: "https://github.com/faBolus-app/TandemKit.git", revision: "<commit>"),
+.package(url: "https://github.com/faBolus-app/TandemKit.git", exact: "0.4.0"),
 // then, per target:
 .product(name: "TandemMessages", package: "TandemKit"),
 .product(name: "TandemAuth", package: "TandemKit"),

@@ -9,7 +9,8 @@ the projects below.
 The Tandem pump message framing, opcodes, pairing (JPAKE), and HMAC signing are ports of the
 protocol reverse-engineered by **[pumpX2](https://github.com/jwoglom/pumpx2)** (© 2022 James Woglom,
 MIT License). Outgoing messages are validated byte-for-byte against pumpX2's `cliparser` oracle,
-which is included as a git submodule under `vendor/pumpx2-oracle` (retains its own MIT LICENSE).
+which is included as a git submodule under `vendor/pumpx2-oracle` (retains its own MIT LICENSE). pumpX2's
+copyright and license notice, which goes with the port, is in [`LICENSES/pumpx2.txt`](LICENSES/pumpx2.txt).
 
 ## Mbed TLS (vendored crypto)
 

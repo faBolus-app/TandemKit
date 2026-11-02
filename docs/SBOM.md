@@ -3,18 +3,15 @@
 Machine-checkable provenance for every third-party / vendored component TandemKit ships or builds
 against. [`scripts/check-sbom.sh`](../scripts/check-sbom.sh) fails if a vendored submodule is missing a
 row here, if a license string is outside the SPDX allowlist, or if a source file carries a third-party
-provenance marker that no row backs. It runs as a non-blocking CI job (see `.github/workflows/ci.yml`).
+provenance marker that no row backs. CI runs it as a step of the lint job (see `.github/workflows/ci.yml`).
 
 Format per row: component · version/revision · SPDX license · source · how TandemKit uses it.
-
-> **Disposition: NO-GO for real insulin delivery.** This inventory is documentation; it changes no
-> delivery, dosing, or alerting behavior.
 
 ## First-party (this repo)
 
 | Component | Version | License (SPDX) | Source | Usage |
 |---|---|---|---|---|
-| TandemKit (the Swift port) | in-repo | MIT | `Sources/` | Tandem t:slim X2 / Mobi protocol, auth (pairing + HMAC signing), and BLE transport. A hand-written Swift port of jwoglom/pumpx2 (MIT); each ported type's doc-comment cites its Java origin. Covered by the root `LICENSE`. Tests adapted from pumpx2's (captured history-log records, short-scalar JPAKE) are covered the same way. |
+| TandemKit (the Swift port) | in-repo | MIT | `Sources/` | Tandem t:slim X2 / Mobi protocol, auth (pairing + HMAC signing), and BLE transport. A hand-written Swift port of jwoglom/pumpx2 (MIT); each ported type's doc-comment cites its Java origin. pumpX2's MIT notice is in `LICENSES/pumpx2.txt`, alongside the root `LICENSE`. Tests adapted from pumpx2's (captured history-log records, short-scalar JPAKE) are covered the same way. |
 
 ## Vendored submodules
 
@@ -28,9 +25,8 @@ Format per row: component · version/revision · SPDX license · source · how T
 - The entire `Sources/` tree is a hand-port of **jwoglom/pumpx2** (MIT); ported types are marked
   `// … Ported from <Class>.java`. `scripts/check-sbom.sh` scans `Sources/` for such markers and
   requires the pumpX2 upstream to be listed above.
-- `.unsafeFlags` in `Package.swift` currently prevents consuming this package by URL+version — the
-  §1.3 version-pin contract is declared **UNMET** (see `CONTRIBUTING.md` / `AGENTS.md`, WIP item 8).
-  That is a packaging constraint, not a licensing one; it does not affect this inventory.
+- The test fixtures `Tests/TandemLinkTests/Fixtures/p1-reconnect-loop-*.log` are first-party: scrubbed BLE
+  logs of the faBolus app talking to a test pump.
 
 ## Trademarks
 

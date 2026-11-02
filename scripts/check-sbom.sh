@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# TandemKit SBOM / provenance check — a sibling of faBolus's scripts/check-sbom.sh (P16 §3.1).
+# TandemKit SBOM / provenance check — a sibling of faBolus's scripts/check-sbom.sh.
 #
 # Deterministic assertions, all green on a clean tree:
 #   1. docs/SBOM.md exists.
@@ -8,9 +8,8 @@
 #   4. Every third-party provenance marker in Sources/ traces to an SBOM-listed upstream
 #      (the forcing function that catches an un-attributed port — cf. the faBolus xDrip lesson).
 #
-# It scans only the COMMITTED source tree + docs; it needs no submodule checkout. Wired as a
-# NON-BLOCKING CI job (continue-on-error) so a heuristic false-positive can never turn the oracle
-# build red — but it is expected to stay green.
+# It scans only the COMMITTED source tree + docs; it needs no submodule checkout. CI runs it as a
+# step of the lint job, so a failure fails the build; the provenance-marker scan (4) only warns.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

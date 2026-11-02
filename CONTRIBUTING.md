@@ -45,8 +45,8 @@ Tools: `brew install swiftlint shellcheck actionlint openjdk@21` and
 
 `TandemMessages`, `TandemAuth`, `TandemLink` and `TandemBLE` are an API other apps depend on. Prefer
 additive changes; a breaking change gets a version bump and a note in the pull request. Releases are
-tagged `vX.Y.Z` and recorded in [CHANGELOG.md](CHANGELOG.md). faBolus pins TandemKit by revision in its
-`Packages/PumpSession/Package.swift`; read the pin there.
+tagged `vX.Y.Z` and recorded in [CHANGELOG.md](CHANGELOG.md). faBolus pins a release with `exact:` in
+its `Packages/PumpSession` and `Packages/PhoneApp` manifests; read the pin there.
 
 ## Before you open a pull request
 

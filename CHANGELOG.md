@@ -6,8 +6,10 @@ git tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
-The library as the rebuilt faBolus app uses it, on the `rebuild` branch. The last `main` before it is
-tagged `v1-final`.
+## [0.4.0] — 2026-11-01
+
+The library as the rebuilt faBolus app uses it. faBolus 0.4.0 pins this release. The last `main` before
+it is tagged `v1-final`.
 
 ### Added
 
@@ -57,7 +59,8 @@ firmware (`PairingAuth.createV1`, `LegacyPairingCoordinator`, chosen automatical
   `TandemBLE` (the CoreBluetooth central), with every outgoing message byte-exact against pumpx2's
   `cliparser` oracle. A signed 0.10 U saline bolus was delivered on a pump.
 
-[Unreleased]: https://github.com/faBolus-app/TandemKit/compare/v1-final...HEAD
+[Unreleased]: https://github.com/faBolus-app/TandemKit/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/faBolus-app/TandemKit/compare/v1-final...v0.4.0
 [v1-final]: https://github.com/faBolus-app/TandemKit/compare/v0.2.0...v1-final
 [0.2.0]: https://github.com/faBolus-app/TandemKit/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/faBolus-app/TandemKit/releases/tag/v0.1.0

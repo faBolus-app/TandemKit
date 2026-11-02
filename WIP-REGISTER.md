@@ -1,10 +1,10 @@
 # Standing open work — TandemKit
 
-This is **not** a phase diary. Capture-day archaeology, P16 close-out tables, and the 09.8-01 upstream-sync novel live in git history of this file.
+This is **not** a diary. Capture-day notes, old close-out tables and the upstream-sync history live in the git history of this file.
 
-Branch policy: [`BRANCHES.md`](BRANCHES.md) (pointer to faBolus). Hardware log: [`PINNED.md`](PINNED.md). Saline session: [`docs/BENCH-SESSION-PLAN.md`](docs/BENCH-SESSION-PLAN.md).
+Branch policy: [`BRANCHES.md`](BRANCHES.md) (pointer to faBolus). Hardware log: [`PINNED.md`](PINNED.md). Saline session: [`Bench/docs/BENCH-SESSION-PLAN.md`](Bench/docs/BENCH-SESSION-PLAN.md).
 
-faBolus consumes this kit by `url:` + `revision:` in `project.yml`, not a version tag. The old `.unsafeFlags` / SwiftPM pin is **MET** for that contract — do not revive it as unmet.
+faBolus pins a release of this kit by version (`exact:` in its `Packages/PumpSession` and `Packages/PhoneApp` manifests). A target with `.unsafeFlags` would break that: SwiftPM refuses them in a version-pinned dependency.
 
 ## Open
 
