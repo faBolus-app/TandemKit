@@ -15,10 +15,14 @@ public struct LinkState: Sendable {
     public internal(set) var support = SupportMatrix()
     public internal(set) var ladder = ReconnectLadder()
     public internal(set) var telemetry = ConnectionTelemetry()
-    /// Commands that drew the undefined error code past the retry budget, sitting out this session.
-    public internal(set) var sittingOut: Set<MessageKey> = []
-    /// Undefined-code errors per command this session, toward `sittingOut`.
-    var undefinedErrors: [MessageKey: Int] = [:]
+    /// Commands past the retry budget for the undefined error code, not sent until they come back. One the
+    /// pump answered that way on a link that stayed up sits out the connection, so a read it fumbled (IOB,
+    /// the alerts, history) is tried again on the next one. One it answered that way and then dropped the
+    /// link after sits out until `retest` or another pump, because each try costs the connection.
+    public var sittingOut: Set<MessageKey> { (connection?.sittingOut ?? []).union(sittingOutAfterDrops) }
+    /// Undefined-code errors the link dropped after, per command, toward `sittingOutAfterDrops`.
+    var undefinedErrorDrops: [MessageKey: Int] = [:]
+    var sittingOutAfterDrops: Set<MessageKey> = []
     /// The open connection, from `connected` to its disconnect.
     public internal(set) var connection: Connection?
     /// Peripherals iOS handed back on relaunch, until the target is known and Bluetooth is on.
@@ -119,6 +123,9 @@ public struct Connection: Sendable {
     var lastError: ErrorReply?
     /// Set when a probe on this connection drew an op-77; untested reads are refused after that.
     public internal(set) var probingStopped = false
+    /// Undefined-code errors per command on this connection with the link staying up, toward `sittingOut`.
+    var undefinedErrors: [MessageKey: Int] = [:]
+    public internal(set) var sittingOut: Set<MessageKey> = []
     /// Adopted from state restoration rather than connected by this process.
     public internal(set) var adoptedFromRestore = false
     /// A dropped subscription being restored.

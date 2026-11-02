@@ -308,6 +308,50 @@ import TandemMessages
         #expect(h.writes(of: CurrentBatteryV1Request.self) == 2)
     }
 
+    /// A read that sat out one connection is sent again on the next: the pump fumbling it once mustn't
+    /// lose it (IOB, the alerts, history) until the app relaunches.
+    @Test func aReadThatSatOutIsTriedAgainOnTheNextConnection() {
+        var h = readyP1()
+        let key = MessageKey(CurrentBatteryV1Request.self)
+        _ = h.submit(CurrentBatteryV1Request())
+        h.replyError(code: 0)
+        h.advance(by: 1)
+        h.replyError(code: 0)
+        h.advance(by: 1)
+        #expect(h.state.sittingOut.contains(key))
+        h.apply(.disconnected(peripheralID: Self.id, drop))
+        #expect(!h.state.sittingOut.contains(key))
+        h.connectAndAuthenticate()
+        h.answerHandshake(pumpTime: Self.pumpTime)
+        #expect(h.state.isReady)
+        let again = h.submit(CurrentBatteryV1Request())
+        #expect(h.results[again] == nil)
+        #expect(h.writes(of: CurrentBatteryV1Request.self) == 3)
+    }
+
+    /// A supported read the pump answers with error 0 and then a drop costs the connection each time, so
+    /// after the second it sits out across connections, and the link holds; a retest sends it again.
+    @Test func aReadThatDropsTheLinkAfterErrorZeroSitsOutAcrossConnections() {
+        var h = readyP1()
+        let key = MessageKey(CurrentBatteryV1Request.self)
+        for _ in 0..<2 {
+            _ = h.submit(CurrentBatteryV1Request())
+            h.replyError(code: 0)
+            h.apply(.disconnected(peripheralID: Self.id, drop))  // inside the settle window
+            h.connectAndAuthenticate()
+            h.answerHandshake(pumpTime: Self.pumpTime)
+            #expect(h.state.isReady)
+        }
+        #expect(h.writes(of: CurrentBatteryV1Request.self) == 2)
+        #expect(h.state.sittingOut.contains(key))
+        let refused = h.submit(CurrentBatteryV1Request())
+        #expect(h.results[refused] == .notSent(.sittingOut))
+        h.apply(.retest(key))
+        #expect(!h.state.sittingOut.contains(key))
+        _ = h.submit(CurrentBatteryV1Request())
+        #expect(h.writes(of: CurrentBatteryV1Request.self) == 3)
+    }
+
     @Test func transientErrorGetsABoundedRetry() {
         var h = readyP1()
         let id = h.submit(CurrentBatteryV1Request())

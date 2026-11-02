@@ -142,6 +142,11 @@ private final class Step {
             }
         }
         stopEverything(reason: .requested)
+        if state.target?.peripheralID != target.peripheralID {
+            // What another pump did with a command says nothing about this one.
+            state.undefinedErrorDrops = [:]
+            state.sittingOutAfterDrops = []
+        }
         state.target = target
         state.support = matrix
         state.ladder = ReconnectLadder()
@@ -201,8 +206,10 @@ private final class Step {
     }
 
     func retest(_ key: MessageKey) {
-        state.sittingOut.remove(key)
-        state.undefinedErrors[key] = nil
+        state.connection?.sittingOut.remove(key)
+        state.connection?.undefinedErrors[key] = nil
+        state.sittingOutAfterDrops.remove(key)
+        state.undefinedErrorDrops[key] = nil
         guard let unit = state.connection?.identity.unit ?? state.lastIdentity?.unit else { return }
         state.support.forget(key, on: unit)
         emit(.supportMatrixChanged(state.support))
@@ -509,7 +516,7 @@ private final class Step {
                 exempt = true
             } else {
                 reason = .afterErrorReply(errorReply.key, errorCode: code)
-                if code == 0 { countUndefinedError(errorReply.key) }
+                if code == 0 { countUndefinedError(errorReply.key, droppedLink: true) }
             }
             if let pending = errorReply.pending { complete(pending.request.id, .pumpError(errorReply.error)) }
             state.connection?.lastError = nil
@@ -870,7 +877,7 @@ private final class Step {
             recordEvidence(.unsupported, for: errorReply.key, note: "op-77 BAD_OPCODE")
         case 0:
             // Undefined (P1 answers this way): ambiguous without a drop. A bounded retry, then the
-            // command sits out the rest of the session.
+            // command sits out the rest of the connection.
             if countUndefinedError(errorReply.key) { retry = retryable(errorReply) }
         default:
             // Transient (CRC, txId, buffer, auth): a bounded retry for a read.
@@ -905,16 +912,24 @@ private final class Step {
     }
 
     /// Counts an undefined-code error for `key`; returns whether it's still within the retry budget.
-    /// Past it, the command sits out the session.
+    /// Past it, the command sits out: the connection when the link stayed up, and until `retest` or
+    /// another pump when the link dropped after it (otherwise a read the pump answers that way and drops
+    /// after would cost every connection, and the link would never hold).
     @discardableResult
-    func countUndefinedError(_ key: MessageKey) -> Bool {
-        let count = (state.undefinedErrors[key] ?? 0) + 1
-        state.undefinedErrors[key] = count
-        if count > config.readRetries {
-            state.sittingOut.insert(key)
+    func countUndefinedError(_ key: MessageKey, droppedLink: Bool = false) -> Bool {
+        if droppedLink {
+            let count = (state.undefinedErrorDrops[key] ?? 0) + 1
+            state.undefinedErrorDrops[key] = count
+            guard count > config.readRetries else { return true }
+            state.sittingOutAfterDrops.insert(key)
             return false
         }
-        return true
+        guard state.connection != nil else { return false }
+        let count = (state.connection?.undefinedErrors[key] ?? 0) + 1
+        state.connection?.undefinedErrors[key] = count
+        guard count > config.readRetries else { return true }
+        state.connection?.sittingOut.insert(key)
+        return false
     }
 
     func isRecordedSupported(_ key: MessageKey) -> Bool {

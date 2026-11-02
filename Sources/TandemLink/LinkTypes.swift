@@ -274,8 +274,9 @@ public enum NotSentReason: Sendable, Equatable {
     case identityUnknown
     /// This pump doesn't support it: per its model, or recorded for this unit and firmware.
     case unsupported
-    /// It drew the undefined error code more than the retry budget this session; it sits out the rest
-    /// of the session (so P1's error 0 can't loop).
+    /// It drew the undefined error code more than the retry budget, so P1's error 0 can't loop: on this
+    /// connection with the link up (it sits out the connection), or with the link dropping after it (it
+    /// sits out until retested or another pump is connected).
     case sittingOut
     /// It's untested here, and an earlier probe on this connection drew an op-77 (probing stops then).
     case probeStopped
