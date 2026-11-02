@@ -40,7 +40,8 @@ tag:
 .product(name: "TandemBLE", package: "TandemKit"),
 ```
 
-SwiftPM fetches the two submodules it needs (mbedTLS and the pumpx2 oracle) with it.
+SwiftPM fetches the submodules with it. The library builds from mbedTLS; the pumpx2 oracle is only used by
+the tests.
 
 The entry point is `PumpConnection`: pair, keep the link up, and send requests and get typed results.
 `send(_:allowing:)` grants write risk for that one call, and a signed write outside
@@ -52,7 +53,7 @@ The entry point is `PumpConnection`: pair, keep the link up, and send requests a
 Every outgoing message must byte-match upstream's `cliparser` output. pumpx2 is pinned as a submodule at
 `vendor/pumpx2-oracle` (see [`PINNED.md`](PINNED.md)), and its `cliparser` JAR is the oracle.
 
-Build the oracle (JDK 17 or newer; CI uses 21):
+Build the oracle (JDK 21, which the parity tests need too):
 
 ```sh
 git submodule update --init
@@ -76,6 +77,8 @@ java -jar cliparser.jar encode <txId> <MessageName> '<jsonParams>'
 swift test              # the suite alone
 ```
 
+The suite needs the oracle JAR built (above) and JDK 21; without them the oracle gate fails rather than
+skip parity. `PUMPX2_ALLOW_ORACLE_SKIP=1` skips it for local Swift-only work, never in CI.
 `./scripts/test.sh` runs the suite on a Mac with only the Command Line Tools. See
 [CONTRIBUTING.md](CONTRIBUTING.md).
 

@@ -9,7 +9,7 @@ it. Contributions are welcome by pull request. Until the rebuild merges, target 
 Every outgoing message and every parsed response must byte-match pumpx2's `cliparser` oracle. When you add
 or change a message:
 
-1. Build the oracle once (README, "The cliparser oracle").
+1. Build the oracle once with JDK 21 (README, "The cliparser oracle").
 2. Add an oracle-parity test (`Tests/TandemMessagesTests/OracleParityTests.swift`), or a direct byte test
    (`ResponseDirectTests.swift`) for a message the oracle can't construct.
 3. Run the gates.
@@ -51,4 +51,7 @@ tagged `vX.Y.Z` and recorded in [CHANGELOG.md](CHANGELOG.md). faBolus pins Tande
 ## Before you open a pull request
 
 - `./scripts/check.sh` passes.
+- The products still build for iOS and watchOS, which `check.sh` doesn't cover:
+  `xcodebuild -scheme TandemAuth -destination 'generic/platform=watchOS' CODE_SIGNING_ALLOWED=NO build`,
+  and likewise for `TandemBLE`, `TandemLink` and `TandemMessages`, and for `generic/platform=iOS`.
 - Say what was tested on a pump and what only in tests.

@@ -18,7 +18,7 @@ oracle-parity test.**
 - **CLT-only wrapper:** `./scripts/test.sh`
 - **Bench package:** `swift test --package-path Bench`
 - **Single test:** `swift test --filter <Name>`
-- Oracle parity needs a built `cliparser.jar` (Gradle, **JDK 17+**; CI uses JDK 21). See README.
+- Oracle parity needs a built `cliparser.jar` and **JDK 21**. See README.
 
 ## Layout (SPM products)
 
