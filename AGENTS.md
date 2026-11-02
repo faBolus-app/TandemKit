@@ -13,8 +13,10 @@ oracle-parity test.**
 
 ## Commands
 
+- **Every gate:** `./scripts/check.sh` (CI runs the same script)
 - **Full suite (Xcode):** `swift test`
 - **CLT-only wrapper:** `./scripts/test.sh`
+- **Bench package:** `swift test --package-path Bench`
 - **Single test:** `swift test --filter <Name>`
 - Oracle parity needs a built `cliparser.jar` (Gradle, **JDK 17+**; CI uses JDK 21). See README.
 
@@ -38,6 +40,7 @@ oracle-parity test.**
 - `Tests/TandemMessagesTests/` — `OracleParityTests`, `ResponseParityTests`, `ResponseDirectTests`.
 - `Tests/TandemLinkTests/` — every transition, the replay of P1's reconnect-loop logs (`Fixtures/`) and
   the request rules. `Tests/TandemBLETests/` — `PumpConnection` over a scripted CoreBluetooth stand-in.
+- `Bench/` — a separate package for bench runs against a real pump; the library never links it.
 
 ## How to add a message
 
@@ -56,8 +59,8 @@ oracle-parity test.**
 ## Quality gates
 
 - `./scripts/check.sh` runs every gate; CI runs the same script, one gate per step, on Xcode 27.2.
-  Each gate fails the build: compiler warnings, `swift test`, `xcrun swift-format lint --strict`,
-  SwiftLint, ShellCheck, actionlint and markdownlint. Nothing is grandfathered. A suppression is
+  Each gate fails the build: compiler warnings, `swift test`, the `Bench/` package,
+  `xcrun swift-format lint --strict`, SwiftLint, ShellCheck, actionlint and markdownlint. Nothing is grandfathered. A suppression is
   written inline, names the rule and gives a reason.
 - `./scripts/format.sh` formats in place with the toolchain's swift-format. `.swift-format` turns off
   every rule except `DoNotUseSemicolons`, so it reflows layout but never rewrites code. Leave the rules

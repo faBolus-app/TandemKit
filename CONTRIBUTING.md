@@ -1,57 +1,54 @@
 # Contributing to TandemKit
 
-TandemKit is a **reusable Swift library** for the Tandem t:slim X2 / Mobi Bluetooth protocol — any
-project can depend on it (faBolus is one consumer). Contributions are welcome by **PR, not fork**:
-the goal is one well-tested library everyone builds on. All work is for **experimental use only**
-(in development, not FDA-cleared). The delivery disposition is **NO-GO for real insulin
-delivery** — keep it so.
+TandemKit is a reusable Swift library for the Tandem t:slim X2 Bluetooth protocol; faBolus is one user of
+it. Contributions are welcome by pull request. Until the rebuild merges, target `rebuild`; after that,
+`main` (see [BRANCHES.md](BRANCHES.md)).
 
-## The one hard rule: byte-exact vs the oracle
+## The rule: byte-exact against the oracle
 
-Every outgoing (request) message and every parsed response must **byte-match** the upstream
-`jwoglom/pumpx2` `cliparser` oracle. "Byte-exact or fail." When you add or change a message:
+Every outgoing message and every parsed response must byte-match pumpx2's `cliparser` oracle. When you add
+or change a message:
 
-1. Build the oracle once (see README → "The cliparser oracle"; needs JDK 17+).
-2. Add an oracle-parity test (see `Tests/TandemMessagesTests/OracleParityTests.swift`) or a direct
-   byte test (`ResponseDirectTests.swift`) for messages the oracle can't construct.
-3. Run the suite: `./scripts/test.sh` (works around the CLT swift-testing rpath issue).
+1. Build the oracle once (README, "The cliparser oracle").
+2. Add an oracle-parity test (`Tests/TandemMessagesTests/OracleParityTests.swift`), or a direct byte test
+   (`ResponseDirectTests.swift`) for a message the oracle can't construct.
+3. Run the gates.
 
-## Adding a message / response
+## Adding a message
 
-- Requests live in `Sources/TandemMessages/Requests/…`, responses in `…/Responses/…`.
-- Give it correct `MessageProps` (opCode, size, characteristic, `signed`, `responseOpCode`). A
-  **signed** control message needs `signed: true`; a **signed response** does too (that was the
-  DismissNotification bug — the response was signed and had to be marked).
-- Register new responses in `ResponseParser`.
-- Keep `TandemMessages` free of platform imports (it's the portable core; it builds on iOS, watchOS,
-  and macOS).
+- Requests live in `Sources/TandemMessages/Requests/`, responses in `Sources/TandemMessages/Responses/`.
+- Give it correct `MessageProps`: opcode, size, characteristic, `signed`, `responseOpCode`, and
+  `modifiesInsulinDelivery` for an insulin-affecting message. A signed response needs `signed: true` too.
+- Register a new response in `ResponseParser`, which dispatches on characteristic and opcode (opcodes
+  aren't unique across characteristics).
+- A new signed write is refused by the link until it's added to `SupportMatrix.allowedSignedWrites`.
+- Keep `TandemMessages` free of platform imports.
+- If a field isn't confirmed on a pump, say so in its doc comment, and record it in faBolus's
+  `docs/UNVERIFIED-GUESSES.md` if the app reads it.
 
-## Public API / stability
+## The gates
 
-- `TandemMessages`, `TandemAuth`, `TandemBLE` are the public products. Treat their public surface as
-  an API other apps depend on: additive changes preferred; breaking changes get a **minor/major
-  version bump** (semver) and a note in the PR.
-- Tag releases (`vX.Y.Z`); consumers pin to a tag. `v0.1.0` and `v0.2.0` exist; record every release
-  in [`CHANGELOG.md`](CHANGELOG.md).
+`./scripts/check.sh` runs every gate, and CI runs the same script, one gate per step, on Xcode 27.2:
 
-## Branch model & versioning
+| Gate | What fails it |
+| --- | --- |
+| `build` | A compiler warning (warnings as errors). |
+| `test` | A failing test, oracle parity among them. CI builds the oracle JAR first; locally, the parity tests need it built (`PUMPX2_JAVA` or `JAVA_HOME` names the Java to run it). |
+| `bench` | The `Bench/` package failing to build or test. |
+| `format` | `xcrun swift-format lint --strict`. `./scripts/format.sh` fixes it. |
+| `swiftlint`, `shell`, `actions`, `markdown` | SwiftLint, ShellCheck, actionlint, markdownlint. |
 
-Governance is canonical in [`../faBolus/BRANCHES.md`](../faBolus/BRANCHES.md). This repo's
-[`BRANCHES.md`](BRANCHES.md) is a pointer — do not fork the rules here.
+Tools: `brew install swiftlint shellcheck actionlint openjdk@21` and
+`npm install --global markdownlint-cli2@0.24.0`.
 
-faBolus consumes this package via `url:` + `revision:` in `faBolus/project.yml` (with
-`FABOLUS_TANDEM_LOCAL=1` for a sibling checkout). Read the pin from that file. Do not copy SHAs
-into this document.
+## Public API
 
-## Safety
+`TandemMessages`, `TandemAuth`, `TandemLink` and `TandemBLE` are an API other apps depend on. Prefer
+additive changes; a breaking change gets a version bump and a note in the pull request. Releases are
+tagged `vX.Y.Z` and recorded in [CHANGELOG.md](CHANGELOG.md). faBolus pins TandemKit by revision in its
+`Packages/PumpSession/Package.swift`; read the pin there.
 
-- The dosing/signing path (`TandemAuth`, bolus/cancel/dismiss requests) is the most safety-critical
-  code and gets extra review. Never loosen the write-policy interlock or signing.
+## Before you open a pull request
 
-## Before a PR
-
-- `./scripts/test.sh` green (all suites, including oracle parity).
-- Confirm the three library products still build for iOS **and** watchOS
-  (`xcodebuild -scheme TandemAuth -destination 'generic/platform=watchOS' CODE_SIGNING_ALLOWED=NO build`,
-  likewise `TandemBLE`, `TandemMessages`).
-- Note anything only compiled vs. tested on hardware.
+- `./scripts/check.sh` passes.
+- Say what was tested on a pump and what only in tests.

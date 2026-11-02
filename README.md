@@ -1,95 +1,95 @@
 > [!CAUTION]
-> **Not a medical device — do not use it for treatment decisions.** TandemKit is experimental software
-> under active development. It is **not FDA-cleared or approved** and has **not** been clinically
-> validated, and its insulin-dosing path is treated as unproven. **Do not rely on it to make or carry out
-> any insulin-dosing, treatment, or other clinical decision.** It is for software development and
-> evaluation only — always confirm every reading and dose directly on your pump and CGM.
+> TandemKit is experimental, in-development software — not a medical device and not FDA-cleared. It is for
+> experimental and demonstration use. Not medical advice. If you build or use it, you assume all
+> responsibility.
 
 # TandemKit
 
-A Swift port of the reverse-engineered [`jwoglom/pumpx2`](https://github.com/jwoglom/pumpx2)
-protocol for the Tandem **t:slim X2 / Mobi** insulin pump. It provides the shared
-protocol / auth / BLE core that the [`faBolus`](../faBolus) app and its watch /
-Garmin remotes build on.
+A Swift port of [`jwoglom/pumpx2`](https://github.com/jwoglom/pumpx2), the reverse-engineered Bluetooth
+protocol of the Tandem t:slim X2 insulin pump: messages, pairing, signing and the connection. It's the
+pump library under the [faBolus](https://github.com/faBolus-app/faBolus) app, and any app can use it.
 
-> [!WARNING]
-> **Experimental — in development.** TandemKit is an independent, open-source project in
-> development for experimental use. It is **not FDA-cleared**, and the insulin-dosing path is
-> treated as unproven; if you build or use it, you assume all responsibility. **Not affiliated
-> with, endorsed by, or a product of Tandem Diabetes Care or Dexcom.**
+> [!NOTE]
+> TandemKit is an independent, open-source project. It is not affiliated with Tandem Diabetes Care or
+> Dexcom.
 
-## Modules
+## Products
 
-| Target | Purpose |
+| Product | What it is |
 | --- | --- |
-| `TandemMessages` | Message framing, opcodes, request/response models, packetization. Portable, no platform deps. |
-| `TandemAuth` | Pairing handshake (legacy CentralChallenge + modern JPAKE) and per-command HMAC signing. **Safety-critical.** |
-| `TandemBLE` | Core Bluetooth central: scan / connect / bond / discover / notify. Platform-agnostic (iOS + watchOS). |
+| `TandemMessages` | Message framing, opcodes, request and response types, packetization, and `SupportMatrix` (which commands a pump answers). No platform dependencies. |
+| `TandemAuth` | Pairing (legacy CentralChallenge with the 16-character code, and EC-JPAKE with the 6-digit code, through vendored mbedTLS) and per-command HMAC signing. |
+| `TandemLink` | The connection as a state machine: `LinkReducer.reduce(state, input)` returns the new state and the effects to perform, with no CoreBluetooth import. |
+| `TandemBLE` | `PumpConnection`, which runs the reducer over CoreBluetooth: scan, connect, bond, discover, notify, and one request in flight. |
 
-Bench tooling lives in a separate package, [`Bench/`](Bench/README.md): the `TandemBenchHarness` CLI,
-its session planner and coverage matrix, and the gated hardware tests. The library never links it.
+Bench tooling is a separate package, [`Bench/`](Bench/README.md): a CLI for a real pump, its session
+planner and coverage matrix. The library never links it.
 
-## Use it in your project
+## Use it
 
-TandemKit is a reusable SwiftPM package (iOS 16+, watchOS 9+, macOS 13+). Add it as a dependency and
-import the products you need:
+TandemKit is a SwiftPM package for iOS 16+, watchOS 9+ and macOS 13+. Pin it by revision or by a release
+tag:
 
 ```swift
 // Package.swift
-.package(url: "https://github.com/faBolus-app/TandemKit.git", from: "0.1.0")
+.package(url: "https://github.com/faBolus-app/TandemKit.git", revision: "<commit>"),
 // then, per target:
-.product(name: "TandemMessages", package: "TandemKit"),  // message framing + models
-.product(name: "TandemAuth", package: "TandemKit"),      // pairing (JPAKE/legacy) + HMAC signing
-.product(name: "TandemLink", package: "TandemKit"),      // the connection state machine
-.product(name: "TandemBLE", package: "TandemKit"),       // the link over Core Bluetooth
+.product(name: "TandemMessages", package: "TandemKit"),
+.product(name: "TandemAuth", package: "TandemKit"),
+.product(name: "TandemLink", package: "TandemKit"),
+.product(name: "TandemBLE", package: "TandemKit"),
 ```
 
-Typical entry points: `PumpConnection` (pair, keep the link up, send requests and get typed results),
-`SupportMatrix` (what each pump answers), and the request/response types in `TandemMessages`. For a
-worked example, see `Bench/Sources/TandemBenchHarness`. To build a non-faBolus app on it, depend on
-these products directly — you don't need faBolus. Contributions go
-through PR, not fork; see [`CONTRIBUTING.md`](CONTRIBUTING.md).
+SwiftPM fetches the two submodules it needs (mbedTLS and the pumpx2 oracle) with it.
+
+The entry point is `PumpConnection`: pair, keep the link up, and send requests and get typed results.
+`send(_:allowing:)` grants write risk for that one call, and a signed write outside
+`SupportMatrix.allowedSignedWrites` is refused before a byte is built. For a worked example, see
+`Bench/Sources/TandemBenchHarness`; for a full app, faBolus's `Packages/PumpSession`.
 
 ## The cliparser oracle
 
-Every outgoing message must **byte-match** the upstream `cliparser` output ("byte-exact or
-fail"). The upstream `pumpx2` repo is pinned as a git submodule at `vendor/pumpx2-oracle`
-(see [`PINNED.md`](PINNED.md)); its `cliparser` shadow JAR is the byte-level oracle.
+Every outgoing message must byte-match upstream's `cliparser` output. pumpx2 is pinned as a submodule at
+`vendor/pumpx2-oracle` (see [`PINNED.md`](PINNED.md)), and its `cliparser` JAR is the oracle.
 
-Build the oracle (requires **JDK 17+** — the pinned Gradle 9.x will not run on JDK 11):
+Build the oracle (JDK 17 or newer; CI uses 21):
 
 ```sh
+git submodule update --init
 cd vendor/pumpx2-oracle
 JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :cliparser:shadowJar
-# → cliparser/build/libs/cliparser.jar  (shadow/fat jar)
+# → cliparser/build/libs/cliparser.jar
 ```
 
-Generate reference bytes for a message:
+Reference bytes for a message:
 
 ```sh
 java -jar cliparser.jar encode <txId> <MessageName> '<jsonParams>'
-# prints JSON incl. a "packets" array of hex — the bytes Swift output is compared against
+# prints JSON with a "packets" array of hex: the bytes the Swift output is compared against
 # e.g. encode 0 ApiVersionRequest '{}' → packets ["00002000005a4a"]
 ```
 
-## Build & test
+## Build and test
 
 ```sh
-swift build
-swift test
+./scripts/check.sh      # every gate, as CI runs it
+swift test              # the suite alone
 ```
 
-## Status
-
-**Milestone 1 definition-of-done met** — read-only monitor, 6-digit JPAKE pairing, and a
-signed bolus have been validated on real hardware (see [`PINNED.md`](PINNED.md) for the
-log). Every outgoing message is byte-exact against the `cliparser` oracle in CI.
+`./scripts/test.sh` runs the suite on a Mac with only the Command Line Tools. See
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## The app built on this
 
-[`faBolus`](https://github.com/faBolus-app/faBolus) is the iPhone app that
-consumes TandemKit (the Garmin remote lives in
-[`faBolusGarmin`](https://github.com/faBolus-app/faBolusGarmin)). Its documentation — a
-no-experience-required build guide, usage, and customization — is the best starting point:
+[faBolus](https://github.com/faBolus-app/faBolus) is the iPhone app that uses TandemKit; its watch app is
+[faBolusGarmin](https://github.com/faBolus-app/faBolusGarmin). The documentation, with a build guide that
+needs no programming, is at <https://fabolus.org/>.
 
-### 👉 <https://fabolus.org/>
+## Acknowledgments
+
+TandemKit is a port of James Woglom's ([@jwoglom](https://github.com/jwoglom)) pumpx2. His
+reverse-engineering is the foundation of this library. See [NOTICE.md](NOTICE.md).
+
+## License and trademark
+
+MIT (see [LICENSE](LICENSE)). faBolus™ is a trademark of Zev Granowitz; see [NOTICE.md](NOTICE.md).
