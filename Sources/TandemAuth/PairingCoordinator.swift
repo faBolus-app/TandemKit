@@ -94,7 +94,13 @@ public final class PairingCoordinator {
             case (.sent4, 41):  // Jpake4KeyConfirmationResponse: nonce(8)+reserved(8)+hash(32)
                 let serverNonce4 = Array(challenge.prefix(8))
                 let serverHash = Array(challenge.dropFirst(16).prefix(32))
-                try auth.verifyServerRound4(serverNonce4: serverNonce4, serverHashDigest: serverHash)
+                // Reported as this coordinator's own error: the link counts it as the pump rejecting the
+                // code (or the stored secret), not as a frame lost on the way, so it doesn't retry it.
+                do {
+                    try auth.verifyServerRound4(serverNonce4: serverNonce4, serverHashDigest: serverHash)
+                } catch {
+                    return fail(PairingError.keyConfirmationFailed)
+                }
                 step = .paired
                 onPaired?(auth.authKey, auth.serverNonce)
             default:
