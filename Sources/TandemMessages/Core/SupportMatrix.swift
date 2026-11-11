@@ -327,12 +327,12 @@ public struct SupportMatrix: Sendable, Equatable, Codable {
         add(
             [LastBolusStatusV2Request.self], .unsupported, .device, p2,
             "op-77 on P2, so a completed bolus can't be settled from it")
+        // InsulinStatus, HomeScreenMirror and CurrentBatteryV2 were listed here too, from the same old app,
+        // which counted any error as a rejection. Nothing confirmed them, and the dose path needs
+        // HomeScreenMirror's CGM state, so a rejection of those three now comes only from a unit's own
+        // evidence.
         add(
-            [
-                LoadStatusRequest.self, InsulinStatusRequest.self, HomeScreenMirrorRequest.self,
-                CurrentBatteryV2Request.self
-            ],
-            .unsupported, .device, p2,
+            [LoadStatusRequest.self], .unsupported, .device, p2,
             "listed as rejected by the old app on P2, which rejected a read on any error; unconfirmed")
         return e
     }()
