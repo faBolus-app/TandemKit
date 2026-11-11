@@ -54,23 +54,25 @@ import Testing
         }
     }
 
-    @Test func v2ReplyIsStatusIndexAndALittleEndianMask() throws {
-        let reply = try #require(BenchFeaturesV2Reply(cargo: [0, 0, 0x00, 0x04, 0x00, 0x10]))
-        #expect(reply.status == 0)
-        #expect(reply.index == 0)
-        #expect(reply.bitmask == 0x1000_0400)
-        let report = try #require(reply.report)
+    /// The library's PumpFeaturesV2 decode (status@0, index@1, uint32 LE@2) feeds the report for the
+    /// set the pump echoed.
+    @Test func v2ReplyBuildsTheReportForTheEchoedIndex() throws {
+        let reply = PumpFeaturesV2Response(cargo: [0, 0, 0x00, 0x04, 0x00, 0x10])
+        let report = try #require(BenchFeatureReport(reply))
         #expect(report.set == .main)
+        #expect(report.bitmask == 0x1000_0400)
         #expect(report.isSet(28) && report.isSet(10))
-        // The library's decoder reads the same fields.
-        let library = PumpFeaturesV2Response(cargo: [0, 0, 0x00, 0x04, 0x00, 0x10])
-        #expect(library.pumpFeaturesBitmask == Int(reply.bitmask))
-        #expect(library.supportedFeatureIndexId == reply.index)
+        let control = try #require(BenchFeatureReport(PumpFeaturesV2Response(cargo: [0, 2, 0, 0, 0, 0x10])))
+        #expect(control.set == .control)
+        #expect(control.bits.map(\.name) == ["FEATURE_MANAGEMENT"])
+        // The top bit survives the library's Int field.
+        let top = try #require(BenchFeatureReport(PumpFeaturesV2Response(cargo: [0, 4, 0, 0, 0, 0x80])))
+        #expect(top.bits.map(\.position) == [31])
     }
 
-    @Test func aShortOrUnknownReplyDecodesNothing() {
-        #expect(BenchFeaturesV2Reply(cargo: [0, 0, 1, 2, 3]) == nil)
-        #expect(BenchFeaturesV2Reply(cargo: [0, 9, 1, 0, 0, 0])?.report == nil)
+    @Test func anUnnamedIndexHasNoReport() {
+        #expect(BenchFeatureReport(PumpFeaturesV2Response(cargo: [0, 9, 1, 0, 0, 0])) == nil)
+        #expect(BenchFeatureReport.positionLines(0b101) == ["bit 0", "bit 2"])
     }
 
     @Test func defaultOrderReadsMainFirstAndEveryIndexIsReachable() {
@@ -207,8 +209,11 @@ private struct BenchCalcSnapshot {
         #expect(dup.summary.contains("1 duplicate"))
     }
 
-    @Test func aTopWindowNearZeroDoesntWrap() {
+    @Test func windowsNearTheEndsDontWrap() {
         #expect(BenchHistoryProbe(start: 2, count: 5, received: []).topWindow == 0...2)
+        let high = BenchHistoryProbe(start: UInt32.max - 1, count: 5, received: [UInt32.max])
+        #expect(high.lowWindow == (UInt32.max - 1)...UInt32.max)
+        #expect(high.anchoring == .neither)
     }
 
     @Test func capVerdicts() {

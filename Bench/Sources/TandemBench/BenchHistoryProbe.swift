@@ -37,7 +37,8 @@ public struct BenchHistoryProbe: Sendable, Equatable {
     }
 
     public var lowWindow: ClosedRange<UInt32> {
-        start...(start &+ UInt32(max(count - 1, 0)))
+        let n = UInt32(max(count - 1, 0))
+        return start...(start > UInt32.max - n ? UInt32.max : start + n)
     }
 
     public var anchoring: Anchoring {

@@ -19,11 +19,19 @@ enum MatrixFile {
         return m
     }
 
-    static func save(_ matrix: SupportMatrix) {
+    /// Writes the matrix without losing what another run saved meanwhile (P1 and P2 in two terminals):
+    /// this pump's entries come from `matrix`, which holds its forgets as well as its new results; every
+    /// other pump's are what the file holds, merged with this run's copy of them.
+    static func save(_ matrix: SupportMatrix, unit: PumpUnit?) {
+        var merged = load()
+        if let unit {
+            for key in merged.recorded[unit]?.keys.map({ $0 }) ?? [] { merged.forget(key, on: unit) }
+        }
+        merged = merged.merging(matrix)
         do {
             try FileManager.default.createDirectory(
                 at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try JSONEncoder().encode(matrix).write(to: url)
+            try JSONEncoder().encode(merged).write(to: url, options: .atomic)
         } catch {
             say("couldn't save the support matrix: \(error)")
         }
@@ -47,6 +55,9 @@ final class BenchSession {
     var jobStarted = false
     /// Forget this pump's recorded result for each command before sending it, so it is probed again.
     var retest = false
+    /// The commands already retested this run: each is forgotten once, before its first send, so a
+    /// repeated read isn't a fresh probe every time.
+    var retested = Set<MessageKey>()
 
     // What the commands read back.
     var drops = 0
@@ -106,6 +117,9 @@ final class BenchSession {
         case .phase(let phase):
             say("link: \(phase)")
             if phase == .connecting { reconnects.connecting(at: now) }
+            if phase == .exhausted {
+                say("  reconnecting stopped after the flap limit; this run won't reconnect again (Ctrl-C to end it)")
+            }
             if phase == .ready {
                 if let line = reconnects.ready(at: now) { say(line) }
                 startJobOnce()
@@ -136,7 +150,7 @@ final class BenchSession {
         case .connectionRestored:
             say("connection restored")
         case .supportMatrixChanged(let matrix):
-            MatrixFile.save(matrix)
+            MatrixFile.save(matrix, unit: identity?.unit ?? link.state.connection?.identity.unit)
             say("support matrix saved to \(MatrixFile.url.path)")
         case .qualifyingEvents(let events):
             say("notice: \(BenchNoticeBits.describe(events.rawValue))")
@@ -188,6 +202,12 @@ final class BenchSession {
     func whenReady(timeout: Double = 120) async -> Bool {
         let until = link.now + timeout
         while link.state.phase != .ready {
+            // Neither comes back by itself in a command-line run: `failed` is final, and `exhausted`
+            // waits for an app to come to the foreground.
+            switch link.state.phase {
+            case .failed, .exhausted: return false
+            default: break
+            }
             if link.now > until { return false }
             try? await Task.sleep(for: .milliseconds(250))
         }
@@ -205,12 +225,18 @@ final class BenchSession {
             say("\(name): the link wasn't ready within 120 s; not sent")
             return .notSent(.notReady)
         }
-        if retest { link.retest(MessageKey(message)) }
+        if retest, retested.insert(MessageKey(message)).inserted { link.retest(MessageKey(message)) }
         let before = drops
         transcript.detail("send \(name) cargo [\(message.cargo.count)] \(Hex.encode(message.cargo))")
         let result = await link.send(message, allowing: allowing, deadline: deadline)
         say("\(name) -> \(describe(result))")
         if drops != before { say("  the link dropped while \(name) was out") }
+        if case .pumpError(let error) = result, error.errorCodeId == 6 {
+            // One opcode is one matrix entry: every PumpFeaturesV2 index and every history count share it.
+            say(
+                "  the link now records this command as unsupported on this pump, for every argument and "
+                    + "every later run; add --retest to send it again")
+        }
         return result
     }
 
