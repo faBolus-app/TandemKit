@@ -7,6 +7,14 @@ import TandemMessages
 @MainActor
 final class LineInbox {
     private var waiting: CheckedContinuation<String, Never>?
+    /// Standard input ended (a pipe, no terminal): a prompt gets an empty answer, which refuses.
+    private var closed = false
+
+    func close() {
+        closed = true
+        waiting?.resume(returning: "")
+        waiting = nil
+    }
 
     func deliver(_ line: String) {
         if let waiting {
@@ -20,6 +28,10 @@ final class LineInbox {
 
     func prompt(_ text: String) async -> String {
         say("? \(text)")
+        if closed {
+            say("  standard input is closed, so nothing can be typed: refused")
+            return ""
+        }
         return await withCheckedContinuation { waiting = $0 }
     }
 }
@@ -28,7 +40,8 @@ final class LineInbox {
 enum BolusLogFile {
     static var url: URL {
         if let path = env["PUMP_BOLUS_LOG"], !path.isEmpty { return URL(fileURLWithPath: path) }
-        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".tandemkit-bench/bench-boluses.json")
+        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(
+            ".tandemkit-bench/bench-boluses.json")
     }
 
     static func load() -> BenchBolusLog {
@@ -41,6 +54,7 @@ enum BolusLogFile {
 
     /// Fails loudly: a bolus is never sent unless its entry was written first.
     static func save(_ log: BenchBolusLog) -> Bool {
+        let log = log.merging(load())
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -70,7 +84,8 @@ func userInteraction(_ s: BenchSession) async {
     {
         return say("RESULT not sent: \(why)")
     }
-    let result = await s.request(UserInteractionRequest(), allowing: UserInteractionRequest().operationRisk, deadline: 60)
+    let result = await s.request(
+        UserInteractionRequest(), allowing: UserInteractionRequest().operationRisk, deadline: 60)
     if let r = s.reply(result, as: UserInteractionResponse.self) { say("  status \(r.status)") }
     say("  60 s of notices follow")
     await s.pause(60)
@@ -95,23 +110,44 @@ func setTime(_ s: BenchSession, plusFive: Bool) async {
         return say("RESULT not sent: \(why)")
     }
     let before = s.reply(await s.request(HistoryLogStatusRequest()), as: HistoryLogStatusResponse.self)
+    // Unverified: that ChangeTimeDate's seconds count from the same epoch, in the same zone, as
+    // TimeSinceReset's currentTime. The no-op step checks it: its read-back has to match within seconds.
+    say("  unverified: ChangeTimeDate is sent in TimeSinceReset's currentTime units; the no-op step checks that")
+    guard let base = s.reply(await s.request(TimeSinceResetRequest()), as: TimeSinceResetResponse.self) else {
+        return say("RESULT not sent: no clock read")
+    }
+    let baseAt = s.link.now
     var results: [String] = []
-    // A no-op first: the pump's own time, moved on by the seconds since it was read. Then +5 min and back.
-    let steps: [(String, Int)] = plusFive ? [("same time", 0), ("+5 min", 300), ("back", -300)] : [("same time", 0)]
+    // Every target is the one base reading moved on by the time since, so "back" restores the pump's
+    // own time whatever the +5 min step did (answered, refused, or applied with a reply the link
+    // couldn't trust).
+    let steps: [(String, Int)] = plusFive ? [("same time", 0), ("+5 min", 300), ("back", 0)] : [("same time", 0)]
+    var moved = false
+    var restored = true
     for (label, offset) in steps {
-        guard let clock = s.reply(await s.request(TimeSinceResetRequest()), as: TimeSinceResetResponse.self) else {
-            results.append("\(label): no clock read, stopped")
-            break
-        }
-        let readAt = s.link.now
-        let target = BenchClock.target(pumpTime: clock.currentTime, readAt: readAt, now: s.link.now, offset: offset)
+        let target = BenchClock.target(pumpTime: base.currentTime, readAt: baseAt, now: s.link.now, offset: offset)
         let request = ChangeTimeDateRequest(tandemEpochTime: target)
         let result = await s.request(request, "ChangeTimeDate(\(label): \(target))", allowing: request.operationRisk)
-        if let r = s.reply(result, as: ChangeTimeDateResponse.self) { say("  status \(r.status) accepted \(r.accepted)") }
+        if let r = s.reply(result, as: ChangeTimeDateResponse.self) {
+            say("  status \(r.status) accepted \(r.accepted)")
+        }
         let after = s.reply(await s.request(TimeSinceResetRequest()), as: TimeSinceResetResponse.self)
         say("  pump time after: \(after.map { String($0.currentTime) } ?? "unread") (asked \(target))")
         results.append("\(label): \(verdictText(result))")
-        guard case .reply = result else { break }
+        let answered: Bool
+        if case .reply = result { answered = true } else { answered = false }
+        let sent: Bool
+        if case .notSent = result { sent = false } else { sent = true }
+        if offset != 0, sent {
+            moved = true
+            restored = false
+        }
+        if label == "back", answered { restored = true }
+        // Stop after the no-op if it didn't answer; never stop between +5 min and back.
+        if label == "same time", !answered { break }
+    }
+    if moved, !restored {
+        say("  !!! the pump clock may still be 5 minutes fast: check it on the pump and set it back by hand")
     }
     if let before, let page = await newHistory(s, since: before.lastSequenceNum) {
         results.append("history records since: \(page)")
@@ -279,7 +315,9 @@ func bolus(_ s: BenchSession, kind: BenchBolusKind, carbs: Int, bg: Int, noCartr
 @MainActor
 func follow(_ s: BenchSession, id: Int) async -> String? {
     var last = -1
-    let end = s.link.now + 120
+    var seen = false
+    let start = s.link.now
+    let end = start + 120
     while s.link.now < end {
         guard let status = s.reply(await s.request(CurrentBolusStatusRequest()), as: CurrentBolusStatusResponse.self)
         else {
@@ -288,9 +326,20 @@ func follow(_ s: BenchSession, id: Int) async -> String? {
         }
         if status.statusId != last {
             last = status.statusId
-            say("  CurrentBolusStatus: status \(status.statusId) id \(status.bolusId) requested \(status.requestedVolume) mU")
+            say(
+                "  CurrentBolusStatus: status \(status.statusId) id \(status.bolusId) requested \(status.requestedVolume) mU"
+            )
         }
-        if !status.isActive { return "ended (status \(status.statusId)); see LastBolusStatus and history below" }
+        // Ended only once the pump has shown this bolus: active, or by its id. A status that names
+        // neither (the bolus not started yet) isn't an end; after 20 s of that it stays unsettled.
+        if status.isActive || status.bolusId == id { seen = true }
+        if !status.isActive, seen {
+            return "ended (status \(status.statusId)); see LastBolusStatus and history below"
+        }
+        if !seen, s.link.now - start > 20 {
+            say("  the pump never showed bolus \(id) as active; its outcome stays unsettled")
+            return nil
+        }
         await s.pause(2)
     }
     return nil

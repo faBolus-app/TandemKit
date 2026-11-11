@@ -51,11 +51,11 @@ let usage = """
                                 needs PUMP_BENCH_WRITES=1
       settime [--plus5]         set the pump clock to its own time (a no-op), then with --plus5 +5 min and
                                 back; reads it back and the history; needs PUMP_BENCH_WRITES=1
-      clearcheck <reminder|alert|alarm|cgm> <id>
+      clearcheck <reminder|alert|alarm|cgm> <id 0-63>
                                 dismiss one notification, read its bit at 2, 30 and 120 s and the history
       bolus <units|carb|correction|cancel> [--carbs G] [--bg MGDL] [--no-cartridge] [--chunk 18]
                                 one 0.05 U bolus: saline only (PUMP_SALINE_ATTESTED=1, on no one), or
-                                --no-cartridge for the pump's refusal; at most 3 an hour, logged in
+                                --no-cartridge (PUMP_NO_CARTRIDGE_ATTESTED=1) for the pump's refusal; at most 3 an hour, logged in
                                 ~/.tandemkit-bench/bench-boluses.json (PUMP_BOLUS_LOG)
       bolus settle [note]       mark the last unsettled bench bolus settled after checking the pump
 
@@ -166,7 +166,7 @@ func parseJob(_ command: String, _ rest: [String]) -> Job {
         if let extra = rest.first(where: { $0 != "--plus5" }) { fail("settime: unknown argument \(extra)") }
         return .setTime(plusFive: rest.contains("--plus5"))
     case "clearcheck":
-        guard rest.count == 2, let k = notificationKind(rest[0]), let id = Int(rest[1]) else {
+        guard rest.count == 2, let k = notificationKind(rest[0]), let id = Int(rest[1]), (0...63).contains(id) else {
             fail("usage: clearcheck <reminder|alert|alarm|cgm> <notification id>")
         }
         return .clearCheck(k, id)
@@ -185,7 +185,7 @@ func parseJob(_ command: String, _ rest: [String]) -> Job {
         return .bolus(kind, carbs: carbs, bg: bg, noCartridge: noCartridge, chunk: chunk)
     case "dismiss":
         let chunk = option("--chunk", in: &rest).map { Int(number($0, "--chunk")) }
-        guard rest.count == 2, let k = notificationKind(rest[0]), let id = Int(rest[1]) else {
+        guard rest.count == 2, let k = notificationKind(rest[0]), let id = Int(rest[1]), (0...63).contains(id) else {
             fail("usage: dismiss [--chunk 18] <reminder|alert|alarm|cgm> <notification id>")
         }
         if let chunk, !(1...40).contains(chunk) { fail("--chunk must be 1 to 40") }
@@ -242,6 +242,7 @@ Thread.detachNewThread {
         let text = line.trimmingCharacters(in: .whitespaces)
         Task { @MainActor in bench.inbox.deliver(text) }
     }
+    Task { @MainActor in bench.inbox.close() }
 }
 
 RunLoop.main.run()
