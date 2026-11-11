@@ -31,7 +31,7 @@ import Testing
 
     /// An id the pump firmware might add later must degrade to "no arrow", never to a guessed direction.
     @Test func unknownPumpTrendIconRendersNoArrow() {
-        for id: UInt8 in [8, 9, 200, 255] {
+        for id: UInt8 in [14, 200, 255] {
             var cargo = [UInt8](repeating: 0, count: 9)
             cargo[0] = id
             let m = HomeScreenMirrorResponse(cargo: cargo)

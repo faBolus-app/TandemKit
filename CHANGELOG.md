@@ -6,6 +6,22 @@ git tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+### Added
+
+- `HomeScreenMirrorResponse.cgmAlertIcon` (`CGMAlertIcon`, with `isStartup`) and `isCheckBG` for trend
+  icons 8-13; `EGVStatus` and `egvStatus` on the EGV replies.
+- `BolusCalcDataSnapshotResponse.isAck` (byte 0), `glucoseReading` (bytes 1-2) and `isAutopopAllowed`
+  (byte 37); `LastBolusStatusV2Response.isValid` (byte 0).
+
+### Changed
+
+- `BolusCalcDataSnapshotResponse.correctionFactor` is now unavailable (breaking): use `glucoseReading`.
+  Bytes 1-2 hold a glucose reading in recorded snapshots, and the correction factor is `isf`, so code
+  that read it as a correction factor now fails to compile instead of sizing doses from a glucose.
+- `maxBolusHourlyTotal` is documented as the insulin bolused in the last hour, not a configured ceiling.
+- `SupportMatrix`: P2 no longer lists InsulinStatus, HomeScreenMirror and CurrentBatteryV2 as rejected.
+  Those entries came from an app that counted any error reply as a rejection; only LoadStatus stays.
+
 ## [0.5.0] — 2026-11-11
 
 The bench tools for the t:slim bench runs, and a fix to the 6-digit pairing. faBolus pins this release.
