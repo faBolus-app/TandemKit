@@ -6,6 +6,11 @@ git tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-11-11
+
+The CGM state, Check BG and EGV status, the calculator snapshot's ACK, glucose and auto-fill bytes, and
+P2's support entries without the rejections an old app recorded. faBolus pins this release.
+
 ### Added
 
 - `HomeScreenMirrorResponse.cgmAlertIcon` (`CGMAlertIcon`, with `isStartup`) and `isCheckBG` for trend
@@ -96,7 +101,8 @@ firmware (`PairingAuth.createV1`, `LegacyPairingCoordinator`, chosen automatical
   `TandemBLE` (the CoreBluetooth central), with every outgoing message byte-exact against pumpx2's
   `cliparser` oracle. A signed 0.10 U saline bolus was delivered on a pump.
 
-[Unreleased]: https://github.com/faBolus-app/TandemKit/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/faBolus-app/TandemKit/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/faBolus-app/TandemKit/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/faBolus-app/TandemKit/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/faBolus-app/TandemKit/compare/v1-final...v0.4.0
 [v1-final]: https://github.com/faBolus-app/TandemKit/compare/v0.2.0...v1-final
