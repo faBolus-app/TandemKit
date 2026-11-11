@@ -172,17 +172,17 @@ import TandemMessages
 
     @Test func probeNeverRunsInThePostPairingBurst() {
         var h = readyP2()
-        let probe = h.submit(CurrentBatteryV2Request())  // untested on P2 (suspected)
+        let probe = h.submit(LoadStatusRequest())  // untested on P2 (suspected)
         let known = h.submit(HistoryLogStatusRequest())  // supported on P2
         // The supported read goes first; the probe waits for the link to hold.
-        #expect(h.writes(of: CurrentBatteryV2Request.self) == 0)
+        #expect(h.writes(of: LoadStatusRequest.self) == 0)
         #expect(h.writes(of: HistoryLogStatusRequest.self) == 1)
         h.reply(HistoryLogStatusResponse(cargo: [UInt8](repeating: 0, count: 12)))
         #expect(h.results[known] != nil)
         h.advance(by: 9.9)
-        #expect(h.writes(of: CurrentBatteryV2Request.self) == 0)
+        #expect(h.writes(of: LoadStatusRequest.self) == 0)
         h.advance(by: 0.1)
-        #expect(h.writes(of: CurrentBatteryV2Request.self) == 1)
+        #expect(h.writes(of: LoadStatusRequest.self) == 1)
         #expect(h.results[probe] == nil)
     }
 
