@@ -6,6 +6,16 @@ git tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+### Added
+
+- The `BenchWrites` package trait, off by default (tools version 6.1). With it, `SupportMatrix` allows two
+  more signed writes, UserInteraction and ChangeTimeDate, for bench runs. Only the bench package enables
+  it, so an app's build has neither.
+- Bench: read-only diagnostics in `TandemBenchHarness` (`features`, `history`, `snapshot`, `cgm`,
+  `lastbolus`, `statusreads`, `api`, `notices`, and `monitor`'s reconnect, notice and battery logs),
+  transcripts of every run, the bench writes (`userinteraction`, `settime`, `clearcheck`) and the
+  saline-only `bolus` command.
+
 ## [0.4.0] — 2026-11-01
 
 The library as the rebuilt faBolus app uses it. faBolus 0.4.0 pins this release. The last `main` before

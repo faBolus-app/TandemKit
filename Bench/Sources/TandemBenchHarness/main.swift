@@ -7,8 +7,10 @@ import TandemMessages
 //
 // SAFETY: experimental software in development; not FDA-cleared. Bench pumps only.
 //
-// Nothing here writes insulin. Every command but `dismiss` sends reads only; `dismiss` sends one
-// DismissNotification, allowed for that one call. Every request goes through the link's gates (the
+// The read commands send reads only. `dismiss` and `clearcheck` send one DismissNotification;
+// `userinteraction` and `settime` send the bench's two extra signed writes (the BenchWrites trait);
+// `bolus` sends one 0.05 U InitiateBolus, saline only or to a pump with no cartridge. Each write asks
+// for the pump's serial number first, and each is allowed for that one call. Every request goes through the link's gates (the
 // support matrix, careful probing, the seven allowed signed writes), and each run writes a transcript:
 // every line printed, plus every packet in both directions (authorization frames redacted unless
 // PUMP_RECORD_PAIRING=1).
@@ -44,11 +46,21 @@ let usage = """
                                 dismiss one pump notification; --chunk re-cuts the control write's
                                 packets at that size (the chunk-size check)
 
+    Bench writes and the bench bolus (each asks for the pump's serial number before it sends):
+      userinteraction           one UserInteractionRequest (API 3.0 and up), then 60 s of notices;
+                                needs PUMP_BENCH_WRITES=1
+      settime [--plus5]         set the pump clock to its own time (a no-op), then with --plus5 +5 min and
+                                back; reads it back and the history; needs PUMP_BENCH_WRITES=1
+      clearcheck <reminder|alert|alarm|cgm> <id>
+                                dismiss one notification, read its bit at 2, 30 and 120 s and the history
+      bolus <units|carb|correction|cancel> [--carbs G] [--bg MGDL] [--no-cartridge] [--chunk 18]
+                                one 0.05 U bolus: saline only (PUMP_SALINE_ATTESTED=1, on no one), or
+                                --no-cartridge for the pump's refusal; at most 3 an hour, logged in
+                                ~/.tandemkit-bench/bench-boluses.json (PUMP_BOLUS_LOG)
+      bolus settle [note]       mark the last unsettled bench bolus settled after checking the pump
+
       --retest                  (any command) forget this pump's recorded result for each command
                                 before sending it, so it is probed again
-
-    Not built yet (each changes the write grants or touches the dose path): UserInteractionRequest,
-    setting the pump clock, remote alert clearing with a history check, and the bolus items.
 
     Environment: PUMP_PAIRING_CODE (required to connect), PUMP_PERIPHERAL_ID, PUMP_SUPPORT_MATRIX
     (default ~/.tandemkit-bench/support-matrix.json), PUMP_TRANSCRIPT_DIR (default
@@ -148,6 +160,29 @@ func parseJob(_ command: String, _ rest: [String]) -> Job {
         return .monitor(poll: poll, battery: battery, minutes: minutes)
     case "notices":
         return .monitor(poll: nil, battery: 1800, minutes: rest.first.map { number($0, "minutes") } ?? 60)
+    case "userinteraction":
+        return .userInteraction
+    case "settime":
+        if let extra = rest.first(where: { $0 != "--plus5" }) { fail("settime: unknown argument \(extra)") }
+        return .setTime(plusFive: rest.contains("--plus5"))
+    case "clearcheck":
+        guard rest.count == 2, let k = notificationKind(rest[0]), let id = Int(rest[1]) else {
+            fail("usage: clearcheck <reminder|alert|alarm|cgm> <notification id>")
+        }
+        return .clearCheck(k, id)
+    case "bolus":
+        let carbs = option("--carbs", in: &rest).map { Int(number($0, "--carbs")) } ?? 1
+        let bg = option("--bg", in: &rest).map { Int(number($0, "--bg")) } ?? 0
+        let chunk = option("--chunk", in: &rest).map { Int(number($0, "--chunk")) }
+        let noCartridge = rest.contains("--no-cartridge")
+        rest.removeAll { $0 == "--no-cartridge" }
+        guard rest.count == 1, let kind = BenchBolusKind(rawValue: rest[0]) else {
+            fail("usage: bolus <units|carb|correction|cancel> [--carbs G] [--bg MGDL] [--no-cartridge] [--chunk 18]")
+        }
+        if let chunk, !(1...40).contains(chunk) { fail("--chunk must be 1 to 40") }
+        if !(0...300).contains(carbs) { fail("--carbs must be 0 to 300") }
+        if bg != 0, !(40...400).contains(bg) { fail("--bg must be 40 to 400") }
+        return .bolus(kind, carbs: carbs, bg: bg, noCartridge: noCartridge, chunk: chunk)
     case "dismiss":
         let chunk = option("--chunk", in: &rest).map { Int(number($0, "--chunk")) }
         guard rest.count == 2, let k = notificationKind(rest[0]), let id = Int(rest[1]) else {
@@ -166,6 +201,18 @@ guard let command = args.first else {
 }
 if command == "help" || command == "--help" {
     print(usage)
+    exit(0)
+}
+
+// `bolus settle` needs no pump: it marks the last unsettled bench bolus as checked.
+if command == "bolus", args.dropFirst().first == "settle" {
+    var log = BolusLogFile.load()
+    let note = args.dropFirst(2).joined(separator: " ")
+    guard log.settleLast("settled by hand" + (note.isEmpty ? "" : ": \(note)")), BolusLogFile.save(log) else {
+        print("no unsettled bench bolus in \(BolusLogFile.url.path)")
+        exit(1)
+    }
+    print("settled: \(log.entries.last(where: { $0.outcome != nil }).map { "\($0.bolusId) \($0.kind)" } ?? "?")")
     exit(0)
 }
 
@@ -189,11 +236,11 @@ let interrupt = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
 interrupt.setEventHandler { MainActor.assumeIsolated { bench.finish(code: 0) } }
 interrupt.resume()
 
-// A line typed during a run is stamped into the transcript, to mark what was done at the pump.
+// A line typed during a run answers a waiting prompt, or is stamped into the transcript as a note.
 Thread.detachNewThread {
     while let line = readLine() {
-        let note = line.trimmingCharacters(in: .whitespaces)
-        if !note.isEmpty { transcript.line("NOTE: \(note)") }
+        let text = line.trimmingCharacters(in: .whitespaces)
+        Task { @MainActor in bench.inbox.deliver(text) }
     }
 }
 

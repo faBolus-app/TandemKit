@@ -20,6 +20,11 @@ enum Job {
     case lastBolus
     case api
     case statusReads
+    // Bench writes (the BenchWrites trait) and the bench bolus; each asks for the pump's serial first.
+    case userInteraction
+    case setTime(plusFive: Bool)
+    case clearCheck(NotificationKind, Int)
+    case bolus(BenchBolusKind, carbs: Int, bg: Int, noCartridge: Bool, chunk: Int?)
 }
 
 /// Runs the job once the link is first ready. Every request goes through the link's gates.
@@ -51,6 +56,14 @@ func runJob(_ s: BenchSession) async {
         await api(s)
     case .statusReads:
         await statusReads(s)
+    case .userInteraction:
+        await userInteraction(s)
+    case .setTime(let plusFive):
+        await setTime(s, plusFive: plusFive)
+    case .clearCheck(let kind, let id):
+        await clearCheck(s, kind: kind, id: id)
+    case .bolus(let kind, let carbs, let bg, let noCartridge, _):
+        await bolus(s, kind: kind, carbs: carbs, bg: bg, noCartridge: noCartridge)
     }
 }
 

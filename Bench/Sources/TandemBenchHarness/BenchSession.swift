@@ -68,6 +68,7 @@ final class BenchSession {
     var commsSuspended = BenchCommsSuspendedLog()
     var requests: BenchRequestRate
     var onFinish: (() -> Void)?
+    let inbox = LineInbox()
 
     init(job: Job) {
         self.job = job
@@ -76,6 +77,7 @@ final class BenchSession {
         requests = BenchRequestRate(since: 0)
         transport.onRequestWritten = { [weak self] in self?.requests.wrote() }
         if case .dismiss(_, _, let chunk) = job { transport.controlChunk = chunk }
+        if case .bolus(_, _, _, _, let chunk) = job { transport.controlChunk = chunk }
         transport.recordPairing = env["PUMP_RECORD_PAIRING"] == "1"
     }
 

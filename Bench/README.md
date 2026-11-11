@@ -51,12 +51,27 @@ it can help someone work out the pairing code. A line typed during a run is stam
 | `notices [minutes]` | `monitor --poll off`: the pump's notices with nothing else on the link, for notice bit 19. |
 | `dismiss [--chunk 18] <kind> <id>` | Dismisses one pump notification once the link has held. `--chunk` re-cuts the control write's packets at that size in the bench transport, for the chunk-size check. |
 
+The bench writes and the bench bolus ask for the pump's serial number before anything goes out:
+
+| Command | What it sends |
+| --- | --- |
+| `userinteraction` | One UserInteractionRequest (API 3.0 and up), then 60 s of notices. Needs `PUMP_BENCH_WRITES=1`. |
+| `settime [--plus5]` | ChangeTimeDate with the pump's own time (a no-op), then with `--plus5` five minutes on and back; reads the clock back and the history. Needs `PUMP_BENCH_WRITES=1`. |
+| `clearcheck <kind> <id>` | One DismissNotification, then the notification's bit at 2, 30 and 120 s, and the history records since. |
+| `bolus <units\|carb\|correction\|cancel>` | One 0.05 U bolus through BolusPermission, the carb or BG entry, InitiateBolus (60 s deadline) and, for `cancel`, CancelBolus; then follows it and reads LastBolusStatus and the history. Saline only (`PUMP_SALINE_ATTESTED=1`: a saline cartridge, tubing into a container, on no one), or `--no-cartridge` for the pump's refusal. At most three an hour; a bolus whose outcome isn't settled blocks the next until `bolus settle`. The log is `~/.tandemkit-bench/bench-boluses.json`. |
+
+UserInteraction and ChangeTimeDate are outside the seven allowed signed writes. The bench builds
+TandemKit with the `BenchWrites` trait, which adds exactly those two; an app's dependency names no
+trait, so its build has neither. The bolus masks come from `InitiateBolusRequest.typeBitmask`, the
+same rule the app uses, and the units-only and carb cargoes have the layout of pumpX2's t:slim
+captures.
+
 `--retest` on any command forgets this pump's recorded result for each command before sending it, so
 the link probes it again.
 
 Every request goes through the link's own gates: the support matrix (kept between runs in
 `~/.tandemkit-bench/support-matrix.json`, or `PUMP_SUPPORT_MATRIX`), careful probing, and the seven
-allowed signed writes. The only signed write the harness sends is DismissNotification.
+allowed signed writes (plus the trait's two). The read commands send no signed write.
 
 The committed `bench-coverage/` matrix is the T-1 run on the old t:slim X2 (API 2.5, legacy pairing,
 no cartridge, no CGM), which `SupportMatrix` cites as evidence. The sweep runner that produced it was

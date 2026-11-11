@@ -1,4 +1,4 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.1
 // TandemKit bench tooling: the hardware harness, its session planner and coverage matrix, and the
 // gated hardware tests. A separate package so nothing here can be linked into an app: the library
 // products live in the parent package, and this one only depends on them.
@@ -8,7 +8,9 @@ let package = Package(
     name: "TandemKitBench",
     platforms: [.macOS(.v13)],
     dependencies: [
-        .package(name: "TandemKit", path: "..")
+        // BenchWrites: the bench's two extra signed writes (UserInteraction, ChangeTimeDate). Only this
+        // package enables it; an app's dependency doesn't, so they are compiled out of every app.
+        .package(name: "TandemKit", path: "..", traits: ["BenchWrites"])
     ],
     targets: [
         // Bench session planning, the coverage matrix, and the bench-bolus simulator.
