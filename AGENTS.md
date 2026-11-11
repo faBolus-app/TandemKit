@@ -27,7 +27,9 @@ oracle-parity test.**
   **(characteristic, opCode)** — opcodes are not globally unique.
 - `Sources/TandemMessages/Core/SupportMatrix.swift` — which commands a pump answers (supported,
   unsupported, untested), with evidence per pump unit and firmware, and the seven signed writes that
-  are ever sent (`allowedSignedWrites`; the link refuses every other signed write).
+  are ever sent (`allowedSignedWrites`; the link refuses every other signed write). The `BenchWrites`
+  package trait, which only `Bench/Package.swift` enables, adds two more for bench runs
+  (`benchSignedWrites`: UserInteraction, ChangeTimeDate); without it they don't exist, so no app has them.
 - `Sources/TandemAuth/` — `PairingCoordinator`, `JpakeAuth` / `EcJpakeContext` (EC-JPAKE via vendored
   mbedTLS), `Crypto`.
 - `Sources/TandemLink/` — the connection state machine: `LinkReducer.reduce(state, input)` returns the

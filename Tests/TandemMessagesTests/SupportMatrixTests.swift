@@ -13,6 +13,8 @@ import Testing
         #expect(SupportMatrix.isAllowedSignedWrite(DismissNotificationRequest(kind: .alert, notificationId: 1)))
         #expect(SupportMatrix.isAllowedSignedWrite(BolusPermissionReleaseRequest(bolusID: 1)))
         #expect(!SupportMatrix.isAllowedSignedWrite(ChangeTimeDateRequest(tandemEpochTime: 0)))
+        // The bench's two extra writes exist only under the BenchWrites trait, which this build lacks.
+        #expect(!SupportMatrix.isAllowedSignedWrite(UserInteractionRequest()))
         #expect(SupportMatrix.isAllowedSignedWrite(PumpVersionRequest()))  // unsigned: not the allowlist's business
         for key in SupportMatrix.allowedSignedWrites {
             #expect(key.characteristic == .control)

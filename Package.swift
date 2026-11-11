@@ -1,4 +1,4 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.1
 // TandemKit — Swift port of the jwoglom/pumpx2 Tandem pump protocol.
 // Independent, open-source project in development for experimental use; not FDA-cleared.
 // Not affiliated with, endorsed by, or a product of Tandem Diabetes Care or Dexcom.
@@ -16,6 +16,13 @@ let package = Package(
         .library(name: "TandemAuth", targets: ["TandemAuth"]),
         .library(name: "TandemLink", targets: ["TandemLink"]),
         .library(name: "TandemBLE", targets: ["TandemBLE"])
+    ],
+    // Off unless a dependent names it. Only the bench package (Bench/Package.swift) does: an app's
+    // dependency on TandemKit names no trait, so the bench's extra signed writes are compiled out of it.
+    traits: [
+        .trait(
+            name: "BenchWrites",
+            description: "Bench only: adds UserInteraction and ChangeTimeDate to the signed writes the link sends.")
     ],
     targets: [
         // Portable protocol: framing, opcodes, message models, packetization.

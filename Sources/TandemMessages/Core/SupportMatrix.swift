@@ -213,8 +213,25 @@ public struct SupportMatrix: Sendable, Equatable, Codable {
     ]
 
     public static func isAllowedSignedWrite(_ message: some Message) -> Bool {
-        !message.signed || allowedSignedWrites.contains(MessageKey(message))
+        guard message.signed else { return true }
+        if allowedSignedWrites.contains(MessageKey(message)) { return true }
+        #if BenchWrites
+        return benchSignedWrites.contains(MessageKey(message)) && !message.props.modifiesInsulinDelivery
+        #else
+        return false
+        #endif
     }
+
+    #if BenchWrites
+    /// Bench builds only: the two signed writes the bench tests on a pump, on top of the seven. This
+    /// exists only when a dependent enables the `BenchWrites` trait, which only the bench package
+    /// does, so no app binary contains it. Neither changes insulin delivery, and each still needs
+    /// its own per-call grant.
+    public static let benchSignedWrites: Set<MessageKey> = [
+        MessageKey(UserInteractionRequest.self),
+        MessageKey(ChangeTimeDateRequest.self)
+    ]
+    #endif
 
     // MARK: Compiled-in evidence
 
