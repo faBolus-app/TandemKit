@@ -70,17 +70,17 @@ func features(_ s: BenchSession, sets: [BenchFeatureSet], legacy: Bool) async {
         for set in sets {
             let result = await s.request(
                 PumpFeaturesV2Request(input: set.rawValue), "PumpFeaturesV2(\(set.rawValue) \(set.name))")
-            guard case .reply(let reply) = result, let decoded = BenchFeaturesV2Reply(cargo: reply.message.cargo)
-            else { continue }
+            guard let decoded = s.reply(result, as: PumpFeaturesV2Response.self) else { continue }
+            let index = decoded.supportedFeatureIndexId
             say(
-                "  status \(decoded.status), index echoed \(decoded.index), bitmask 0x\(String(decoded.bitmask, radix: 16))"
-            )
-            if decoded.index != set.rawValue {
-                say("  ! the pump answered index \(decoded.index), not \(set.rawValue)")
-            }
-            guard let report = decoded.report else {
-                say("  index \(decoded.index) has no pumpX2 name; bits by position:")
-                for p in BenchNoticeBits.positions(decoded.bitmask) { say("    bit \(p)") }
+                "  status \(decoded.status), index echoed \(index), "
+                    + "bitmask 0x\(String(decoded.pumpFeaturesBitmask, radix: 16))")
+            if index != set.rawValue { say("  ! the pump answered index \(index), not \(set.rawValue)") }
+            guard let report = BenchFeatureReport(decoded) else {
+                say("  index \(index) has no pumpX2 name; bits by position:")
+                for line in BenchFeatureReport.positionLines(UInt64(decoded.pumpFeaturesBitmask)) {
+                    say("    \(line)")
+                }
                 continue
             }
             for line in report.lines + report.callouts { say("    \(line)") }
@@ -112,15 +112,17 @@ func features(_ s: BenchSession, sets: [BenchFeatureSet], legacy: Bool) async {
 @MainActor
 func historyPage(_ s: BenchSession, start: UInt32, count: Int) async -> BenchHistoryProbe? {
     s.historyFrames = []
-    let sent = s.link.now
     let result = await s.request(
         HistoryLogRequest(startLog: start, numberOfLogs: count), "HistoryLog(start \(start), count \(count))")
     guard case .reply(let reply) = result else { return nil }
     if let ack = reply.message as? HistoryLogResponse { say("  ack status \(ack.status) stream \(ack.streamId)") }
+    // The windows run from the ack, not the send: the request may have waited in the queue or for the
+    // hold, and the stream follows the pump's answer.
+    let acked = s.link.now
     while true {
         let got = s.historyFrames.reduce(0) { $0 + $1.frame.records.count }
-        let last = s.historyFrames.last?.time ?? sent
-        if got >= count || s.link.now - last > 3 || s.link.now - sent > 30 { break }
+        let last = max(s.historyFrames.last?.time ?? acked, acked)
+        if got >= count || s.link.now - last > 3 || s.link.now - acked > 30 { break }
         try? await Task.sleep(for: .milliseconds(100))
     }
     var seqs: [UInt32] = []
@@ -153,10 +155,12 @@ func history(_ s: BenchSession, steps: [HistoryStep]) async {
         "  entries \(status.numEntries), first (oldest) SN \(first), last (newest) SN \(last), "
             + "span \(last >= first ? Int(last - first) + 1 : -1)")
     var results: [String] = ["oldest SN \(first), newest SN \(last), entries \(status.numEntries)"]
+    var anchoring: BenchHistoryProbe.Anchoring?
     if steps.contains(.anchor) {
         if last >= first + 30 {
             if let p = await historyPage(s, start: last - 20, count: 5) {
                 results.append("start=last-20 count=5: \(p.anchoring.rawValue)")
+                anchoring = p.anchoring
             }
             if let p = await historyPage(s, start: last, count: 5) {
                 results.append("start=last count=5: \(p.anchoring.rawValue)")
@@ -176,8 +180,24 @@ func history(_ s: BenchSession, steps: [HistoryStep]) async {
         }
     }
     if steps.contains(.cap) {
+        // A page can be full only if the log holds that many records. The page asks for the newest
+        // `count` records under the reading of startLog the anchor step found: start=last when it is
+        // the top, start=last-count+1 when it is the low end.
+        let low = anchoring == .low
+        if let anchoring, anchoring != .top, !low {
+            say("  cap: the anchor step gave \(anchoring.rawValue), so a short page can't be read as a cap")
+        } else if anchoring == nil {
+            say("  cap: no anchor result in this run; asking start=last (the top reading)")
+        }
+        let span = last >= first ? Int(last - first) + 1 : 0
         for count in [250, 255] {
-            guard let p = await historyPage(s, start: last, count: count) else {
+            if span < count {
+                say("  cap: the log holds \(span) record(s), fewer than \(count); a short page would say nothing")
+                results.append("count \(count): not tested, the log holds \(span) record(s)")
+                continue
+            }
+            let start = low ? last - UInt32(count - 1) : last
+            guard let p = await historyPage(s, start: start, count: count) else {
                 results.append("count \(count): no page")
                 continue
             }

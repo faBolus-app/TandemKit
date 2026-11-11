@@ -11,6 +11,11 @@ final class Transcript: @unchecked Sendable {
     let url: URL?
     let echoDetail: Bool
     private let started = Date()
+    private let clock: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss.SSS"
+        return f
+    }()
 
     init(command: String, environment: [String: String]) {
         echoDetail = environment["PUMP_PACKETS"] == "1"
@@ -22,7 +27,8 @@ final class Transcript: @unchecked Sendable {
         }
         let f = DateFormatter()
         f.dateFormat = "yyyyMMdd-HHmmss"
-        let name = "\(command)-\(f.string(from: Date())).txt"
+        // The process id keeps two runs started in the same second (P1 and P2 side by side) apart.
+        let name = "\(command)-\(f.string(from: Date()))-\(ProcessInfo.processInfo.processIdentifier).txt"
         let url = dir.appendingPathComponent(name)
         do {
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -36,26 +42,26 @@ final class Transcript: @unchecked Sendable {
         }
     }
 
+    /// Called under the lock: one formatter, used by one thread at a time.
     private func stamp() -> String {
-        let f = DateFormatter()
-        f.dateFormat = "HH:mm:ss.SSS"
-        return f.string(from: Date()) + String(format: " +%.1fs", Date().timeIntervalSince(started))
+        let now = Date()
+        return clock.string(from: now) + String(format: " +%.1fs", now.timeIntervalSince(started))
     }
 
     /// A line for the person at the bench: stdout and the file.
     func line(_ text: String) {
-        let out = "[\(stamp())] \(text)"
         lock.lock()
         defer { lock.unlock() }
+        let out = "[\(stamp())] \(text)"
         print(out)
         handle?.write(Data((out + "\n").utf8))
     }
 
     /// Packet-level detail: the file, and stdout only with `PUMP_PACKETS=1`.
     func detail(_ text: String) {
-        let out = "[\(stamp())]   \(text)"
         lock.lock()
         defer { lock.unlock() }
+        let out = "[\(stamp())]   \(text)"
         if echoDetail { print(out) }
         handle?.write(Data((out + "\n").utf8))
     }

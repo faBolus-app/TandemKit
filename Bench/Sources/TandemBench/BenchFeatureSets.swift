@@ -1,4 +1,5 @@
 import Foundation
+import TandemMessages
 
 /// The pump's feature sets, as the `features` diagnostic reads them.
 ///
@@ -105,6 +106,18 @@ public struct BenchFeatureReport: Sendable, Equatable {
             .map { BenchFeatureBit(position: $0, name: names[$0]) }
     }
 
+    /// A PumpFeaturesV2 reply, decoded by the library, for the set it names; nil when the pump echoed an
+    /// index pumpX2 doesn't name.
+    public init?(_ reply: PumpFeaturesV2Response) {
+        guard let set = BenchFeatureSet(rawValue: reply.supportedFeatureIndexId) else { return nil }
+        self.init(set: set, bitmask: UInt64(UInt32(truncatingIfNeeded: reply.pumpFeaturesBitmask)))
+    }
+
+    /// The set bits of a mask from an index with no names: `bit 7`, one per line.
+    public static func positionLines(_ bitmask: UInt64) -> [String] {
+        (0..<64).filter { bitmask & (UInt64(1) << UInt64($0)) != 0 }.map { "bit \($0)" }
+    }
+
     public func isSet(_ position: Int) -> Bool { bitmask & (UInt64(1) << UInt64(position)) != 0 }
 
     /// The set bits, one per line: `bit 28  BLE_PUMP_CONTROL_SUPPORTED`, or `bit 7  (no pumpX2 name)`.
@@ -131,24 +144,5 @@ public struct BenchFeatureReport: Sendable, Equatable {
             "MAIN bit \(control) BLE_PUMP_CONTROL_SUPPORTED: \(isSet(control) ? "SET" : "CLEAR")",
             "MAIN bit \(ciq) CONTROL_IQ_SUPPORTED: \(isSet(ciq) ? "SET" : "CLEAR")"
         ]
-    }
-}
-
-/// The PumpFeaturesV2 reply cargo: status@0, index@1, uint32 LE bitmask@2 (pumpX2's layout).
-public struct BenchFeaturesV2Reply: Sendable, Equatable {
-    public let status: Int
-    public let index: Int
-    public let bitmask: UInt32
-
-    public init?(cargo: [UInt8]) {
-        guard cargo.count >= 6 else { return nil }
-        status = Int(cargo[0])
-        index = Int(cargo[1])
-        bitmask = UInt32(cargo[2]) | UInt32(cargo[3]) << 8 | UInt32(cargo[4]) << 16 | UInt32(cargo[5]) << 24
-    }
-
-    /// The decoded set, or nil when the pump echoed an index pumpX2 doesn't name.
-    public var report: BenchFeatureReport? {
-        BenchFeatureSet(rawValue: index).map { BenchFeatureReport(set: $0, bitmask: UInt64(bitmask)) }
     }
 }
