@@ -6,6 +6,10 @@ git tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-11-11
+
+The bench tools for the t:slim bench runs, and a fix to the 6-digit pairing. faBolus pins this release.
+
 ### Added
 
 - The `BenchWrites` package trait, off by default (tools version 6.1). With it, `SupportMatrix` allows two
@@ -15,6 +19,13 @@ git tags (`vX.Y.Z`).
   `lastbolus`, `statusreads`, `api`, `notices`, and `monitor`'s reconnect, notice and battery logs),
   transcripts of every run, the bench writes (`userinteraction`, `settime`, `clearcheck`) and the
   saline-only `bolus` command.
+
+### Fixed
+
+- `PairingCoordinator`: a J-PAKE key confirmation that doesn't verify is reported as
+  `PairingError.keyConfirmationFailed`, which the link counts as the pump rejecting the code. Before, a
+  wrong 6-digit code (or a stored secret the pump no longer has) was taken as a lost frame, and the link
+  retried the same code.
 
 ## [0.4.0] — 2026-11-01
 
@@ -69,7 +80,8 @@ firmware (`PairingAuth.createV1`, `LegacyPairingCoordinator`, chosen automatical
   `TandemBLE` (the CoreBluetooth central), with every outgoing message byte-exact against pumpx2's
   `cliparser` oracle. A signed 0.10 U saline bolus was delivered on a pump.
 
-[Unreleased]: https://github.com/faBolus-app/TandemKit/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/faBolus-app/TandemKit/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/faBolus-app/TandemKit/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/faBolus-app/TandemKit/compare/v1-final...v0.4.0
 [v1-final]: https://github.com/faBolus-app/TandemKit/compare/v0.2.0...v1-final
 [0.2.0]: https://github.com/faBolus-app/TandemKit/compare/v0.1.0...v0.2.0
