@@ -17,7 +17,7 @@ let package = Package(
             dependencies: [.product(name: "TandemMessages", package: "TandemKit")]
         ),
 
-        // The bench CLI: scan, read-only monitor, coverage sweep and probes against a real pump.
+        // The bench CLI against a real pump: scan, the read-only diagnostics, monitor and dismiss.
         .executableTarget(
             name: "TandemBenchHarness",
             dependencies: [
@@ -43,6 +43,9 @@ let package = Package(
             ]
         ),
 
-        .testTarget(name: "TandemBenchTests", dependencies: ["TandemBench"])
+        .testTarget(
+            name: "TandemBenchTests",
+            dependencies: ["TandemBench", .product(name: "TandemMessages", package: "TandemKit")]
+        )
     ]
 )
