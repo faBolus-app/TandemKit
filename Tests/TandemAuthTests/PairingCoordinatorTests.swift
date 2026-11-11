@@ -68,6 +68,50 @@ import TandemMessages
         #expect(!key.isEmpty)
     }
 
+    /// A wrong code: the pump's key confirmation can't verify, and the coordinator reports its own
+    /// `keyConfirmationFailed`, the error the link counts as the pump rejecting the code.
+    @Test func aWrongCodeFailsWithKeyConfirmationFailed() throws {
+        let pump = try EcJpakeContext(role: .server, secret: JpakeAuth.pairingCodeToBytes("654321"))
+        let coord = try PairingCoordinator(pairingCode: "123456")
+        var clientR1a: [UInt8] = [], pumpR1b: [UInt8] = []
+        var serverNonce3: [UInt8] = [], pumpDerived: [UInt8] = []
+        var failure: Error?
+        coord.onError = { failure = $0 }
+        coord.onPaired = { _, _ in Issue.record("paired with the wrong code") }
+        coord.onSendRequest = { msg in
+            do {
+                switch msg {
+                case let m as Jpake1aRequest:
+                    clientR1a = m.centralChallenge
+                    let halves = try pumpRoundOneHalves(try pump.writeRoundOne())
+                    pumpR1b = halves.1
+                    coord.handle(frame: self.frame(33, self.withAppId(halves.0)))
+                case let m as Jpake1bRequest:
+                    try pump.readRoundOne(clientR1a + m.centralChallenge)
+                    coord.handle(frame: self.frame(35, self.withAppId(pumpR1b)))
+                case let m as Jpake2Request:
+                    let pumpR2 = try pump.writeRoundTwo()
+                    try pump.readRoundTwo(m.centralChallenge)
+                    pumpDerived = try pump.deriveSecret()
+                    coord.handle(frame: self.frame(37, self.withAppId(pumpR2)))
+                case is Jpake3SessionKeyRequest:
+                    serverNonce3 = JpakeAuth.randomBytes(8)
+                    coord.handle(frame: self.frame(39, self.withAppId(serverNonce3 + [UInt8](repeating: 0, count: 8))))
+                case is Jpake4KeyConfirmationRequest:
+                    let key = Crypto.hkdf(nonce: serverNonce3, keyMaterial: pumpDerived)
+                    let sn4 = JpakeAuth.randomBytes(8)
+                    let sh = Crypto.hmacSha256(data: sn4, key: key)
+                    coord.handle(frame: self.frame(41, self.withAppId(sn4 + [UInt8](repeating: 0, count: 8) + sh)))
+                default:
+                    Issue.record("unexpected request: \(type(of: msg))")
+                }
+            } catch { Issue.record("mock pump error: \(error)") }
+        }
+        coord.start()
+        #expect(coord.step == .failed)
+        #expect(failure as? PairingCoordinator.PairingError == .keyConfirmationFailed)
+    }
+
     /// Resume ("quick-pair"): with a stored derived secret, only rounds 3–4 run (no code), and
     /// the session signing key is derived correctly.
     @Test func resumePairsWithStoredSecret() throws {
