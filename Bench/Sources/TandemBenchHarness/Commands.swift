@@ -339,15 +339,7 @@ func lastBolus(_ s: BenchSession) async {
             "  A: status \(r.status) id \(r.bolusId) time \(r.timestamp) delivered \(r.deliveredVolume) mU "
                 + "statusId \(r.bolusStatusId) source \(r.bolusSourceId) mask \(r.bolusTypeBitmask)")
     }
-    func verdict(_ r: RequestResult) -> String {
-        switch r {
-        case .reply: return "answered"
-        case .pumpError(let e): return "op-77 error \(e.errorCodeId)"
-        case .notSent(let why): return "not sent (\(why))"
-        case .unknown(let why): return "unknown (\(why))"
-        }
-    }
-    say("RESULT C \(verdict(c)); B \(verdict(b)); A \(verdict(a))")
+    say("RESULT C \(verdictText(c)); B \(verdictText(b)); A \(verdictText(a))")
 }
 
 // MARK: api
@@ -383,14 +375,7 @@ func api(_ s: BenchSession) async {
 @MainActor
 func statusReads(_ s: BenchSession) async {
     var verdicts: [String] = []
-    func verdict(_ name: String, _ r: RequestResult) {
-        switch r {
-        case .reply: verdicts.append("\(name) answered")
-        case .pumpError(let e): verdicts.append("\(name) op-77 error \(e.errorCodeId)")
-        case .notSent(let why): verdicts.append("\(name) not sent (\(why))")
-        case .unknown(let why): verdicts.append("\(name) unknown (\(why))")
-        }
-    }
+    func verdict(_ name: String, _ r: RequestResult) { verdicts.append("\(name) \(verdictText(r))") }
     let insulin = await s.request(InsulinStatusRequest())
     if let r = s.reply(insulin, as: InsulinStatusResponse.self) {
         say("  insulin \(r.currentInsulinAmount) U, estimate \(r.isEstimate), low threshold \(r.insulinLowAmount) U")

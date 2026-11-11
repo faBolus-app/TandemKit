@@ -84,6 +84,20 @@ public struct BenchBolusLog: Codable, Sendable, Equatable {
         return nil
     }
 
+    /// This log with `other`'s entries added (the copy on disk, which another run may have written to
+    /// meanwhile). An entry is one bolus (serial, bolus id, date); where both have it, a settled outcome
+    /// wins over none, and this log's wins over `other`'s.
+    public func merging(_ other: BenchBolusLog) -> BenchBolusLog {
+        func key(_ e: Entry) -> String { "\(e.serial)/\(e.bolusId)/\(e.date.timeIntervalSince1970)" }
+        var byKey: [String: Entry] = [:]
+        for e in other.entries { byKey[key(e)] = e }
+        for e in entries {
+            if let theirs = byKey[key(e)], e.outcome == nil, theirs.outcome != nil { continue }
+            byKey[key(e)] = e
+        }
+        return BenchBolusLog(entries: byKey.values.sorted { $0.date < $1.date })
+    }
+
     public mutating func settleLast(_ outcome: String) -> Bool {
         guard let i = entries.lastIndex(where: { $0.outcome == nil }) else { return false }
         entries[i].outcome = outcome
@@ -106,13 +120,20 @@ public enum BenchSafetyGate {
         return serialRefusal(typed: typed, pumpSerial: pumpSerial)
     }
 
-    /// A bolus: either the rejection test with no cartridge (the pump reports no insulin), or saline
-    /// attested with `PUMP_SALINE_ATTESTED=1`; and the serial.
+    /// A bolus: either the rejection test with no cartridge (attested with `PUMP_NO_CARTRIDGE_ATTESTED=1`,
+    /// and the pump reports no insulin), or saline attested with `PUMP_SALINE_ATTESTED=1`; and the serial.
+    /// The pump's reading alone never stands for "no cartridge": it is whole units, and a nearly empty
+    /// cartridge of insulin reads 0 too.
     public static func bolusRefusal(
         environment: [String: String], typed: String, pumpSerial: Int?, noCartridge: Bool, reservoirUnits: Int?
     ) -> String? {
         if noCartridge {
-            guard let reservoirUnits else { return "--no-cartridge needs the pump's InsulinStatus, which didn't answer" }
+            guard environment["PUMP_NO_CARTRIDGE_ATTESTED"] == "1" else {
+                return "set PUMP_NO_CARTRIDGE_ATTESTED=1 (no cartridge loaded, the pump on no one) for --no-cartridge"
+            }
+            guard let reservoirUnits else {
+                return "--no-cartridge needs the pump's InsulinStatus, which didn't answer"
+            }
             if reservoirUnits != 0 { return "--no-cartridge, but the pump reports \(reservoirUnits) U in a cartridge" }
         } else if environment["PUMP_SALINE_ATTESTED"] != "1" {
             return "set PUMP_SALINE_ATTESTED=1 (a saline cartridge, tubing into a container, on no one) or use "
