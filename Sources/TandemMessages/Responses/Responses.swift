@@ -1151,6 +1151,39 @@ public struct HomeScreenMirrorResponse: ResponseMessage {
     }
     public var cgmTrendIcon: CGMTrendIcon? { CGMTrendIcon(rawValue: cgmTrendIconId) }
 
+    /// Trend icons 8-13 are the Check BG variants a Libre 2 or 3 shows when its reading may not be
+    /// accurate (up, up-right, flat, down-right, down, none, in that order). `cgmTrendIcon` is `nil` for
+    /// them, so they render no arrow. Not in pumpX2's `CGMTrendIcon`, and unverified on a t:slim: no
+    /// recording has a Libre.
+    public var isCheckBG: Bool { (8...13).contains(cgmTrendIconId) }
+
+    /// The CGM state the pump's home screen shows in place of a number. Only `noError` shows the reading.
+    /// 0-8, 11-17 and 255 are pumpX2's `HomeScreenMirrorResponse.CGMAlertIcon`; 18-24 (a session to
+    /// restart, a Libre 2 warming up) are not in pumpX2 and are unverified on a t:slim. Which icon a t:slim
+    /// shows in which sensor state is unverified for all of them.
+    public enum CGMAlertIcon: Int, Sendable, CaseIterable {
+        case startup1 = 0, startup2 = 1, startup3 = 2, startup4 = 3
+        case calibrate = 4, startupCalibrate = 5, checkmarkBloodDrop = 6
+        case errorHighWedge = 7, errorLowWedge = 8
+        case replaceSensor = 11, replaceTransmitter = 12, outOfRange = 13, failedSensor = 14
+        case tripleDashes = 15, low = 16, high = 17, restartSession = 18
+        case libre2Startup1 = 19, libre2Startup2 = 20, libre2Startup3 = 21
+        case libre2Startup4 = 22, libre2Startup5 = 23, libre2Startup6 = 24
+        case noError = 255
+
+        /// A warm-up icon: the sensor has no reading yet.
+        public var isStartup: Bool {
+            switch self {
+            case .startup1, .startup2, .startup3, .startup4, .libre2Startup1, .libre2Startup2, .libre2Startup3,
+                .libre2Startup4, .libre2Startup5, .libre2Startup6:
+                return true
+            default: return false
+            }
+        }
+    }
+    /// The pump's CGM alert icon, or `nil` for an id outside the known set.
+    public var cgmAlertIcon: CGMAlertIcon? { CGMAlertIcon(rawValue: cgmAlertIconId) }
+
     /// The pump's trend as a Unicode arrow, or `""` when the pump is showing **no arrow** — including
     /// for an unrecognized icon id, because inventing a direction is worse than showing none.
     public var cgmTrendArrow: String {
@@ -1311,7 +1344,15 @@ public protocol EgvGuiData {
     var trendRate: Int { get }  // signed, 0.1 mg/dL/min units
 }
 
+/// The status of a CGM reading, as the pump reports it.
+public enum EGVStatus: Int, Sendable {
+    case invalid = 0, valid = 1, low = 2, high = 3, unavailable = 4
+}
+
 public extension EgvGuiData {
+    /// The reading's status, or `nil` for an id outside the known set.
+    var egvStatus: EGVStatus? { EGVStatus(rawValue: egvStatusId) }
+
     /// `trendRate` is a signed byte in 0.1 mg/dL/min units (matches the pump's ±12.7 range).
     var trendRateMgDlPerMin: Double { Double(trendRate) / 10.0 }
 
@@ -1345,7 +1386,8 @@ public extension EgvGuiData {
     /// rather than a fabricated direction whenever the rate is not known.
     var trendArrow: String? { EgvTrend.arrow(forRate: trendRateIfKnown) }
 
-    /// EGV status per upstream: 0=INVALID, 1=VALID, 2=LOW, 3=HIGH, 4=UNAVAILABLE.
+    /// EGV status per upstream: 0=INVALID, 1=VALID, 2=LOW, 3=HIGH, 4=UNAVAILABLE. LOW and HIGH carry a
+    /// number, but the sensor is beyond its range, so the number is not the glucose.
     var hasValidReading: Bool {
         (egvStatusId == 1 || egvStatusId == 2 || egvStatusId == 3) && cgmReading > 0 && cgmReading < 600
     }
@@ -1446,6 +1488,7 @@ public struct CurrentBasalStatusResponse: ResponseMessage {
 public struct LastBolusStatusV2Response: ResponseMessage {
     public static let props = MessageProps(opCode: 165, size: 24, type: .response, characteristic: .currentStatus)
     public var cargo: [UInt8]
+    /// Byte 0: 1 when the reply describes a bolus, 0 when it is not valid.
     public private(set) var status: Int = 0
     public private(set) var bolusId: Int = 0
     public private(set) var timestamp: UInt32 = 0
@@ -1465,12 +1508,18 @@ public struct LastBolusStatusV2Response: ResponseMessage {
     }
     public mutating func parse(_ raw: [UInt8]) { self = LastBolusStatusV2Response(cargo: raw) }
     public var deliveredUnits: Double { Double(deliveredVolume) / 1000.0 }
+    /// The reply describes a bolus (byte 0 is 1). Any other value says nothing about what went in.
+    public var isValid: Bool { status == 1 }
 }
 
 /// Bolus-calculator snapshot — the therapy settings needed to turn carbs/BG into units, the
 /// way controlX2 does. `response/currentStatus/BolusCalcDataSnapshotResponse` (opcode 115).
-/// `carbRatio` (uint32) and `isf`/`correctionFactor` (mg/dL per unit) + `targetBg` drive the
+/// `carbRatio` (uint32) and `isf` (the correction factor, mg/dL per unit) + `targetBg` drive the
 /// carb-entry bolus feature.
+///
+/// Bytes 1-2 are the pump's glucose reading for the calculator (`glucoseReading`, mg/dL). pumpX2 names
+/// them `correctionFactor`, but the correction factor is `isf` at 11, and both recorded snapshots in
+/// pumpX2's tests carry readings there (209 and 174) beside an `isf` of 30.
 ///
 /// `maxBolusHourlyTotal`@20 / `maxBolusEventsExceeded`@24 / `maxIobEventsExceeded`@25 are
 /// ADDITIVE (WIP-REGISTER.md Adoption Candidate #4, dose-path-adjacent, HIGH priority) — oracle
@@ -1479,13 +1528,20 @@ public struct LastBolusStatusV2Response: ResponseMessage {
 /// `maxBolusEventsExceeded = raw[24] != 0`, `maxIobEventsExceeded = raw[25] != 0`). Only the
 /// LAYOUT and the KNOWN-FALSE case are oracle-backed here (`ResponseDirectTests`); the `true`
 /// case for the two safety-relevant flags has never been observed in a first-party capture, so
-/// it is NOT asserted anywhere and NOT marked verified — not a code gap. Two further upstream fields
-/// (`isUnacked`@0, `isAutopopAllowed`@37) remain intentionally undecoded — out of this
-/// additive-only change's scope; the full 46-byte `cargo` is retained regardless.
+/// it is NOT asserted anywhere and NOT marked verified — not a code gap. `isAck`@0 and
+/// `isAutopopAllowed`@37 are decoded too; the full 46-byte `cargo` is retained regardless.
 public struct BolusCalcDataSnapshotResponse: ResponseMessage {
     public static let props = MessageProps(opCode: 115, size: 46, type: .response, characteristic: .currentStatus)
     public var cargo: [UInt8]
-    public private(set) var correctionFactor: Int = 0
+    /// The pump acknowledged the request (byte 0 is 0). Any other snapshot is no reading.
+    public private(set) var isAck = false
+    /// The glucose the pump's calculator would fill in, mg/dL, or 0 for none. Bytes 1-2.
+    public private(set) var glucoseReading: Int = 0
+    @available(
+        *, unavailable, renamed: "glucoseReading",
+        message: "Bytes 1-2 are a glucose reading; the correction factor is isf."
+    )
+    public var correctionFactor: Int { glucoseReading }
     public private(set) var iob: UInt32 = 0
     public private(set) var cartridgeRemainingInsulin: Int = 0
     public private(set) var targetBg: Int = 0  // mg/dL
@@ -1493,7 +1549,8 @@ public struct BolusCalcDataSnapshotResponse: ResponseMessage {
     public private(set) var carbEntryEnabled: Bool = false
     public private(set) var carbRatio: UInt32 = 0  // see carbRatioGramsPerUnit
     public private(set) var maxBolusAmount: Int = 0  // milliunits
-    /// The configured hourly bolus ceiling, or 0 if unconfigured. Oracle @20 (uint32).
+    /// The insulin bolused in the last hour, milliunits. Oracle @20 (uint32). pumpX2 documents it as a
+    /// configured hourly ceiling, which it is not.
     public private(set) var maxBolusHourlyTotal: UInt32 = 0
     /// true if the maximum bolus has been exceeded for the interval. Oracle @24. LAYOUT +
     /// KNOWN-FALSE case oracle-backed only — the `true` case has never been observed in a
@@ -1503,13 +1560,17 @@ public struct BolusCalcDataSnapshotResponse: ResponseMessage {
     /// KNOWN-FALSE case oracle-backed only — the `true` case has never been observed in a
     /// first-party capture, so it stays NOT marked verified until one is captured on hardware.
     public private(set) var maxIobEventsExceeded: Bool = false
+    /// The pump allows its glucose reading to fill the calculator in automatically. Byte 37. Which pump
+    /// states clear it is not known.
+    public private(set) var isAutopopAllowed: Bool = false
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
         // Length-guard a fixed-size pure READ — zero-defaults are safe (no accept/grant field).
         // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
         guard raw.count >= Self.props.size else { return }
-        correctionFactor = Bytes.readShort(raw, 1)
+        isAck = raw[0] == 0
+        glucoseReading = Bytes.readShort(raw, 1)
         iob = Bytes.readUint32(raw, 3)
         cartridgeRemainingInsulin = Bytes.readShort(raw, 7)
         targetBg = Bytes.readShort(raw, 9)
@@ -1520,6 +1581,7 @@ public struct BolusCalcDataSnapshotResponse: ResponseMessage {
         maxBolusHourlyTotal = Bytes.readUint32(raw, 20)
         maxBolusEventsExceeded = raw[24] != 0
         maxIobEventsExceeded = raw[25] != 0
+        isAutopopAllowed = raw[37] != 0
     }
     public mutating func parse(_ raw: [UInt8]) { self = BolusCalcDataSnapshotResponse(cargo: raw) }
     /// Tandem stores carbRatio scaled ×1000 (e.g. 10 g/u → 10000). VERIFY against the pump
