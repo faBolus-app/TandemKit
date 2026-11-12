@@ -6,6 +6,13 @@ git tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+### Fixed
+
+- The qualifying-events characteristic is cleared once when the link becomes ready, as t:connect does
+  after authenticating, so notices from the handshake or an earlier connection are not left set.
+- A notice that arrives while a signed write is on the wire is still cleared, as soon as the write's
+  reply, failure or deadline frees the wire. Before, its clear was skipped and never sent.
+
 ## [0.6.0] — 2026-11-11
 
 The CGM state, Check BG and EGV status, the calculator snapshot's ACK, glucose and auto-fill bytes, and

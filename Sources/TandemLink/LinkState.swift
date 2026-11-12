@@ -130,6 +130,9 @@ public struct Connection: Sendable {
     public internal(set) var adoptedFromRestore = false
     /// A dropped subscription being restored.
     var resubscribing: Set<Characteristic> = []
+    /// A qualifying-events notice came while a signed write was on the wire, so its clear waits for the
+    /// wire to free.
+    var qualifyingEventsClearOwed = false
 }
 
 /// A request waiting to go out.
