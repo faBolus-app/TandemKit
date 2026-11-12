@@ -568,4 +568,40 @@ import TandemMessages
         h.apply(.notified(.qualifyingEvents, [0, 0, 0, 0]))
         #expect(h.events.isEmpty)
     }
+
+    static let clear = TransportCommand.write(.qualifyingEvents, [[0, 0, 0, 0]])
+
+    @Test func becomingReadyClearsTheQualifyingEvents() {
+        let h = readyP1()
+        #expect(h.allCommands.filter { $0 == Self.clear }.count == 1)
+    }
+
+    @Test func aPumpWithoutTheQualifyingEventsCharacteristicIsNotWrittenThere() {
+        var h = LinkHarness()
+        h.makeReady(present: Set(Characteristic.allCases).subtracting([.qualifyingEvents]))
+        #expect(!h.allCommands.contains(Self.clear))
+    }
+
+    @Test func aClearSkippedDuringASignedWriteGoesWhenItsReplyArrives() {
+        var h = readyP1()
+        h.clearLog()
+        _ = permission(&h)
+        h.apply(.notified(.qualifyingEvents, [0, 2, 0, 0]))
+        h.apply(.notified(.qualifyingEvents, [1, 0, 0, 0]))
+        #expect(!h.allCommands.contains(Self.clear))
+        h.advance(by: 2)
+        h.reply(BolusPermissionResponse(cargo: [0, 0x9A, 0x29, 0, 0, 0]), signedAt: Self.pumpTime + 2)
+        // Two notices, one clear: the pump is cleared once the wire frees.
+        #expect(h.allCommands.filter { $0 == Self.clear }.count == 1)
+    }
+
+    @Test func aClearSkippedDuringASignedWriteGoesWhenItsDeadlinePasses() {
+        var h = readyP1()
+        h.clearLog()
+        _ = permission(&h)
+        h.apply(.notified(.qualifyingEvents, [0, 2, 0, 0]))
+        #expect(!h.allCommands.contains(Self.clear))
+        h.advance(by: 11)
+        #expect(h.allCommands.filter { $0 == Self.clear }.count == 1)
+    }
 }

@@ -289,6 +289,7 @@ private final class Step {
             return
         }
         guard state.phase == .ready else { return }
+        if wire.qualifyingEventsClearOwed { clearQualifyingEvents() }
         refuseQueuedThatBecameUnsendable()
         guard let connection = state.connection else { return }
         let held = connection.heldAt != nil
@@ -695,7 +696,26 @@ private final class Step {
         state.telemetry.becameReady(at: now)
         setPhase(.ready)
         emit(.ready(connection.identity))
+        // Notices that came during the handshake weren't cleared, and the pump may still hold bits from
+        // the last connection: t:connect clears once right after authenticating.
+        clearQualifyingEvents()
         dispatch()
+    }
+
+    /// Writes zero to the qualifying-events characteristic, as t:connect does after each notice it
+    /// handles. Never while a signed write is on the wire: the clear is owed then, and goes as soon as the
+    /// write's reply, failure or deadline frees it (`dispatch`), so a bit the pump keeps set until cleared
+    /// can't hide the next notice of its kind.
+    func clearQualifyingEvents() {
+        guard let connection = state.connection, state.phase == .ready,
+            connection.present.contains(.qualifyingEvents)
+        else { return }
+        if connection.inFlight?.message.signed == true {
+            state.connection?.qualifyingEventsClearOwed = true
+            return
+        }
+        state.connection?.qualifyingEventsClearOwed = false
+        transport(.write(.qualifyingEvents, [[0, 0, 0, 0]]))
     }
 
     // MARK: Inbound
@@ -707,11 +727,9 @@ private final class Step {
             let events = QualifyingEvent.decode(bytes)
             guard !events.isEmpty else { return }
             emit(.qualifyingEvents(events))
-            // Clear it, as upstream does, once the link is ready (before that only the handshake's
-            // writes go out), and not while a signed write is on the wire.
-            if state.phase == .ready, connection.inFlight?.message.signed != true {
-                transport(.write(.qualifyingEvents, [[0, 0, 0, 0]]))
-            }
+            // Cleared once the link is ready (before that only the handshake's writes go out; becoming
+            // ready clears what came meanwhile).
+            clearQualifyingEvents()
             return
         }
         var reassembler = connection.reassembly[characteristic] ?? PacketReassembler()
