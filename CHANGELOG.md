@@ -6,6 +6,11 @@ git tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-11-12
+
+The link clears the pump's qualifying events when it becomes ready, and after a signed write that held a
+clear back. faBolus pins this release.
+
 ### Fixed
 
 - The qualifying-events characteristic is cleared once when the link becomes ready, as t:connect does
@@ -108,7 +113,8 @@ firmware (`PairingAuth.createV1`, `LegacyPairingCoordinator`, chosen automatical
   `TandemBLE` (the CoreBluetooth central), with every outgoing message byte-exact against pumpx2's
   `cliparser` oracle. A signed 0.10 U saline bolus was delivered on a pump.
 
-[Unreleased]: https://github.com/faBolus-app/TandemKit/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/faBolus-app/TandemKit/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/faBolus-app/TandemKit/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/faBolus-app/TandemKit/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/faBolus-app/TandemKit/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/faBolus-app/TandemKit/compare/v1-final...v0.4.0
