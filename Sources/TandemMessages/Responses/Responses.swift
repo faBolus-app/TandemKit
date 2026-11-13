@@ -1158,7 +1158,7 @@ public struct HomeScreenMirrorResponse: ResponseMessage {
     public var isCheckBG: Bool { (8...13).contains(cgmTrendIconId) }
 
     /// The CGM state the pump's home screen shows in place of a number. Only `noError` shows the reading.
-    /// 0-8, 11-17 and 255 are pumpX2's `HomeScreenMirrorResponse.CGMAlertIcon`; 18-24 (a session to
+    /// 0 to 8, 11 to 17 and 255 are pumpX2's `HomeScreenMirrorResponse.CGMAlertIcon`; 18 to 24 (a session to
     /// restart, a Libre 2 warming up) are not in pumpX2 and are unverified on a t:slim. Which icon a t:slim
     /// shows in which sensor state is unverified for all of them.
     public enum CGMAlertIcon: Int, Sendable, CaseIterable {

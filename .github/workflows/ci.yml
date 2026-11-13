@@ -76,7 +76,10 @@ jobs:
     runs-on: xcode-27
     continue-on-error: true
     steps:
+      # Periphery builds the package, and the JPAKE target's mbedTLS sources are links into a submodule.
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: Select Xcode 27.2
         run: sudo xcode-select -s /Applications/Xcode_27.2.app
       - name: Install Semgrep and Periphery
@@ -87,5 +90,9 @@ jobs:
         run: |
           curl -fsSL -o /tmp/deslop.yml https://raw.githubusercontent.com/faBolus-app/faBolus/main/.semgrep/deslop.yml
           semgrep --config /tmp/deslop.yml --metrics=off .
+      # SwiftPM's default build system writes no index store, which Periphery reads, so it builds
+      # with the native one.
       - name: Periphery (unused code)
-        run: periphery scan --retain-public
+        run: |
+          swift build --build-system native --scratch-path .build-periphery
+          periphery scan --retain-public --skip-build --index-store-path .build-periphery/debug/index/store
