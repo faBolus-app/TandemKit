@@ -1184,6 +1184,15 @@ public struct HomeScreenMirrorResponse: ResponseMessage {
     /// The pump's CGM alert icon, or `nil` for an id outside the known set.
     public var cgmAlertIcon: CGMAlertIcon? { CGMAlertIcon(rawValue: cgmAlertIconId) }
 
+    /// The basal state the pump's home screen shows. Ids are pumpX2's `HomeScreenMirrorResponse.BasalStatusIcon`;
+    /// which icon a t:slim shows in which delivery state is unverified.
+    public enum BasalStatusIcon: Int, Sendable, CaseIterable {
+        case basal = 0, zeroBasal = 1, tempRate = 2, zeroTempRate = 3, suspend = 4, basalIQSuspend = 5
+        case increaseBasal = 6, attenuatedBasal = 7, hide = 200
+    }
+    /// The pump's basal icon, or `nil` for an id outside the known set.
+    public var basalStatusIcon: BasalStatusIcon? { BasalStatusIcon(rawValue: basalStatusIconId) }
+
     /// The pump's trend as a Unicode arrow, or `""` when the pump is showing **no arrow** — including
     /// for an unrecognized icon id, because inventing a direction is worse than showing none.
     public var cgmTrendArrow: String {

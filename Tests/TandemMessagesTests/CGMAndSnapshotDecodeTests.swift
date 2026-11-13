@@ -41,11 +41,24 @@ import Testing
         }
     }
 
-    private func mirror(trend: UInt8 = 4, alert: UInt8 = 255) -> HomeScreenMirrorResponse {
+    private func mirror(trend: UInt8 = 4, alert: UInt8 = 255, basal: UInt8 = 0) -> HomeScreenMirrorResponse {
         var cargo = [UInt8](repeating: 0, count: 9)
         cargo[0] = trend
         cargo[1] = alert
+        cargo[5] = basal
         return HomeScreenMirrorResponse(cargo: cargo)
+    }
+
+    /// Byte 5 is the basal icon, with pumpX2's ids.
+    @Test func theBasalIconNamesEveryKnownStateAndNoOther() {
+        #expect(mirror(basal: 0).basalStatusIcon == .basal)
+        #expect(mirror(basal: 2).basalStatusIcon == .tempRate)
+        #expect(mirror(basal: 3).basalStatusIcon == .zeroTempRate)
+        #expect(mirror(basal: 4).basalStatusIcon == .suspend)
+        #expect(mirror(basal: 200).basalStatusIcon == .hide)
+        for id: UInt8 in [8, 9, 199, 255] { #expect(mirror(basal: id).basalStatusIcon == nil) }
+        #expect(HomeScreenMirrorResponse.BasalStatusIcon.allCases.map(\.rawValue) == [0, 1, 2, 3, 4, 5, 6, 7, 200])
+        #expect(mirror(alert: 4, basal: 4).cgmAlertIcon == .calibrate)
     }
 
     @Test func theCGMAlertIconNamesEveryKnownStateAndNoOther() {
