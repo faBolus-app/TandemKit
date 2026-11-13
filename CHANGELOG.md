@@ -6,6 +6,11 @@ git tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-11-12
+
+Reconnecting never gives up and waits t:connect's cooldown, and the pairing scan follows Mobi's rules.
+faBolus pins this release.
+
 ### Changed
 
 - Reconnecting never stops. After every drop or failed connect the link waits a cooldown, as t:connect does
@@ -136,7 +141,8 @@ firmware (`PairingAuth.createV1`, `LegacyPairingCoordinator`, chosen automatical
   `TandemBLE` (the CoreBluetooth central), with every outgoing message byte-exact against pumpx2's
   `cliparser` oracle. A signed 0.10 U saline bolus was delivered on a pump.
 
-[Unreleased]: https://github.com/faBolus-app/TandemKit/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/faBolus-app/TandemKit/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/faBolus-app/TandemKit/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/faBolus-app/TandemKit/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/faBolus-app/TandemKit/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/faBolus-app/TandemKit/compare/v0.4.0...v0.5.0
