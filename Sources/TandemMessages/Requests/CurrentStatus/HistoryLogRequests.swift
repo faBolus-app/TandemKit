@@ -17,9 +17,15 @@ public struct HistoryLogStatusRequest: EmptyCurrentStatusRequest {
     public init(emptyCargo: Void = ()) { self.cargo = [] }
 }
 
-/// Requests `numberOfLogs` history-log entries starting at sequence number `startLog`
-/// (opcode 60). The pump acks with `HistoryLogResponse` (61) and streams the entries as
-/// `HistoryLogStreamResponse` frames. `numberOfLogs` is a single byte (max 255 per request).
+/// Requests the `numberOfLogs` history-log entries up to sequence number `startLog` (opcode 60):
+/// `startLog` is the newest entry wanted, and the pump streams from it down, newest first. The pump
+/// acks with `HistoryLogResponse` (61) and streams the entries as `HistoryLogStreamResponse` frames.
+/// `numberOfLogs` is a single byte; t:connect asks for at most 250.
+///
+/// t:connect and Mobi send the newest entry, and in the 2023 capture
+/// (`vendor/pumpx2-oracle/scripts/discord-switchkill/2023`) every request names the pump's newest
+/// entry and the pump streams down from it. A page below the newest entry hasn't been tested on a
+/// pump.
 public struct HistoryLogRequest: Message {
     public static let props = MessageProps(
         opCode: 60, size: 5, type: .request,
@@ -33,8 +39,7 @@ public struct HistoryLogRequest: Message {
     // Throwing bounds-validation is intentionally applied ONLY to the 4
     // delivery/limit request types (SetTempRate/FillCannula/SetMaxBolusLimit/SetMaxBasalLimit). This read
     // encoder still TRUNCATES silently — `numberOfLogs & 0xFF` maps e.g. 300 → 44 rather than rejecting —
-    // by design; the sole app call site already bounds `count ≤ historySearchPageSize (≤255)` before
-    // construction, so callers MUST pre-bound `numberOfLogs`.
+    // by design, so callers MUST pre-bound `numberOfLogs`.
     public init(startLog: UInt32, numberOfLogs: Int) {
         self.startLog = startLog
         self.numberOfLogs = numberOfLogs

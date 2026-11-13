@@ -6,6 +6,11 @@ git tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+### Fixed
+
+- `HistoryLogRequest`'s doc: `startLog` is the newest entry wanted, and the pump streams down from it,
+  newest first, as t:connect and Mobi send it. It said the entries start there.
+
 ## [0.8.0] — 2026-11-12
 
 Reconnecting never gives up and waits t:connect's cooldown, and the pairing scan follows Mobi's rules.
