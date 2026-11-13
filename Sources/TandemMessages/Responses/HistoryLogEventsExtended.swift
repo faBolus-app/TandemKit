@@ -236,7 +236,7 @@ public struct BleDailyConnectionsHistoryLog: HistoryLogEvent {
 }
 
 /// BLE Link Stats — history-log event (typeId 473). Ported from BleLinkStatsHistoryLog.java.
-/// Bytes 10-15 are signed (upstream: probably link RSSI in dBm, -95 to -18).
+/// Bytes 10 to 15 are signed (upstream: probably link RSSI in dBm, -95 to -18).
 public struct BleLinkStatsHistoryLog: HistoryLogEvent {
     public static let typeId = 473
     public var cargo: [UInt8]
