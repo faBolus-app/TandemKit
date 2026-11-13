@@ -6,8 +6,16 @@ git tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-11-13
+
+The home screen mirror's basal icon is named, so faBolus can show a suspended pump and a pump-set temp
+rate. faBolus pins this release.
+
 ### Added
 
+- `HomeScreenMirrorResponse.basalStatusIcon`: byte 5 named with pumpX2's `BasalStatusIcon` ids (basal,
+  zero basal, temp rate, zero temp rate, suspend, Basal-IQ suspend, increase, attenuated, hide), or `nil`
+  for an id outside that set. Which icon a t:slim shows in which delivery state is unverified.
 - Bench: `bolus cancel --overlap` writes the cancel while a CurrentBolusStatus read still waits for its
   reply, as Mobi writes a cancel, to check whether a t:slim takes two requests outstanding. The bench
   transport holds the read's write back until just before the cancel's; the link is unchanged.
@@ -152,7 +160,8 @@ firmware (`PairingAuth.createV1`, `LegacyPairingCoordinator`, chosen automatical
   `TandemBLE` (the CoreBluetooth central), with every outgoing message byte-exact against pumpx2's
   `cliparser` oracle. A signed 0.10 U saline bolus was delivered on a pump.
 
-[Unreleased]: https://github.com/faBolus-app/TandemKit/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/faBolus-app/TandemKit/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/faBolus-app/TandemKit/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/faBolus-app/TandemKit/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/faBolus-app/TandemKit/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/faBolus-app/TandemKit/compare/v0.5.0...v0.6.0
