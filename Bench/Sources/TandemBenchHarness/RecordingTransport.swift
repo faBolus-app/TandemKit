@@ -23,6 +23,13 @@ final class RecordingTransport: LinkTransport {
     var recordPairing = false
     /// Called for each request written (not the qualifying-events clear or pairing frames).
     var onRequestWritten: (() -> Void)?
+    /// The cancel-overlap check: one write held back until just before the next control write.
+    var hold = BenchWriteHold()
+    /// When the held write went out, when its reply started arriving, and that reply's opcode (an op-77
+    /// answers too, but isn't the read's reply).
+    private(set) var heldSentAt: Date?
+    private(set) var heldAnsweredAt: Date?
+    private(set) var heldAnswerOpCode: UInt8?
 
     init(transcript: Transcript) {
         self.transcript = transcript
@@ -49,6 +56,23 @@ final class RecordingTransport: LinkTransport {
                 transcript.line("control write left as built: it couldn't be re-cut at \(chunk)")
             }
         }
+        let writes = hold.writes(characteristic, out)
+        if writes.isEmpty {
+            transcript.line(
+                "held back the \(characteristic.name) write (txId \(hold.heldTxId ?? 0)) until the next control write")
+        }
+        for (target, packets) in writes {
+            if target != characteristic {
+                heldSentAt = Date()
+                heldAnsweredAt = nil
+                heldAnswerOpCode = nil
+                transcript.line("sent the held \(target.name) write (txId \(hold.heldTxId ?? 0)) just before this one")
+            }
+            write(target, packets)
+        }
+    }
+
+    private func write(_ characteristic: Characteristic, _ out: [[UInt8]]) {
         if characteristic == .authorization, !recordPairing {
             transcript.detail("tx \(characteristic.name) \(out.count) packet(s), \(out.map(\.count)) bytes (redacted)")
         } else {
@@ -63,6 +87,11 @@ final class RecordingTransport: LinkTransport {
     private func log(_ input: LinkInput) {
         switch input {
         case .notified(let characteristic, let bytes):
+            // A reply's first packet is [packets left, txId] then the frame, which starts with its opcode.
+            if heldAnsweredAt == nil, hold.answersHeld(characteristic, bytes) {
+                heldAnsweredAt = Date()
+                heldAnswerOpCode = bytes.count > 2 ? bytes[2] : nil
+            }
             if characteristic == .authorization, !recordPairing {
                 transcript.detail("rx \(characteristic.name) [\(bytes.count)] (redacted)")
             } else {
@@ -70,6 +99,10 @@ final class RecordingTransport: LinkTransport {
             }
         case .discovered:
             break  // repeats every advertisement while scanning; the link reports each pump once
+        case .disconnected:
+            // A write still held never goes out on a later connection.
+            hold.clear()
+            transcript.detail("bt< \(input)")
         default:
             transcript.detail("bt< \(input)")
         }

@@ -196,7 +196,7 @@ func clearCheck(_ s: BenchSession, kind: NotificationKind, id: Int) async {
 // MARK: Bolus
 
 @MainActor
-func bolus(_ s: BenchSession, kind: BenchBolusKind, carbs: Int, bg: Int, noCartridge: Bool) async {
+func bolus(_ s: BenchSession, kind: BenchBolusKind, carbs: Int, bg: Int, noCartridge: Bool, overlap: Bool) async {
     guard await s.whenReady() else { return say("RESULT not sent: the link wasn't ready") }
     var log = BolusLogFile.load()
     if let why = log.refusal(now: Date()) { return say("RESULT not sent: \(why)") }
@@ -293,10 +293,13 @@ func bolus(_ s: BenchSession, kind: BenchBolusKind, carbs: Int, bg: Int, noCartr
         say("  !!! outcome unknown (\(why)): check the pump's screen and history before anything else")
     }
     if outcome == nil, kind == .cancel {
+        let drops = s.drops
+        if overlap { await holdAStatusRead(s) }
         let c = await s.request(CancelBolusRequest(bolusId: id), allowing: CancelBolusRequest().operationRisk)
         if let r = s.reply(c, as: CancelBolusResponse.self) {
             say("  cancel status \(r.statusId) id \(r.bolusId) reason \(r.reasonId)")
         }
+        if overlap { await reportOverlap(s, cancel: c, dropsBefore: drops) }
     }
     if outcome == nil, case .reply = initiate { outcome = await follow(s, id: id) }
     await lastBolus(s)
@@ -308,6 +311,41 @@ func bolus(_ s: BenchSession, kind: BenchBolusKind, carbs: Int, bg: Int, noCartr
     } else {
         say("RESULT bolus \(id) \(kind.rawValue): outcome not settled; check the pump, then `bolus settle`")
     }
+}
+
+/// The cancel-overlap check (bench step 15): a CurrentBolusStatus read whose write the transport holds
+/// back. The link gives up on it after 2 s and sends the cancel; the held read goes out just before the
+/// cancel's write, so the pump has it outstanding when the cancel arrives, as when Mobi writes a cancel.
+@MainActor
+func holdAStatusRead(_ s: BenchSession) async {
+    s.transport.hold.hold(next: .currentStatus)
+    _ = await s.request(CurrentBolusStatusRequest(), "CurrentBolusStatus (held back)", deadline: 2)
+    if s.transport.hold.heldTxId == nil {
+        s.transport.hold.clear()
+        say("  OVERLAP not tried: the status read's write wasn't seen; the cancel goes on its own")
+    }
+}
+
+/// What the pump did with the overlap: whether it answered the held read and the cancel, and kept the link.
+@MainActor
+func reportOverlap(_ s: BenchSession, cancel: RequestResult, dropsBefore: Int) async {
+    guard let txId = s.transport.hold.heldTxId, let sent = s.transport.heldSentAt else { return }
+    await s.pause(3)
+    let dropped = s.drops != dropsBefore
+    let replied = s.transport.heldAnswerOpCode == CurrentBolusStatusRequest.props.responseOpCode
+    let answered = s.transport.heldAnsweredAt.map {
+        String(format: "answered after %.2f s", $0.timeIntervalSince(sent))
+            + (replied ? "" : ", but not with its reply (opcode \(s.transport.heldAnswerOpCode ?? 0))")
+    }
+    say("  OVERLAP held status read (txId \(txId)): \(answered ?? "not answered within 3 s")")
+    say("  OVERLAP cancel: \(verdictText(cancel)); link \(dropped ? "DROPPED" : "held")")
+    let passed = replied && s.reply(cancel, as: CancelBolusResponse.self) != nil && !dropped
+    say(
+        "  OVERLAP "
+            + (passed
+                ? "PASSED: both answered and the link held (step 2 can be built)"
+                : "FAILED: the cancel waits for the request ahead on a t:slim (kept for Mobi)"))
+    s.transport.hold.clear()
 }
 
 /// Follows the bolus every 2 s until the pump no longer reports it, up to two minutes. The outcome is
