@@ -12,15 +12,17 @@ import TandemMessages
     let target = PumpTarget(
         peripheralID: LinkHarness.pumpID, model: .tslim, credentials: .legacy(code: LinkHarness.legacyCode))
 
-    @Test func linkThatHeldWhileSuspendedIsAHeldDropNotAFlap() {
+    @Test func linkThatHeldWhileSuspendedIsAHeldDrop() {
         var h = LinkHarness()
         h.apply(.appActive(false))
-        for _ in 0..<12 {  // more drops than the ladder allows flaps
+        for _ in 0..<12 {
             h.makeReady()
             h.sleep(for: 3_600)  // suspended before the hold timer could fire
             h.apply(.disconnected(peripheralID: Self.id, drop))
-            #expect(h.state.ladder.flaps == 0)
+            #expect(h.state.ladder.flaps == 1, "the hold reset the ladder; only this drop counts")
             #expect(h.state.telemetry.spans.last?.held == true)
+            #expect(h.timers[.backoff] == h.now + 1, "the base cooldown, not a doubled one")
+            h.apply(.backgroundTimeEnding)
             #expect(h.phase == .connecting)
         }
         #expect(!h.allEvents.contains { if case .connectionUnstable = $0 { return true } else { return false } })
@@ -98,23 +100,16 @@ import TandemMessages
         #expect(h.results[b] == .notSent(.probeStopped))
     }
 
-    @Test func backoffCarriesJitter() {
-        var h = LinkHarness()
-        h.jitter = 0.5
-        h.apply(.power(.poweredOn))
-        h.apply(.connect(target, SupportMatrix()))
-        h.apply(.connectFailed(peripheralID: Self.id, drop))
-        #expect(h.timers[.backoff] == h.now + 5 * 1.25)
-    }
-
-    @Test func emptyBackoffDoesNotTrap() {
+    @Test func zeroCooldownDoesNotTrap() {
         var config = LinkConfiguration()
-        config.backoff = []
+        config.cooldownAfterFailedConnect = 0
         var h = LinkHarness(config: config)
         h.apply(.power(.poweredOn))
         h.apply(.connect(target, SupportMatrix()))
         h.apply(.connectFailed(peripheralID: Self.id, drop))
         #expect(h.phase == .backingOff)
+        h.advance(by: 0)
+        #expect(h.phase == .connecting)
     }
 
     @Test func neverAllowedWriteIsReportedSoEvenWhenNotReady() {
@@ -202,14 +197,9 @@ import TandemMessages
     }
 
     @Test func linkStartsAssumingTheBackground() {
-        // An app relaunched in the background may never be told it's in the background.
-        var h = LinkHarness()
-        h.state.appActive = LinkState().appActive
-        h.apply(.power(.poweredOn))
-        h.apply(.connect(target, SupportMatrix()))
-        h.apply(.connectFailed(peripheralID: Self.id, drop))
-        #expect(h.commands.contains(.connect(Self.id)))
-        #expect(h.phase == .connecting)
+        // An app relaunched in the background may never be told it's in the background, and the driver
+        // holds background time for a cooldown only while the link thinks it is.
+        #expect(LinkState().appActive == false)
     }
 
     @Test func lateOp77DoesNotAnswerTheNextSignedWriteWhenTheModelIsUnknown() {

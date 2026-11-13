@@ -9,8 +9,8 @@ import TandemMessages
 ///
 /// In both logs P1 drops the link about 2 s after every legacy pairing (CoreBluetooth error 7)
 /// while the old app's 10+ read burst runs. The new link sends only the three handshake reads,
-/// counts each 2 s drop as a flap (it never held), backs off, and stops after `maxFlaps` instead of
-/// looping; connections the pump completes after that are cancelled.
+/// counts each 2 s drop as a flap (it never held) and backs off, never stopping. The logged connects are
+/// the old app's, so they arrive at the old app's times, whatever the new cooldown would have waited.
 @Suite struct ReplayTests {
     struct Line {
         let time: Double
@@ -50,7 +50,6 @@ import TandemMessages
                     trace.append("closed \(describe(reason)) held=\(span.held) flaps=\(span.flapsAfter)")
                 case .emit(.connectionUnstable(let flaps)): trace.append("unstable \(flaps)")
                 case .emit(.connectionRestored): trace.append("restored")
-                case .emit(.phase(.exhausted)): trace.append("exhausted")
                 case .transport(.cancelConnection): trace.append("cancel")
                 default: break
                 }
@@ -129,20 +128,16 @@ import TandemMessages
 
     static func cycle(_ flaps: Int) -> [String] { ["ready", "closed linkLost 7 held=false flaps=\(flaps)"] }
 
-    @Test func firstLogFlapsBacksOffAndStops() throws {
+    @Test func firstLogFlapsAndNeverStops() throws {
         let (trace, harnesses) = try Self.replay("p1-reconnect-loop-1")
-        // Two launches where the pump never connected, then the loop: eight 2 s flaps, the unstable
-        // report at the third, exhaustion at the eighth, and every later connection the pump
-        // completes is cancelled (the old app went on for 18 cycles).
+        // Two launches where the pump never connected, then the loop: all 18 of the 2 s flaps the old
+        // app saw, the unstable report at the third, and every connection the pump completes is set up.
         var expected = ["launch", "launch", "launch"]
-        for flaps in 1...8 {
+        for flaps in 1...18 {
             expected += Self.cycle(flaps)
             if flaps == 3 { expected.append("unstable 3") }
         }
-        expected += ["cancel", "exhausted"]
-        #expect(Array(trace.prefix(expected.count)) == expected)
-        let rest = trace.dropFirst(expected.count)
-        #expect(!rest.isEmpty && rest.allSatisfy { $0 == "cancel" })
+        #expect(trace == expected)
         try Self.checkOnlyHandshakeReads(harnesses)
     }
 

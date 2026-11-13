@@ -45,8 +45,9 @@ public final class CoreBluetoothTransport: NSObject, LinkTransport {
 
     public func perform(_ command: TransportCommand) {
         switch command {
-        case .scan:
-            central.scanForPeripherals(withServices: [Self.pumpService], options: nil)
+        case .scan(let repeats):
+            central.scanForPeripherals(
+                withServices: [Self.pumpService], options: [CBCentralManagerScanOptionAllowDuplicatesKey: repeats])
         case .stopScan:
             central.stopScan()
         case .connect(let id):
@@ -257,10 +258,14 @@ extension CoreBluetoothTransport: CBCentralManagerDelegate {
         rssi RSSI: NSNumber
     ) {
         let name = advertisementData[CBAdvertisementDataLocalNameKey] as? String
+        let manufacturerData = (advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data).map { [UInt8]($0) }
         let rssi = RSSI.intValue
         MainActor.assumeIsolated {
             adopt(peripheral)
-            report?(.discovered(peripheralID: peripheral.identifier, name: name ?? peripheral.name, rssi: rssi))
+            report?(
+                .discovered(
+                    peripheralID: peripheral.identifier, name: name ?? peripheral.name, rssi: rssi,
+                    manufacturerData: manufacturerData))
         }
     }
 

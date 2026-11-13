@@ -6,6 +6,29 @@ git tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+### Changed
+
+- Reconnecting never stops. After every drop or failed connect the link waits a cooldown, as t:connect does
+  after a connection error, a drop after the link held included: 1 s, 3 s after a supervision timeout and
+  10 s after a failed connect, doubled for each failure in a row since the link last held, up to 30 s.
+  The wait is the same in the background. The fixed 5-10-20-30 s foreground ladder, its jitter, the
+  8-flap stop and `LinkPhase.exhausted` are gone (`LinkConfiguration.backoff`, `backoffJitter`, `maxFlaps`).
+- `PumpConnection` takes a `LinkBackgroundTime`, which keeps a cooldown timed in the background; when it
+  ends first, or without one, the pending connect goes out at once.
+- The pairing scan lists only pumps stronger than -75 dBm and reports repeated advertisements, so a pump
+  brought closer appears. It fails as `pumpNotFound` after 120 s from its start, not 30 s, unless the
+  strongest pump found advertises that it is accepting connections first, as Mobi does; the scan itself
+  runs until a pump is picked. `TransportCommand.scan` says whether to report repeats; a listed pump is
+  reported again only when its signal moves by 5 dB.
+- A drop after the link held now counts toward the cooldown's doubling, and so toward
+  `connectionUnstable`: a held drop and two quick ones after it report the link unstable.
+
+### Added
+
+- `PumpRegistrationState`, read from Tandem's manufacturer data, and `manufacturerData` on
+  `LinkInput.discovered`.
+- `LinkInput.backgroundTimeEnding`.
+
 ## [0.7.0] — 2026-11-12
 
 The link clears the pump's qualifying events when it becomes ready, and after a signed write that held a

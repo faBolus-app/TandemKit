@@ -230,7 +230,7 @@ import TandemMessages
         h.advance(by: 0.09)  // on P1 the drop came about 90 ms later
         h.apply(.disconnected(peripheralID: Self.id, drop))
         #expect(h.state.ladder.flaps == 0)
-        #expect(h.commands.contains(.connect(Self.id)))  // reconnect at once
+        #expect(h.timers[.backoff] == h.now + 1)  // the base cooldown, never doubled
         #expect(
             h.state.telemetry.spans.last?.reason
                 == .afterUnsupportedRequest(MessageKey(LoadStatusRequest.self), errorCode: 6))

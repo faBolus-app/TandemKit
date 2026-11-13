@@ -31,6 +31,15 @@ public protocol LinkClockToken: AnyObject {
     func cancel()
 }
 
+/// Time to keep running in the background (iOS: `UIApplication.beginBackgroundTask`), so a reconnect
+/// cooldown's timer fires while the app is in the background instead of waiting for the app to be woken.
+@MainActor
+public protocol LinkBackgroundTime: AnyObject {
+    /// Asks for background time, or returns nil when none is given. `ending` runs when the system is about
+    /// to take it back; the provider then ends it itself. Cancelling the token ends it early.
+    func begin(ending: @escaping @MainActor () -> Void) -> (any LinkClockToken)?
+}
+
 /// The pairing handshake as the driver runs it: JPAKE or legacy (`PairingCoordinating`).
 public typealias AuthenticatorFactory = @MainActor (PairingCredentials) throws -> any PairingCoordinating
 
@@ -50,6 +59,8 @@ public final class PumpConnection {
 
     private let transport: LinkTransport
     private let clock: LinkClock
+    private let backgroundTime: (any LinkBackgroundTime)?
+    private var backgroundHold: (any LinkClockToken)?
     private let makeAuthenticator: AuthenticatorFactory
     private let eventSink: AsyncStream<LinkEvent>.Continuation
     private var authenticator: (any PairingCoordinating)?
@@ -65,19 +76,26 @@ public final class PumpConnection {
     /// A link over CoreBluetooth. `restoreIdentifier` opts in to state preservation and restoration:
     /// iOS then relaunches the app for pump events after it was terminated (not after a force quit), and
     /// the link picks up the restored connection. Needs the `bluetooth-central` background mode.
-    public convenience init(restoreIdentifier: String?, config: LinkConfiguration = LinkConfiguration()) {
+    /// `backgroundTime` keeps a reconnect cooldown timed in the background; without it, a cooldown that
+    /// starts or is under way in the background ends at once, since a suspended app's timer wouldn't fire.
+    public convenience init(
+        restoreIdentifier: String?, config: LinkConfiguration = LinkConfiguration(),
+        backgroundTime: (any LinkBackgroundTime)? = nil
+    ) {
         self.init(
             transport: CoreBluetoothTransport(restoreIdentifier: restoreIdentifier), clock: ContinuousLinkClock(),
-            config: config)
+            config: config, backgroundTime: backgroundTime)
     }
 
     public init(
         transport: LinkTransport, clock: LinkClock, config: LinkConfiguration = LinkConfiguration(),
+        backgroundTime: (any LinkBackgroundTime)? = nil,
         makeAuthenticator: @escaping AuthenticatorFactory = PumpConnection.defaultAuthenticator
     ) {
         self.state = LinkState(config: config)
         self.transport = transport
         self.clock = clock
+        self.backgroundTime = backgroundTime
         self.makeAuthenticator = makeAuthenticator
         var sink: AsyncStream<LinkEvent>.Continuation!
         self.events = AsyncStream { sink = $0 }
@@ -133,13 +151,32 @@ public final class PumpConnection {
         guard !processing else { return }
         processing = true
         defer { processing = false }
-        while !inbox.isEmpty {
-            let next = inbox.removeFirst()
-            let (newState, effects) = LinkReducer.reduce(
-                state, next, now: clock.now, date: Date(), jitter: Double.random(in: 0..<1))
-            state = newState
-            for effect in effects { perform(effect) }
+        repeat {
+            while !inbox.isEmpty {
+                let next = inbox.removeFirst()
+                let (newState, effects) = LinkReducer.reduce(state, next, now: clock.now, date: Date())
+                state = newState
+                for effect in effects { perform(effect) }
+            }
+            holdBackgroundTime()
+        } while !inbox.isEmpty
+    }
+
+    /// Keeps background time while a cooldown runs in the background, and lets it go otherwise.
+    private func holdBackgroundTime() {
+        let needed = !state.appActive && state.phase == .backingOff
+        if !needed {
+            backgroundHold?.cancel()
+            backgroundHold = nil
+            return
         }
+        guard backgroundHold == nil else { return }
+        backgroundHold = backgroundTime?.begin { [weak self] in
+            guard let self else { return }
+            self.backgroundHold = nil
+            self.feed(.backgroundTimeEnding)
+        }
+        if backgroundHold == nil { inbox.append(.backgroundTimeEnding) }
     }
 
     private func perform(_ effect: LinkEffect) {

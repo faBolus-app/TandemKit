@@ -119,9 +119,6 @@ final class BenchSession {
         case .phase(let phase):
             say("link: \(phase)")
             if phase == .connecting { reconnects.connecting(at: now) }
-            if phase == .exhausted {
-                say("  reconnecting stopped after the flap limit; this run won't reconnect again (Ctrl-C to end it)")
-            }
             if phase == .ready {
                 if let line = reconnects.ready(at: now) { say(line) }
                 startJobOnce()
@@ -204,10 +201,9 @@ final class BenchSession {
     func whenReady(timeout: Double = 120) async -> Bool {
         let until = link.now + timeout
         while link.state.phase != .ready {
-            // Neither comes back by itself in a command-line run: `failed` is final, and `exhausted`
-            // waits for an app to come to the foreground.
+            // `failed` doesn't come back by itself.
             switch link.state.phase {
-            case .failed, .exhausted: return false
+            case .failed: return false
             default: break
             }
             if link.now > until { return false }

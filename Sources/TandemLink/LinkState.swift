@@ -8,9 +8,8 @@ public struct LinkState: Sendable {
     public internal(set) var phase: LinkPhase = .idle
     public internal(set) var target: PumpTarget?
     public internal(set) var power: BluetoothPower = .unknown
-    /// Whether the app is in the foreground. Timers don't fire while iOS has the app suspended, so the
-    /// backoff ladder is timed only in the foreground. Starts false: an app relaunched in the background
-    /// may never be told, and assuming the background only costs a throttled retry being immediate.
+    /// Whether the app is in the foreground. Starts false: an app relaunched in the background may never
+    /// be told.
     public internal(set) var appActive = false
     public internal(set) var support = SupportMatrix()
     public internal(set) var ladder = ReconnectLadder()
@@ -29,6 +28,10 @@ public struct LinkState: Sendable {
     var restored: [RestoredPeripheral] = []
     /// A pairing scan was asked for while Bluetooth was off.
     var wantsPairingScan = false
+    /// The pumps a pairing scan listed, by their last sighting stronger than the floor.
+    var pairingCandidates: [UUID: PairingCandidate] = [:]
+    /// The pairing scan's timer was stopped by a pump taking a pairing.
+    var pairingTimerStopped = false
     /// The identity from the last connection that reached ready, kept after it closes.
     public internal(set) var lastIdentity: PumpIdentity?
 
@@ -40,15 +43,24 @@ public struct LinkState: Sendable {
     public var isReady: Bool { phase == .ready }
 }
 
-/// The ladder of flaps (drops before the link held). It only resets after an authenticated hold, or
-/// when the caller connects afresh; a rescan never resets it.
+/// The failures in a row that double the reconnect cooldown: drops (one after the link held included)
+/// and failed connects. It resets only after an authenticated hold, or when the caller connects afresh;
+/// a rescan never resets it. t:connect resets on every connect instead, which on iOS, where a pending
+/// connect doesn't fail, would leave a pump that connects and drops at once retried at the base forever.
 public struct ReconnectLadder: Sendable, Equatable {
-    /// Flaps in a row.
+    /// Failures in a row since the link last held.
     public internal(set) var flaps = 0
     /// Whether `connectionUnstable` was reported and not yet followed by `connectionRestored`.
     public internal(set) var reportedUnstable = false
 
     public init() {}
+}
+
+struct PairingCandidate: Sendable, Equatable {
+    var rssi: Int
+    /// The signal last reported in `discovered`.
+    var listedRSSI: Int
+    var registration: PumpRegistrationState?
 }
 
 /// One connection's record, opened at `connected` and closed at its disconnect.

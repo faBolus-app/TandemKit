@@ -45,15 +45,77 @@ import TandemMessages
         h.apply(.power(.poweredOn))
         h.apply(.scanForPairing)
         #expect(h.phase == .scanning(forPairing: true))
-        #expect(h.commands == [.scan])
+        #expect(h.commands == [.scan(repeats: true)])
         h.apply(.discovered(peripheralID: LinkHarness.pumpID, name: "tslim X2 ***693", rssi: -60))
         #expect(
             h.events == [
                 .discovered(peripheralID: LinkHarness.pumpID, name: "tslim X2 ***693", model: .tslim, rssi: -60)
             ])
-        h.advance(by: 30)
+        h.advance(by: 119)
+        #expect(h.phase == .scanning(forPairing: true), "a pump found that isn't taking a pairing doesn't stop it")
+        h.advance(by: 1)
         #expect(h.phase == .failed(.pumpNotFound))
         #expect(h.allCommands.last == .stopScan)
+    }
+
+    @Test func pairingScanListsOnlyPumpsStrongerThanTheFloor() {
+        var h = LinkHarness()
+        h.apply(.power(.poweredOn))
+        h.apply(.scanForPairing)
+        h.apply(.discovered(peripheralID: LinkHarness.pumpID, name: "tslim X2 ***693", rssi: -75))
+        #expect(h.events.isEmpty)
+        h.apply(.discovered(peripheralID: LinkHarness.pumpID, name: "tslim X2 ***693", rssi: -74))
+        #expect(h.events.count == 1)
+        h.apply(.discovered(peripheralID: UUID(), name: "tslim X2 ***694", rssi: 127))
+        #expect(h.events.count == 1, "signal unknown passes")
+    }
+
+    @Test func aListedPumpIsReportedAgainOnlyWhenItsSignalMoves() {
+        var h = LinkHarness()
+        h.apply(.power(.poweredOn))
+        h.apply(.scanForPairing)
+        h.clearLog()
+        for rssi in [-60, -62, -58, -61, -64] {
+            h.apply(.discovered(peripheralID: LinkHarness.pumpID, name: "tslim X2 ***693", rssi: rssi))
+        }
+        #expect(h.allEvents.count == 1)
+        h.apply(.discovered(peripheralID: LinkHarness.pumpID, name: "tslim X2 ***693", rssi: -65))
+        #expect(h.allEvents.count == 2)
+    }
+
+    /// Tandem's manufacturer data, CoreBluetooth-style: company ID 0x059D little-endian, format 0, the
+    /// authentication method, then type and state nibbles.
+    static func advertised(_ state: UInt8) -> [UInt8] { [0x9D, 0x05, 0x00, 0x01, 0x10 | state] }
+
+    @Test func pairingScanTimerStopsWhenTheStrongestPumpTakesAPairing() {
+        var h = LinkHarness()
+        h.apply(.power(.poweredOn))
+        h.apply(.scanForPairing)
+        let near = UUID()
+        h.apply(
+            .discovered(peripheralID: near, name: "Tandem Mobi 1", rssi: -40, manufacturerData: Self.advertised(2)))
+        h.apply(
+            .discovered(
+                peripheralID: LinkHarness.pumpID, name: "Tandem Mobi 2", rssi: -60,
+                manufacturerData: Self.advertised(1)))
+        #expect(h.timers[.scan] != nil, "the strongest is already paired elsewhere")
+        h.apply(
+            .discovered(
+                peripheralID: LinkHarness.pumpID, name: "Tandem Mobi 2", rssi: -30,
+                manufacturerData: Self.advertised(1)))
+        #expect(h.timers[.scan] == nil)
+        h.advance(by: 600)
+        #expect(h.phase == .scanning(forPairing: true), "the scan runs until a pump is picked")
+    }
+
+    @Test func registrationStateNeedsTandemsFormat() {
+        #expect(PumpRegistrationState(manufacturerData: Self.advertised(1)) == .acceptingConnections)
+        #expect(PumpRegistrationState(manufacturerData: Self.advertised(7)) == .readyToPair)
+        #expect(PumpRegistrationState(manufacturerData: nil) == nil)
+        #expect(PumpRegistrationState(manufacturerData: [0x4C, 0x00, 0x00, 0x01, 0x11]) == nil, "another company")
+        #expect(PumpRegistrationState(manufacturerData: [0x9D, 0x05, 0x01, 0x01, 0x11]) == nil, "another format")
+        #expect(PumpRegistrationState(manufacturerData: [0x9D, 0x05, 0x00, 0x01]) == nil, "short")
+        #expect(PumpRegistrationState(manufacturerData: Self.advertised(3)) == nil, "no such state")
     }
 
     @Test func pairingScanWaitsForBluetoothAndResumes() {
@@ -70,7 +132,7 @@ import TandemMessages
         h.apply(.connect(target, SupportMatrix()))
         h.apply(.peripheralUnavailable(LinkHarness.pumpID))
         #expect(h.phase == .scanning(forPairing: false))
-        #expect(h.commands == [.scan])
+        #expect(h.commands == [.scan(repeats: false)])
         h.apply(.discovered(peripheralID: UUID(), name: "tslim X2 other", rssi: -50))
         #expect(h.phase == .scanning(forPairing: false))
         h.apply(.discovered(peripheralID: LinkHarness.pumpID, name: "tslim X2 ***693", rssi: -50))

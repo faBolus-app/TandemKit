@@ -20,12 +20,18 @@ public struct LinkConfiguration: Sendable, Equatable {
     /// after pairing, so that drop stays a flap. Mobi's renegotiation drop at about 15 s
     /// would need a longer window when Mobi is built.
     public var holdWindow: Double = 10
-    /// Foreground backoff before reconnecting after a flap, by flap count (the old client's ladder).
-    public var backoff: [Double] = [5, 10, 20, 30]
-    /// Up to this fraction is added to each backoff delay at random (the old client's +50%).
-    public var backoffJitter = 0.5
-    /// Flaps in a row before reconnecting stops (the old client's ceiling).
-    public var maxFlaps = 8
+    /// The wait before reconnecting after a drop or a failed connect, as t:connect waits: a base set by
+    /// the error, doubled for each failure in a row before it (`ReconnectLadder.flaps`), up to
+    /// `cooldownCap`. Reconnecting never stops. t:connect's bases are for Android's error codes; these are
+    /// CoreBluetooth's nearest (`LinkReducer`'s cooldown base), a guess until a range-edge bench.
+    public var cooldown: Double = 1
+    /// The base after a supervision timeout (`CBError.connectionTimeout`), the drop at the edge of range:
+    /// t:connect's for Android's link-layer timeout.
+    public var cooldownAfterTimeout: Double = 3
+    /// The base after a connect that failed (`didFailToConnect`): t:connect's for Android's generic
+    /// error, which is how a connect fails there.
+    public var cooldownAfterFailedConnect: Double = 10
+    public var cooldownCap: Double = 30
     /// Flaps in a row before `connectionUnstable` is reported. Guess.
     public var unstableAfterFlaps = 3
     /// From `connected` to ready (services, subscriptions, authentication, handshake). The old
@@ -33,6 +39,15 @@ public struct LinkConfiguration: Sendable, Equatable {
     public var establishmentTimeout: Double = 30
     /// How long a scan for a known pump runs before it counts as a flap (the old client's bound).
     public var scanTimeout: Double = 30
+    /// A pairing scan fails as `pumpNotFound` after this long, unless the strongest pump found advertises
+    /// that it is accepting connections first (Mobi's pump timer). The scan itself runs until it is
+    /// stopped or a pump is picked.
+    public var pairingScanTimeout: Double = 120
+    /// A pump this weak or weaker isn't listed for pairing (Mobi and t:connect: -75 dBm). CoreBluetooth's
+    /// 127, signal unknown, passes, as Mobi's does.
+    public var pairingRSSIFloor = -75
+    /// A listed pump is reported again when its signal moves by this many dB, not on every advertisement.
+    public var pairingRSSIStep = 5
     /// After an op-77 reply nothing else is sent for this long, so a drop that follows can be tied to
     /// the reply. On P1 the drop came about 90 ms after the error; 1 s is a guess with margin.
     public var errorSettleWindow: Double = 1
@@ -85,6 +100,25 @@ public func pumpModel(advertisedName name: String?) -> PumpModel? {
     if name.hasPrefix("tslim X2") { return .tslim }
     if name.hasPrefix("Tandem Mobi") { return .mobi }
     return nil
+}
+
+/// Whether an advertising pump takes a new pairing, from Tandem's manufacturer data (company ID 0x059D):
+/// format byte 0 = 0, then the authentication method, then the pump type in the high nibble and this
+/// state in the low one, as both Tandem apps read it. A Mobi advertises it; nothing shows a t:slim X2
+/// does (both apps take a t:slim with no data as one with no state), so for one it is usually nil.
+public enum PumpRegistrationState: UInt8, Sendable, Equatable {
+    /// NONE in both apps; not `none`, which would read as `Optional.none` beside an optional state.
+    case noState = 0
+    case acceptingConnections = 1
+    case registered = 2
+    case notAcceptingConnections = 5
+    case readyToPair = 7
+
+    /// The state in CoreBluetooth's manufacturer data, or nil when it isn't Tandem's or names no state.
+    public init?(manufacturerData data: [UInt8]?) {
+        guard let data, data.count >= 5, data[0] == 0x9D, data[1] == 0x05, data[2] == 0 else { return nil }
+        self.init(rawValue: data[4] & 0x0F)
+    }
 }
 
 /// What the link learned about the pump on this connection.
@@ -163,11 +197,8 @@ public enum LinkPhase: Sendable, Equatable {
     case handshaking
     /// Authenticated and handshaken: requests may be sent.
     case ready
-    /// After a flap in the foreground, waiting out the ladder's delay.
+    /// After a drop or a failed connect, waiting out the cooldown before the next pending connect.
     case backingOff
-    /// The ladder ran out: nothing more is tried until the caller retries or the app comes to the
-    /// foreground (owner, 2026-10-31).
-    case exhausted
     /// Stopped on something the user has to fix; no automatic retry.
     case failed(LinkFailure)
 }
@@ -353,7 +384,8 @@ public enum LinkInput: Sendable {
     case power(BluetoothPower)
     /// iOS relaunched the app and restored these peripherals (`willRestoreState`).
     case restored([RestoredPeripheral])
-    case discovered(peripheralID: UUID, name: String?, rssi: Int)
+    /// A pump's advertisement. `manufacturerData` is CoreBluetooth's, the company ID first.
+    case discovered(peripheralID: UUID, name: String?, rssi: Int, manufacturerData: [UInt8]? = nil)
     /// The transport has no handle for the target (`retrievePeripherals` found nothing).
     case peripheralUnavailable(UUID)
     case connected(peripheralID: UUID, name: String?)
@@ -376,6 +408,9 @@ public enum LinkInput: Sendable {
     case authenticationFailed(rejected: Bool)
 
     case timerFired(LinkTimer)
+    /// The background time that kept a cooldown's timer running in the background is ending
+    /// (`LinkBackgroundTime`). Suspended, the timer wouldn't fire, so the pending connect goes out now.
+    case backgroundTimeEnding
 }
 
 /// A peripheral handed back by state restoration.
@@ -395,7 +430,9 @@ public struct RestoredPeripheral: Sendable, Equatable {
 
 /// What the driver does with Bluetooth.
 public enum TransportCommand: Sendable, Equatable {
-    case scan
+    /// Scan for the pump service. `repeats` reports every advertisement, not just a pump's first: a
+    /// pairing scan lists a pump that comes into range only once it is close enough.
+    case scan(repeats: Bool)
     case stopScan
     /// Resolve the peripheral by identifier and issue a pending connect. Reports
     /// `peripheralUnavailable` when it can't be resolved.
