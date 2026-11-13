@@ -24,7 +24,7 @@ enum Job {
     case userInteraction
     case setTime(plusFive: Bool)
     case clearCheck(NotificationKind, Int)
-    case bolus(BenchBolusKind, carbs: Int, bg: Int, noCartridge: Bool, chunk: Int?)
+    case bolus(BenchBolusKind, carbs: Int, bg: Int, noCartridge: Bool, chunk: Int?, overlap: Bool)
 }
 
 /// Runs the job once the link is first ready. Every request goes through the link's gates.
@@ -62,8 +62,8 @@ func runJob(_ s: BenchSession) async {
         await setTime(s, plusFive: plusFive)
     case .clearCheck(let kind, let id):
         await clearCheck(s, kind: kind, id: id)
-    case .bolus(let kind, let carbs, let bg, let noCartridge, _):
-        await bolus(s, kind: kind, carbs: carbs, bg: bg, noCartridge: noCartridge)
+    case .bolus(let kind, let carbs, let bg, let noCartridge, _, let overlap):
+        await bolus(s, kind: kind, carbs: carbs, bg: bg, noCartridge: noCartridge, overlap: overlap)
     }
 }
 

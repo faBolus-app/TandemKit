@@ -57,6 +57,8 @@ let usage = """
                                 one 0.05 U bolus: saline only (PUMP_SALINE_ATTESTED=1, on no one), or
                                 --no-cartridge (PUMP_NO_CARTRIDGE_ATTESTED=1) for the pump's refusal; at most 3 an hour, logged in
                                 ~/.tandemkit-bench/bench-boluses.json (PUMP_BOLUS_LOG)
+                                --overlap (cancel only): write the cancel while a CurrentBolusStatus read
+                                still waits for its reply, as Mobi does (bench step 15)
       bolus settle [note]       mark the last unsettled bench bolus settled after checking the pump
 
       --retest                  (any command) forget this pump's recorded result for each command
@@ -175,14 +177,18 @@ func parseJob(_ command: String, _ rest: [String]) -> Job {
         let bg = option("--bg", in: &rest).map { Int(number($0, "--bg")) } ?? 0
         let chunk = option("--chunk", in: &rest).map { Int(number($0, "--chunk")) }
         let noCartridge = rest.contains("--no-cartridge")
-        rest.removeAll { $0 == "--no-cartridge" }
+        let overlap = rest.contains("--overlap")
+        rest.removeAll { $0 == "--no-cartridge" || $0 == "--overlap" }
         guard rest.count == 1, let kind = BenchBolusKind(rawValue: rest[0]) else {
-            fail("usage: bolus <units|carb|correction|cancel> [--carbs G] [--bg MGDL] [--no-cartridge] [--chunk 18]")
+            fail(
+                "usage: bolus <units|carb|correction|cancel> [--carbs G] [--bg MGDL] [--no-cartridge] [--chunk 18]"
+                    + " [--overlap]")
         }
+        if overlap, kind != .cancel { fail("--overlap is for `bolus cancel` only") }
         if let chunk, !(1...40).contains(chunk) { fail("--chunk must be 1 to 40") }
         if !(0...300).contains(carbs) { fail("--carbs must be 0 to 300") }
         if bg != 0, !(40...400).contains(bg) { fail("--bg must be 40 to 400") }
-        return .bolus(kind, carbs: carbs, bg: bg, noCartridge: noCartridge, chunk: chunk)
+        return .bolus(kind, carbs: carbs, bg: bg, noCartridge: noCartridge, chunk: chunk, overlap: overlap)
     case "dismiss":
         let chunk = option("--chunk", in: &rest).map { Int(number($0, "--chunk")) }
         guard rest.count == 2, let k = notificationKind(rest[0]), let id = Int(rest[1]), (0...63).contains(id) else {

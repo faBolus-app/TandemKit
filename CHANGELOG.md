@@ -6,6 +6,12 @@ git tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+### Added
+
+- Bench: `bolus cancel --overlap` writes the cancel while a CurrentBolusStatus read still waits for its
+  reply, as Mobi writes a cancel, to check whether a t:slim takes two requests outstanding. The bench
+  transport holds the read's write back until just before the cancel's; the link is unchanged.
+
 ### Fixed
 
 - `HistoryLogRequest`'s doc: `startLog` is the newest entry wanted, and the pump streams down from it,
