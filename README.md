@@ -32,7 +32,7 @@ revision):
 
 ```swift
 // Package.swift
-.package(url: "https://github.com/faBolus-app/TandemKit.git", exact: "0.7.0"),
+.package(url: "https://github.com/faBolus-app/TandemKit.git", exact: "0.8.0"),
 // then, per target:
 .product(name: "TandemMessages", package: "TandemKit"),
 .product(name: "TandemAuth", package: "TandemKit"),
