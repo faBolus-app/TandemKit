@@ -12,18 +12,48 @@ import TandemMessages
 
     // MARK: held drop
 
-    @Test func dropAfterHeldLinkReconnectsAtOnceOffTheLadder() {
+    @Test func dropAfterHeldLinkWaitsTheBaseCooldown() {
         var h = LinkHarness()
         h.makeReady()
         h.advance(by: 10)
         h.apply(.disconnected(peripheralID: Self.id, drop))
-        // The pending connect is issued in the same step, so it completes even while suspended.
-        #expect(h.commands == [.connect(Self.id)])
-        #expect(h.phase == .connecting)
-        #expect(h.state.ladder.flaps == 0)
+        // As t:connect waits after a connection error, a held drop included.
+        #expect(h.phase == .backingOff)
+        #expect(!h.commands.contains(.connect(Self.id)))
+        #expect(h.timers[.backoff] == h.now + 1)
+        #expect(h.state.ladder.flaps == 1)
         let span = h.state.telemetry.spans.last
         #expect(span?.held == true && span?.authenticated == true)
         #expect(span?.reason == .linkLost(drop))
+        h.advance(by: 1)
+        #expect(h.commands == [.connect(Self.id)])
+        #expect(h.phase == .connecting)
+    }
+
+    @Test func supervisionTimeoutWaitsThreeSeconds() {
+        // The drop at the edge of range: t:connect's base for a link-layer timeout.
+        var h = LinkHarness()
+        h.makeReady()
+        h.advance(by: 60)
+        h.apply(.disconnected(peripheralID: Self.id, BluetoothError(domain: "CBErrorDomain", code: 6)))
+        #expect(h.timers[.backoff] == h.now + 3)
+    }
+
+    @Test func failedConnectWaitsTenSeconds() {
+        var h = LinkHarness()
+        h.apply(.power(.poweredOn))
+        h.apply(
+            .connect(
+                PumpTarget(peripheralID: Self.id, model: .tslim, credentials: .legacy(code: LinkHarness.legacyCode)),
+                SupportMatrix()))
+        h.apply(.connectFailed(peripheralID: Self.id, drop))
+        #expect(h.timers[.backoff] == h.now + 10)
+        h.advance(by: 10)
+        h.apply(.connectFailed(peripheralID: Self.id, drop))
+        #expect(h.timers[.backoff] == h.now + 20)
+        h.advance(by: 20)
+        h.apply(.connectFailed(peripheralID: Self.id, drop))
+        #expect(h.timers[.backoff] == h.now + 30, "capped")
     }
 
     @Test func outOfRangeAndBackRecoversThroughThePendingConnect() {
@@ -32,6 +62,9 @@ import TandemMessages
         h.advance(by: 60)
         h.apply(.appActive(false))
         h.apply(.disconnected(peripheralID: Self.id, drop))
+        // No background time held the cooldown: the driver ends it, and the pending connect goes out.
+        h.apply(.backgroundTimeEnding)
+        #expect(h.commands == [.connect(Self.id)])
         h.sleep(for: 300)  // out of range for 5 minutes, app suspended
         #expect(h.phase == .connecting)
         h.connectAndAuthenticate()
@@ -42,7 +75,7 @@ import TandemMessages
 
     // MARK: flaps
 
-    @Test func dropBeforeHoldIsAFlapThatBacksOffInTheForeground() {
+    @Test func dropBeforeHoldIsAFlapThatBacksOff() {
         var h = LinkHarness()
         h.makeReady()
         h.advance(by: 2)  // P1 drops about 2 s after pairing
@@ -50,15 +83,15 @@ import TandemMessages
         #expect(h.state.ladder.flaps == 1)
         #expect(h.phase == .backingOff)
         #expect(!h.commands.contains(.connect(Self.id)))
-        #expect(h.timers[.backoff] == h.now + 5)
-        h.advance(by: 5)
+        #expect(h.timers[.backoff] == h.now + 1)
+        h.advance(by: 1)
         #expect(h.phase == .connecting)
         #expect(connects(h) == 2)
     }
 
-    /// Synthetic: a pump that accepts and drops every connection climbs the ladder (5, 10, 20, 30 s)
-    /// and stops after `maxFlaps`, raising the alert; it never loops.
-    @Test func flappingPeerIsThrottledThenExhausted() {
+    /// Synthetic: a pump that accepts and drops every connection is retried forever, the wait doubling
+    /// from 1 s to the 30 s cap, and the unstable alert is raised once.
+    @Test func flappingPeerIsRetriedForeverDoublingToTheCap() {
         var h = LinkHarness()
         h.apply(.power(.poweredOn))
         h.apply(
@@ -66,42 +99,32 @@ import TandemMessages
                 PumpTarget(peripheralID: Self.id, model: .tslim, credentials: .legacy(code: LinkHarness.legacyCode)),
                 SupportMatrix()))
         var delays: [Double] = []
-        for _ in 0..<8 {
+        for _ in 0..<20 {
             h.connectAndAuthenticate()
             h.answerHandshake()
             h.advance(by: 2)
             h.apply(.disconnected(peripheralID: Self.id, drop))
             if let due = h.timers[.backoff] { delays.append(due - h.now) }
-            h.advance(by: 60)
+            h.advance(by: 30)
+            #expect(h.phase == .connecting)
         }
-        #expect(delays == [5, 10, 20, 30, 30, 30, 30])
-        #expect(h.phase == .exhausted)
-        #expect(h.allEvents.contains(.connectionUnstable(flaps: 3)))
+        #expect(delays == [1, 2, 4, 8, 16] + Array(repeating: 30, count: 15))
         #expect(
             h.allEvents.filter { if case .connectionUnstable = $0 { return true } else { return false } }.count == 1)
-        #expect(connects(h) == 8)
-        h.advance(by: 3600)
-        #expect(connects(h) == 8)
+        #expect(connects(h) == 21)
     }
 
-    @Test func exhaustedLadderCancelsThePendingConnectAndIgnoresLateCompletions() {
-        var h = LinkHarness(
-            config: {
-                var c = LinkConfiguration()
-                c.maxFlaps = 1
-                return c
-            }())
+    @Test func lateCompletionAfterStopIsCancelled() {
+        var h = LinkHarness()
         h.apply(.power(.poweredOn))
         h.apply(
             .connect(
                 PumpTarget(peripheralID: Self.id, model: .tslim, credentials: .legacy(code: LinkHarness.legacyCode)),
                 SupportMatrix()))
-        h.apply(.connectFailed(peripheralID: Self.id, drop))
-        #expect(h.phase == .exhausted)
-        #expect(h.commands.contains(.cancelConnection(Self.id)))
+        h.apply(.stop)
         h.apply(.connected(peripheralID: Self.id, name: "tslim X2 ***693"))
         #expect(h.commands == [.cancelConnection(Self.id)])
-        #expect(h.phase == .exhausted)
+        #expect(h.phase == .idle)
     }
 
     @Test func ladderResetsOnlyAfterAnAuthenticatedHold() {
@@ -148,27 +171,39 @@ import TandemMessages
                 PumpTarget(peripheralID: Self.id, model: .tslim, credentials: .legacy(code: LinkHarness.legacyCode)),
                 SupportMatrix()))
         h.apply(.connectFailed(peripheralID: Self.id, drop))
-        h.advance(by: 5)
+        h.advance(by: 10)
         h.apply(.peripheralUnavailable(Self.id))
+        #expect(h.phase == .scanning(forPairing: false))
         h.apply(.discovered(peripheralID: Self.id, name: "tslim X2 ***693", rssi: -40))
         #expect(h.state.ladder.flaps == 1)
     }
 
     // MARK: background
 
-    @Test func backgroundFlapIssuesThePendingConnectAtOnceAndCounts() {
-        // Owner, 2026-10-31.
+    @Test func backgroundFlapWaitsTheCooldownUntilBackgroundTimeEnds() {
         var h = LinkHarness()
         h.makeReady()
         h.apply(.appActive(false))
         h.advance(by: 2)
         h.apply(.disconnected(peripheralID: Self.id, drop))
-        #expect(h.commands.contains(.connect(Self.id)))
-        #expect(h.phase == .connecting)
+        #expect(h.phase == .backingOff)
         #expect(h.state.ladder.flaps == 1)
+        h.apply(.backgroundTimeEnding)
+        #expect(h.commands.contains(.connect(Self.id)))
+        #expect(h.timers[.backoff] == nil)
+        #expect(h.phase == .connecting)
+        #expect(h.state.ladder.flaps == 1, "still counted")
     }
 
-    @Test func backgroundFlapsStillExhaust() {
+    @Test func backgroundTimeEndingOutsideACooldownDoesNothing() {
+        var h = LinkHarness()
+        h.makeReady()
+        h.apply(.backgroundTimeEnding)
+        #expect(h.phase == .ready)
+        #expect(h.commands.isEmpty)
+    }
+
+    @Test func backgroundFlapsNeverStop() {
         var h = LinkHarness()
         h.apply(.power(.poweredOn))
         h.apply(.appActive(false))
@@ -176,47 +211,38 @@ import TandemMessages
             .connect(
                 PumpTarget(peripheralID: Self.id, model: .tslim, credentials: .legacy(code: LinkHarness.legacyCode)),
                 SupportMatrix()))
-        for _ in 0..<8 { h.apply(.connectFailed(peripheralID: Self.id, drop)) }
-        #expect(h.phase == .exhausted)
-        #expect(connects(h) == 8)
+        for _ in 0..<20 {
+            h.apply(.connectFailed(peripheralID: Self.id, drop))
+            h.apply(.backgroundTimeEnding)
+        }
+        #expect(h.phase == .connecting)
+        #expect(connects(h) == 21)
     }
 
-    @Test func goingToTheBackgroundDuringBackoffIssuesThePendingConnect() {
-        // The backoff timer can't fire while suspended; waiting on it would strand the link.
+    @Test func goingToTheBackgroundDuringBackoffKeepsTheCooldown() {
         var h = LinkHarness()
         h.makeReady()
         h.advance(by: 1)
         h.apply(.disconnected(peripheralID: Self.id, drop))
         #expect(h.phase == .backingOff)
         h.apply(.appActive(false))
-        #expect(h.commands == [.connect(Self.id)])
-        #expect(h.timers[.backoff] == nil)
-        #expect(h.state.ladder.flaps == 1)
+        #expect(h.commands.isEmpty)
+        #expect(h.timers[.backoff] != nil)
+        h.advance(by: 1)
+        #expect(h.phase == .connecting)
     }
 
-    @Test func foregroundRestartsAnExhaustedLadderOnce() {
-        // Owner, 2026-10-31.
-        var h = LinkHarness(
-            config: {
-                var c = LinkConfiguration()
-                c.maxFlaps = 2
-                return c
-            }())
+    @Test func comingToTheForegroundReissuesAPendingConnect() {
+        var h = LinkHarness()
         h.apply(.power(.poweredOn))
         h.apply(.appActive(false))
         h.apply(
             .connect(
                 PumpTarget(peripheralID: Self.id, model: .tslim, credentials: .legacy(code: LinkHarness.legacyCode)),
                 SupportMatrix()))
-        h.apply(.connectFailed(peripheralID: Self.id, drop))
-        h.apply(.connectFailed(peripheralID: Self.id, drop))
-        #expect(h.phase == .exhausted)
         h.apply(.appActive(true))
-        #expect(h.phase == .connecting)
-        #expect(h.state.ladder.flaps == 0)
-        h.apply(.appActive(false))
-        h.apply(.appActive(true))  // already reconnecting: the pending connect is reissued, not the ladder
-        #expect(connects(h) == 4)
+        #expect(h.commands == [.connect(Self.id)])
+        #expect(connects(h) == 2)
         #expect(h.state.ladder.flaps == 0)
     }
 
@@ -310,7 +336,9 @@ import TandemMessages
         h.advance(by: 30)
         #expect(h.allCommands.contains(.cancelConnection(Self.id)))
         #expect(h.state.telemetry.spans.last?.reason == .subscriptionLost(.control))
-        #expect(h.phase == .connecting)  // it had held: reconnect at once
+        #expect(h.phase == .backingOff)  // the base cooldown, held or not
+        h.advance(by: 1)
+        #expect(h.phase == .connecting)
     }
 
     // MARK: telemetry
@@ -328,6 +356,6 @@ import TandemMessages
         #expect(t.connects == 2 && t.disconnects == 2 && t.spans.count == 2)
         #expect(t.closedUptime == 102)
         #expect(t.spans.map(\.held) == [true, false])
-        #expect(t.spans.map(\.flapsAfter) == [0, 1])
+        #expect(t.spans.map(\.flapsAfter) == [1, 2], "a held drop counts toward the cooldown too")
     }
 }

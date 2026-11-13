@@ -154,19 +154,99 @@ import TandemMessages
         #expect(r.events.contains { if case .disconnected = $0 { return true } else { return false } })
     }
 
-    @Test func pumpThatDropsAfterEveryPairingIsThrottledThenStops() {
+    @Test func pumpThatDropsAfterEveryPairingIsRetriedForeverAtMost30sApart() {
         let pump = ScriptedPump()
         pump.dropAfterPairing = 2  // as P1 does
         let r = rig(pump: pump)
         r.connection.connect(to: target, support: SupportMatrix())
         r.clock.advance(by: 3600)
-        #expect(r.connection.state.phase == .exhausted)
-        #expect(r.transport.commands.filter { $0 == .connect(ScriptedPump.id) }.count == 8)
-        #expect(r.clock.pendingTimers == 0)
-        // Coming to the foreground restarts it once (owner, 2026-10-31).
-        r.connection.setAppActive(false)
-        r.connection.setAppActive(true)
-        #expect(r.transport.commands.filter { $0 == .connect(ScriptedPump.id) }.count == 9)
+        // Waits of 1, 2, 4, 8 and 16 s, then 30 s: 41 s for the first five cycles, then 32 s a cycle.
+        let connects = r.transport.commands.filter { $0 == .connect(ScriptedPump.id) }.count
+        #expect(connects == 1 + 5 + (3600 - 41) / 32)
+        #expect(r.connection.state.phase == .backingOff || r.connection.state.phase == .ready)
+    }
+
+    final class BackgroundTime: LinkBackgroundTime {
+        var held: [() -> Void] = []
+        var begun = 0
+        var ended = 0
+        var gives = true
+        final class Hold: LinkClockToken {
+            let end: () -> Void
+            init(end: @escaping () -> Void) { self.end = end }
+            func cancel() { end() }
+        }
+        func begin(ending: @escaping @MainActor () -> Void) -> (any LinkClockToken)? {
+            guard gives else { return nil }
+            begun += 1
+            held.append(ending)
+            return Hold { [weak self] in self?.ended += 1 }
+        }
+    }
+
+    @Test func aBackgroundCooldownIsHeldWithBackgroundTimeAndLetGoWhenItEnds() {
+        let pump = ScriptedPump()
+        let clock = ManualClock()
+        let transport = ScriptedTransport(pump: pump, clock: clock)
+        let time = BackgroundTime()
+        let connection = PumpConnection(transport: transport, clock: clock, backgroundTime: time)
+        transport.start(restoring: false)
+        connection.connect(to: target, support: SupportMatrix())
+        clock.advance(by: 30)
+        transport.pumpWalksAway()  // a supervision timeout: 3 s
+        #expect(connection.state.phase == .backingOff)
+        #expect(time.begun == 1)
+        clock.advance(by: 3)
+        #expect(connection.state.phase == .connecting)
+        #expect(time.ended == 1, "let go once the pending connect is out")
+    }
+
+    @Test func backgroundTimeThatEndsEarlyIssuesThePendingConnect() {
+        let pump = ScriptedPump()
+        let clock = ManualClock()
+        let transport = ScriptedTransport(pump: pump, clock: clock)
+        let time = BackgroundTime()
+        let connection = PumpConnection(transport: transport, clock: clock, backgroundTime: time)
+        transport.start(restoring: false)
+        connection.connect(to: target, support: SupportMatrix())
+        clock.advance(by: 30)
+        transport.pumpWalksAway()
+        time.held.first?()
+        #expect(connection.state.phase == .connecting)
+        #expect(time.ended == 0, "the provider ends it itself; the link doesn't end it again")
+    }
+
+    @Test func withNoBackgroundTimeABackgroundCooldownEndsAtOnce() {
+        let pump = ScriptedPump()
+        let clock = ManualClock()
+        let transport = ScriptedTransport(pump: pump, clock: clock)
+        let time = BackgroundTime()
+        time.gives = false
+        let connection = PumpConnection(transport: transport, clock: clock, backgroundTime: time)
+        transport.start(restoring: false)
+        connection.connect(to: target, support: SupportMatrix())
+        clock.advance(by: 30)
+        transport.pumpWalksAway()
+        #expect(connection.state.phase == .connecting)
+    }
+
+    @Test func aForegroundCooldownTakesNoBackgroundTime() {
+        let time = BackgroundTime()
+        let pump = ScriptedPump()
+        let clock = ManualClock()
+        let transport = ScriptedTransport(pump: pump, clock: clock)
+        let connection = PumpConnection(transport: transport, clock: clock, backgroundTime: time)
+        connection.setAppActive(true)
+        transport.start(restoring: false)
+        connection.connect(to: target, support: SupportMatrix())
+        clock.advance(by: 30)
+        transport.pumpWalksAway()
+        #expect(connection.state.phase == .backingOff)
+        #expect(time.begun == 0)
+        connection.setAppActive(false)
+        #expect(time.begun == 1, "going to the background mid-cooldown takes it")
+        connection.setAppActive(true)
+        #expect(time.ended == 1)
     }
 
     @Test func everyCallerIsResumedWhenTheLinkDrops() async {

@@ -18,8 +18,6 @@ struct LinkHarness {
     var nextID: RequestID = 1
     /// Timers armed and not cancelled or fired, with when they're due.
     var timers: [LinkTimer: LinkTime] = [:]
-    /// The random number the driver would draw for each input.
-    var jitter: Double = 0
 
     static let pumpID = UUID(uuidString: "00000000-0000-0000-0000-0000000000A1")!
     static let legacyCode = "ABCDEFGHIJKLMNOP"
@@ -38,7 +36,7 @@ struct LinkHarness {
     @discardableResult
     mutating func apply(_ input: LinkInput, sourceLocation: SourceLocation = #_sourceLocation) -> [LinkEffect] {
         let (newState, effects) = LinkReducer.reduce(
-            state, input, now: now, date: Date(timeIntervalSince1970: 0), jitter: jitter)
+            state, input, now: now, date: Date(timeIntervalSince1970: 0))
         state = newState
         last = effects
         all += effects

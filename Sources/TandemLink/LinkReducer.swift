@@ -13,12 +13,10 @@ import TandemMessages
 public enum LinkReducer {
     /// Applies `input` at `now`. The state comes back changed, with the effects to perform in order.
     /// `date` is the wall-clock time, used only to stamp support evidence for people reading it.
-    /// `jitter` is a random number in `0..<1` the driver draws for each input, so the backoff can vary
-    /// while the transition stays a function of its inputs.
-    public static func reduce(_ state: LinkState, _ input: LinkInput, now: LinkTime, date: Date, jitter: Double = 0)
+    public static func reduce(_ state: LinkState, _ input: LinkInput, now: LinkTime, date: Date)
         -> (LinkState, [LinkEffect])
     {
-        let step = Step(state: state, now: now, date: date, jitter: jitter)
+        let step = Step(state: state, now: now, date: date)
         step.apply(input)
         return (step.state, step.effects)
     }
@@ -39,15 +37,13 @@ private final class Step {
     var state: LinkState
     let now: LinkTime
     let date: Date
-    let jitter: Double
     let config: LinkConfiguration
     var effects: [LinkEffect] = []
 
-    init(state: LinkState, now: LinkTime, date: Date, jitter: Double) {
+    init(state: LinkState, now: LinkTime, date: Date) {
         self.state = state
         self.now = now
         self.date = date
-        self.jitter = jitter
         self.config = state.config
     }
 
@@ -66,7 +62,7 @@ private final class Step {
             // iOS relaunches into the background for this.
             state.restored = peripherals
             state.appActive = false
-        case .discovered(let id, let name, let rssi): discovered(id, name, rssi)
+        case .discovered(let id, let name, let rssi, let data): discovered(id, name, rssi, data)
         case .peripheralUnavailable(let id): peripheralUnavailable(id)
         case .connected(let id, let name): connected(id, name)
         case .connectFailed(let id, _): connectFailed(id)
@@ -83,6 +79,8 @@ private final class Step {
         case .authenticated(let key, let derivedSecret): authenticated(key: key, derivedSecret: derivedSecret)
         case .authenticationFailed(let rejected): authenticationFailed(rejected: rejected)
         case .timerFired(let timer): timerFired(timer)
+        case .backgroundTimeEnding:
+            if state.phase == .backingOff { startConnecting() }
         }
     }
 
@@ -134,7 +132,7 @@ private final class Step {
         // newer), so calling connect again can't skip the backoff or forget a rejected command.
         if state.target?.peripheralID == target.peripheralID {
             switch state.phase {
-            case .idle, .failed, .exhausted, .scanning(forPairing: true): break
+            case .idle, .failed, .scanning(forPairing: true): break
             default:
                 state.target = target
                 state.support = state.support.merging(matrix)
@@ -162,8 +160,8 @@ private final class Step {
             setPhase(.waitingForBluetooth)
             return
         }
-        transport(.scan)
-        startTimer(.scan, after: config.scanTimeout)
+        transport(.scan(repeats: true))
+        startTimer(.scan, after: config.pairingScanTimeout)
         setPhase(.scanning(forPairing: true))
     }
 
@@ -185,23 +183,16 @@ private final class Step {
         if case .scanning = state.phase { transport(.stopScan) }
         cancelTimer(.scan)
         cancelTimer(.backoff)
+        state.pairingCandidates = [:]
+        state.pairingTimerStopped = false
     }
 
     func appActive(_ active: Bool) {
         state.appActive = active
-        if active, state.phase == .exhausted, state.target != nil {
-            // Owner, 2026-10-31: coming to the foreground restarts an exhausted ladder once.
-            state.ladder.flaps = 0
-            startConnecting()
-        } else if active, state.phase == .connecting, let id = state.target?.peripheralID {
+        if active, state.phase == .connecting, let id = state.target?.peripheralID {
             // A pending connect can be lost with no callback; reissuing it is harmless (the old client's
             // watchdog existed for a link that otherwise stayed down until a force quit).
             transport(.connect(id))
-        } else if !active, state.phase == .backingOff {
-            // The backoff timer won't fire while suspended. The flap is already counted, so issue the
-            // pending connect now (owner, 2026-10-31), as a background flap does.
-            cancelTimer(.backoff)
-            startConnecting()
         }
     }
 
@@ -388,7 +379,7 @@ private final class Step {
             cancelTimer(.backoff)
             if case .scanning = state.phase { cancelTimer(.scan) }
             switch state.phase {
-            case .idle, .failed, .exhausted: break
+            case .idle, .failed: break
             default: setPhase(.waitingForBluetooth)
             }
             return
@@ -427,10 +418,29 @@ private final class Step {
         setPhase(.connecting)
     }
 
-    func discovered(_ id: UUID, _ name: String?, _ rssi: Int) {
+    func discovered(_ id: UUID, _ name: String?, _ rssi: Int, _ manufacturerData: [UInt8]?) {
         switch state.phase {
         case .scanning(forPairing: true):
-            emit(.discovered(peripheralID: id, name: name, model: pumpModel(advertisedName: name), rssi: rssi))
+            // Mobi ignores a weak sighting: a pump already listed keeps its last strong one.
+            guard rssi > config.pairingRSSIFloor else { return }
+            let registration = PumpRegistrationState(manufacturerData: manufacturerData)
+            let listed = state.pairingCandidates[id]?.listedRSSI
+            // Every advertisement comes; the owner hears of a pump when it's new or its signal moved.
+            let report = listed.map { abs($0 - rssi) >= config.pairingRSSIStep } ?? true
+            state.pairingCandidates[id] = PairingCandidate(
+                rssi: rssi, listedRSSI: report ? rssi : listed ?? rssi, registration: registration)
+            if report {
+                emit(.discovered(peripheralID: id, name: name, model: pumpModel(advertisedName: name), rssi: rssi))
+            }
+            // Mobi's pump timer stops only once the strongest pump in range takes a pairing; a pump found
+            // that doesn't leaves it running.
+            if !state.pairingTimerStopped,
+                let strongest = state.pairingCandidates.values.max(by: { $0.rssi < $1.rssi }),
+                strongest.registration == .acceptingConnections
+            {
+                state.pairingTimerStopped = true
+                cancelTimer(.scan)
+            }
         case .scanning(forPairing: false) where id == state.target?.peripheralID:
             transport(.stopScan)
             cancelTimer(.scan)
@@ -442,7 +452,7 @@ private final class Step {
 
     func peripheralUnavailable(_ id: UUID) {
         guard state.phase == .connecting, id == state.target?.peripheralID else { return }
-        transport(.scan)
+        transport(.scan(repeats: false))
         startTimer(.scan, after: config.scanTimeout)
         setPhase(.scanning(forPairing: false))
     }
@@ -495,7 +505,7 @@ private final class Step {
     func connectFailed(_ id: UUID) {
         guard id == state.target?.peripheralID, state.connection == nil, state.phase == .connecting else { return }
         state.telemetry.failedConnects += 1
-        flap()
+        flap(base: config.cooldownAfterFailedConnect)
     }
 
     func disconnected(_ id: UUID, _ error: BluetoothError?) {
@@ -525,48 +535,54 @@ private final class Step {
         dropped(reason, exempt: exempt, cancel: false)
     }
 
-    /// The connection is gone (or being cancelled). Decides how to reconnect:
-    /// - after the link held, or after a probe's error: a pending connect at once, off the ladder;
-    /// - otherwise it's a flap and climbs the ladder.
+    /// The connection is gone (or being cancelled). Every drop waits out a cooldown before the next
+    /// pending connect, a drop after the link held included, as t:connect waits after a connection
+    /// error:
+    /// - a drop the pump gave as its answer to an unsupported request waits the base and isn't counted;
+    /// - a restored link that drops before it is set up again reconnects at once (pumpx2: a pump drops a
+    ///   link that authenticates again on top of an authenticated one);
+    /// - anything else counts as a failure, so the wait doubles with each one in a row.
     func dropped(_ reason: DisconnectReason, exempt: Bool, cancel: Bool) {
         guard let connection = state.connection else { return }
-        let held = connection.heldAt != nil
         let restoredSetup = connection.adoptedFromRestore && connection.readyAt == nil
         if cancel { transport(.cancelConnection(connection.peripheralID)) }
-        if exempt || held || restoredSetup {
-            closeConnection(reason)
+        let base = cooldownBase(reason)
+        if !exempt && !restoredSetup { state.ladder.flaps += 1 }
+        closeConnection(reason)
+        if restoredSetup {
             startConnecting()
         } else {
-            state.ladder.flaps += 1
-            closeConnection(reason)
-            afterFlap()
+            coolDown(base: base, failuresBefore: exempt ? 0 : state.ladder.flaps - 1)
         }
     }
 
-    /// A drop before the link held, or a connect that failed.
-    func flap() {
+    /// A connect that failed, or a rescan that found nothing.
+    func flap(base: Double) {
         state.ladder.flaps += 1
-        afterFlap()
+        coolDown(base: base, failuresBefore: state.ladder.flaps - 1)
     }
 
-    func afterFlap() {
+    /// The base wait for a drop's error. Android's codes, which t:connect's bases are for, don't exist on
+    /// iOS; a supervision timeout is the one both name.
+    func cooldownBase(_ reason: DisconnectReason) -> Double {
+        if case .linkLost(let error?) = reason, error.domain == "CBErrorDomain", error.code == 6 {
+            return config.cooldownAfterTimeout
+        }
+        return config.cooldown
+    }
+
+    /// Waits `base` doubled for each failure before this one, up to the cap, then issues the pending
+    /// connect. In the background the driver keeps the timer running with background time, and issues
+    /// the connect early (`backgroundTimeEnding`) if iOS ends it first.
+    func coolDown(base: Double, failuresBefore: Int) {
         let flaps = state.ladder.flaps
         if flaps >= config.unstableAfterFlaps && !state.ladder.reportedUnstable {
             state.ladder.reportedUnstable = true
             emit(.connectionUnstable(flaps: flaps))
         }
-        if flaps >= config.maxFlaps {
-            if let id = state.target?.peripheralID { transport(.cancelConnection(id)) }
-            setPhase(.exhausted)
-        } else if state.appActive {
-            // Jitter keeps the phone's retries from locking into step with the pump's advertising.
-            let base = config.backoff.isEmpty ? 0 : config.backoff[min(flaps - 1, config.backoff.count - 1)]
-            startTimer(.backoff, after: base * (1 + config.backoffJitter * jitter))
-            setPhase(.backingOff)
-        } else {
-            // Owner, 2026-10-31: in the background a flap issues the pending connect at once, counted.
-            startConnecting()
-        }
+        let doubled = base * pow(2, Double(min(max(failuresBefore, 0), 30)))
+        startTimer(.backoff, after: min(doubled, config.cooldownCap))
+        setPhase(.backingOff)
     }
 
     /// Closes the open connection: every queued request fails, the one on the wire becomes unknown, its
@@ -990,9 +1006,11 @@ private final class Step {
             transport(.stopScan)
             if forPairing {
                 state.wantsPairingScan = false
+                state.pairingCandidates = [:]
+                state.pairingTimerStopped = false
                 setPhase(.failed(.pumpNotFound))
             } else {
-                flap()  // a rescan never resets the ladder
+                flap(base: config.cooldown)  // a rescan never resets the ladder
             }
         case .establishment:
             switch state.phase {
