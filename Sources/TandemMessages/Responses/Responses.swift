@@ -1119,6 +1119,8 @@ public struct HomeScreenMirrorResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var cgmTrendIconId = 0
     public private(set) var cgmAlertIconId = 0
+    public private(set) var statusIcon0Id = 0
+    public private(set) var statusIcon1Id = 0
     public private(set) var bolusStatusIconId = 0
     public private(set) var basalStatusIconId = 0
     public private(set) var apControlStateIconId = 0
@@ -1130,6 +1132,8 @@ public struct HomeScreenMirrorResponse: ResponseMessage {
         if raw.count >= 9 {
             cgmTrendIconId = Int(raw[0])
             cgmAlertIconId = Int(raw[1])
+            statusIcon0Id = Int(raw[2])
+            statusIcon1Id = Int(raw[3])
             bolusStatusIconId = Int(raw[4])
             basalStatusIconId = Int(raw[5])
             apControlStateIconId = Int(raw[6])
@@ -1192,6 +1196,31 @@ public struct HomeScreenMirrorResponse: ResponseMessage {
     }
     /// The pump's basal icon, or `nil` for an id outside the known set.
     public var basalStatusIcon: BasalStatusIcon? { BasalStatusIcon(rawValue: basalStatusIconId) }
+
+    /// The bolus icon the pump's home screen shows: a bolus running, a Control-IQ automatic bolus running,
+    /// or one of the two security-PIN locks. Ids and the byte (4) are pumpX2's `BolusStatusIcon`; which icon a
+    /// t:slim shows in which state is unverified.
+    public enum BolusStatusIcon: Int, Sendable, CaseIterable {
+        case bolus = 0, autoBolus = 1, lockSecurityPin = 2, lockSecurityPinCGMGraphActive = 3, hide = 200
+    }
+    /// The pump's bolus icon, or `nil` for an id outside the known set.
+    public var bolusStatusIcon: BolusStatusIcon? { BolusStatusIcon(rawValue: bolusStatusIconId) }
+
+    /// The first status icon: `aam` (pumpX2's name, meaning unknown), the CGM transmitter, or the transmitter
+    /// out of range. Ids and the byte (2) are pumpX2's `StatusIcon0`, unverified on a t:slim.
+    public enum StatusIcon0: Int, Sendable, CaseIterable {
+        case aam = 0, cgmTransmitter = 1, cgmTransmitterOutOfRange = 4, hide = 200
+    }
+    /// The pump's first status icon, or `nil` for an id outside the known set.
+    public var statusIcon0: StatusIcon0? { StatusIcon0(rawValue: statusIcon0Id) }
+
+    /// The second status icon: `aam` (pumpX2's name, meaning unknown) or the blood drop of a calibration due.
+    /// Ids and the byte (3) are pumpX2's `StatusIcon1`, unverified on a t:slim.
+    public enum StatusIcon1: Int, Sendable, CaseIterable {
+        case aam = 0, bloodDrop = 1, hide = 200
+    }
+    /// The pump's second status icon, or `nil` for an id outside the known set.
+    public var statusIcon1: StatusIcon1? { StatusIcon1(rawValue: statusIcon1Id) }
 
     /// The pump's trend as a Unicode arrow, or `""` when the pump is showing **no arrow** — including
     /// for an unrecognized icon id, because inventing a direction is worse than showing none.
