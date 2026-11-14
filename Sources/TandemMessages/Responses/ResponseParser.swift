@@ -53,7 +53,10 @@ public enum ResponseParser {
 
     /// Composite dispatch key: opcodes are only unique per characteristic.
     struct Key: Hashable {
+        // Read only by the synthesized Hashable conformance.
+        // periphery:ignore
         let characteristic: Characteristic
+        // periphery:ignore
         let opCode: UInt8
     }
 

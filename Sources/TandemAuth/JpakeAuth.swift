@@ -9,7 +9,9 @@ public final class EcJpakeContext {
     public enum JpakeError: Error { case setupFailed, roundFailed(Int32) }
 
     private let ctx: OpaquePointer
-    /// Kept alive for the C callback while a seeded test context exists; nil in production.
+    /// Kept alive for the C callback while a seeded test context exists; nil in production. Never read:
+    /// holding it is the point.
+    // periphery:ignore
     private var randomSource: RandomSource?
 
     public init(role: Role, secret: [UInt8]) throws {

@@ -760,7 +760,7 @@ private final class Step {
             effects.append(.authenticationFrame(frame))
             return
         }
-        if let inFlight = connection.inFlight, matches(frame, on: characteristic, inFlight, connection) {
+        if let inFlight = connection.inFlight, matches(frame, on: characteristic, inFlight) {
             state.connection?.inFlight = nil
             return replied(frame, on: characteristic, inFlight)
         }
@@ -775,9 +775,7 @@ private final class Step {
     /// op-77, and the echoed txId. The txId is required even when the model is unknown: after a timeout
     /// frees the slot, a late reply (an authenticated op-77 above all) must not answer the next request.
     /// t:slim echoes it; whether Mobi does is unverified, and Mobi isn't connected to.
-    func matches(_ frame: [UInt8], on characteristic: Characteristic, _ inFlight: InFlight, _ connection: Connection)
-        -> Bool
-    {
+    func matches(_ frame: [UInt8], on characteristic: Characteristic, _ inFlight: InFlight) -> Bool {
         guard characteristic == inFlight.characteristic else { return false }
         let opCode = frame[0]
         guard opCode == inFlight.message.props.responseOpCode || opCode == ErrorResponse.props.opCode else {

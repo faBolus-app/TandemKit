@@ -1,6 +1,5 @@
 import Testing
 import Foundation
-@testable import TandemMessages
 
 /// Oracle byte-parity must fail closed when the oracle is unavailable. Default/CI/release runs
 /// require JDK 21 + `cliparser.jar`; `PUMPX2_ALLOW_ORACLE_SKIP` is a local Swift-only opt-out and

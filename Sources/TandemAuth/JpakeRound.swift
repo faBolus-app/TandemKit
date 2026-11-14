@@ -20,8 +20,6 @@ enum JpakeRound {
 
     /// A P-256 scalar is 32 bytes.
     static let scalarLength = 32
-    /// One KeyKP with an uncompressed point and a full-length scalar: (1 + 65) * 2 + 1 + 32.
-    static let keyKPLength = 165
     /// The server's round-2 ECParameters: named_curve (3), secp256r1 (0x0017).
     static let ecParametersLength = 3
 

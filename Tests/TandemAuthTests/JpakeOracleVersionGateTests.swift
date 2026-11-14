@@ -1,6 +1,5 @@
 import Testing
 import Foundation
-@testable import TandemAuth
 
 /// `JpakeOracle.available` (a SECOND, independent copy of `OracleRunner`'s version gate) must
 /// refuse a present-but-too-old JVM rather than let the EC-JPAKE interop suite run against a
