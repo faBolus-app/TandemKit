@@ -55,12 +55,15 @@ let usage = """
                                 back; reads it back and the history; needs PUMP_BENCH_WRITES=1
       clearcheck <reminder|alert|alarm|cgm> <id 0-63>
                                 dismiss one notification, read its bit at 2, 30 and 120 s and the history
-      bolus <units|carb|correction|cancel> [--carbs G] [--bg MGDL] [--no-cartridge] [--chunk 18]
-                                one 0.05 U bolus: saline only (PUMP_SALINE_ATTESTED=1, on no one), or
+      bolus <units|carb|correction|cancel> [--units U] [--carbs G] [--bg MGDL] [--no-cartridge] [--chunk 18]
+                                one bolus, 0.05 U unless --units (up to 2 U); --bg 20-600:
+                                saline only (PUMP_SALINE_ATTESTED=1, on no one), or
                                 --no-cartridge (PUMP_NO_CARTRIDGE_ATTESTED=1) for the pump's refusal; at most 3 an hour, logged in
                                 ~/.tandemkit-bench/bench-boluses.json (PUMP_BOLUS_LOG)
                                 --overlap (cancel only): write the cancel while a CurrentBolusStatus read
                                 still waits for its reply, as Mobi does (bench step 15)
+                                --drop sent|accepted: the bench drops the link once the InitiateBolus write
+                                is out, or once the pump accepts it, then reconnects and follows the bolus
       permission [seconds]      one BolusPermission held for that long (default 120) and released, with no
                                 bolus: whether the pump revokes it (notice bit 31); needs PUMP_BENCH_WRITES=1
       bolus settle [note]       mark the last unsettled bench bolus settled after checking the pump
@@ -186,19 +189,37 @@ func parseJob(_ command: String, _ rest: [String]) -> Job {
         let carbs = option("--carbs", in: &rest).map { Int(number($0, "--carbs")) } ?? 1
         let bg = option("--bg", in: &rest).map { Int(number($0, "--bg")) } ?? 0
         let chunk = option("--chunk", in: &rest).map { Int(number($0, "--chunk")) }
+        let unitsText = option("--units", in: &rest)
+        let dropText = option("--drop", in: &rest)
         let noCartridge = rest.contains("--no-cartridge")
         let overlap = rest.contains("--overlap")
         rest.removeAll { $0 == "--no-cartridge" || $0 == "--overlap" }
         guard rest.count == 1, let kind = BenchBolusKind(rawValue: rest[0]) else {
             fail(
-                "usage: bolus <units|carb|correction|cancel> [--carbs G] [--bg MGDL] [--no-cartridge] [--chunk 18]"
-                    + " [--overlap]")
+                "usage: bolus <units|carb|correction|cancel> [--units U] [--carbs G] [--bg MGDL] [--no-cartridge]"
+                    + " [--chunk 18] [--overlap] [--drop sent|accepted]")
         }
         if overlap, kind != .cancel { fail("--overlap is for `bolus cancel` only") }
         if let chunk, !(1...40).contains(chunk) { fail("--chunk must be 1 to 40") }
         if !(0...300).contains(carbs) { fail("--carbs must be 0 to 300") }
-        if bg != 0, !(40...400).contains(bg) { fail("--bg must be 40 to 400") }
-        return .bolus(kind, carbs: carbs, bg: bg, noCartridge: noCartridge, chunk: chunk, overlap: overlap)
+        // 20-600 is the meter range a t:slim takes on its own screen; outside 40-400 is guess 28's question.
+        if bg != 0, !(20...600).contains(bg) { fail("--bg must be 20 to 600") }
+        var options = BolusOptions(carbs: carbs, bg: bg, noCartridge: noCartridge, chunk: chunk, overlap: overlap)
+        if let unitsText {
+            guard let mu = BenchBolusKind.milliunits(forUnits: number(unitsText, "--units")) else {
+                fail("--units must be 0.05 to 2 in steps of 0.05")
+            }
+            options.milliunits = mu
+        }
+        if let dropText {
+            guard let drop = BenchDrop(rawValue: dropText) else { fail("--drop must be sent or accepted") }
+            // A cancel after the drop would go out on a link that may still be closing; drop a bolus, not a cancel.
+            if noCartridge || kind == .cancel {
+                fail("--drop goes with a saline units, carb or correction bolus, not --no-cartridge or cancel")
+            }
+            options.drop = drop
+        }
+        return .bolus(kind, options)
     case "dismiss":
         let chunk = option("--chunk", in: &rest).map { Int(number($0, "--chunk")) }
         guard rest.count == 2, let k = notificationKind(rest[0]), let id = Int(rest[1]), (0...63).contains(id) else {

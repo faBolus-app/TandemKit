@@ -10,11 +10,27 @@ import TandemMessages
 /// 10), and the bench run is what confirms the pump takes it. Every mask comes from
 /// `InitiateBolusRequest.typeBitmask`, the one the app uses too. `cancel` is a units-only bolus
 /// cancelled as soon as the pump accepts it.
+/// A bench dose outside 0.05 to 2 U.
+public struct BenchDoseOutOfRange: Error, Equatable {
+    public let milliunits: UInt32
+}
+
 public enum BenchBolusKind: String, CaseIterable, Sendable {
     case units, carb, correction, cancel
 
-    /// 0.05 U, the pump's smallest bolus.
+    /// 0.05 U, the pump's smallest bolus, and the default.
     public static let milliunits: UInt32 = InitiateBolusRequest.minBolusMilliunits
+    /// The largest bench bolus, saline only: 2 U, enough for a cancel partway through (guess 21).
+    public static let maxMilliunits: UInt32 = 2000
+
+    /// `units` as milliunits, or nil unless it is 0.05 to 2 U in 0.05 U steps.
+    public static func milliunits(forUnits units: Double) -> UInt32? {
+        guard units.isFinite else { return nil }
+        let steps = (units * 20).rounded()
+        guard abs(units * 20 - steps) < 1e-6 else { return nil }
+        let mu = UInt32(clamping: Int(steps) * 50)
+        return (milliunits...maxMilliunits).contains(mu) ? mu : nil
+    }
 
     public var mask: Int {
         InitiateBolusRequest.typeBitmask(hasCarbs: self == .carb, hasCorrection: self == .correction, isExtended: false)
@@ -30,8 +46,13 @@ public enum BenchBolusKind: String, CaseIterable, Sendable {
         }
     }
 
-    public func request(bolusId: Int, carbs: Int, bg: Int) throws -> InitiateBolusRequest {
-        let total = Self.milliunits
+    public func request(bolusId: Int, carbs: Int, bg: Int, milliunits: UInt32 = Self.milliunits) throws
+        -> InitiateBolusRequest
+    {
+        guard (Self.milliunits...Self.maxMilliunits).contains(milliunits) else {
+            throw BenchDoseOutOfRange(milliunits: milliunits)
+        }
+        let total = milliunits
         switch self {
         case .units, .cancel:
             return try InitiateBolusRequest(validating: total, bolusID: bolusId, bolusTypeBitmask: mask)

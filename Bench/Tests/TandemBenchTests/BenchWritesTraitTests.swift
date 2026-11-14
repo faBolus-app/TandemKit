@@ -32,6 +32,32 @@ import Testing
 }
 
 @Suite struct BenchBolusTests {
+    /// A dose is 0.05 to 2 U in 0.05 U steps; anything else is refused before a request is built.
+    @Test func aDoseIsAWholeStepUpToTwoUnits() throws {
+        #expect(BenchBolusKind.milliunits(forUnits: 0.05) == 50)
+        #expect(BenchBolusKind.milliunits(forUnits: 1.15) == 1150)
+        #expect(BenchBolusKind.milliunits(forUnits: 2) == 2000)
+        for bad in [0, 0.04, 0.07, 2.05, 5, -1, .nan, .infinity] {
+            #expect(BenchBolusKind.milliunits(forUnits: bad) == nil)
+        }
+        #expect(throws: BenchDoseOutOfRange(milliunits: 2050)) {
+            try BenchBolusKind.units.request(bolusId: 1, carbs: 0, bg: 0, milliunits: 2050)
+        }
+        #expect(throws: BenchDoseOutOfRange(milliunits: 0)) {
+            try BenchBolusKind.units.request(bolusId: 1, carbs: 0, bg: 0, milliunits: 0)
+        }
+    }
+
+    /// A larger dose keeps each kind's layout, with the whole dose as food or correction.
+    @Test func aLargerDoseKeepsTheLayout() throws {
+        let units = try BenchBolusKind.units.request(bolusId: 3, carbs: 0, bg: 0, milliunits: 2000)
+        #expect(units.cargo == InitiateBolusRequest(totalVolume: 2000, bolusID: 3, bolusTypeBitmask: 8).cargo)
+        let carb = try BenchBolusKind.carb.request(bolusId: 3, carbs: 20, bg: 120, milliunits: 1000)
+        #expect(carb.totalVolume == 1000 && carb.foodVolume == 1000 && carb.correctionVolume == 0)
+        let correction = try BenchBolusKind.correction.request(bolusId: 3, carbs: 0, bg: 450, milliunits: 500)
+        #expect(correction.totalVolume == 500 && correction.correctionVolume == 500 && correction.bolusBG == 450)
+    }
+
     /// Units-only is byte for byte the layout of pumpX2's 1 U override capture, at 0.05 U.
     @Test func unitsOnlyIsTheCapturedOverrideForm() throws {
         let r = try BenchBolusKind.units.request(bolusId: 10650, carbs: 9, bg: 140)

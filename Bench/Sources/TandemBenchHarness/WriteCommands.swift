@@ -196,7 +196,12 @@ func clearCheck(_ s: BenchSession, kind: NotificationKind, id: Int) async {
 // MARK: Bolus
 
 @MainActor
-func bolus(_ s: BenchSession, kind: BenchBolusKind, carbs: Int, bg: Int, noCartridge: Bool, overlap: Bool) async {
+func bolus(_ s: BenchSession, kind: BenchBolusKind, _ o: BolusOptions) async {
+    let carbs = o.carbs
+    let bg = o.bg
+    let noCartridge = o.noCartridge
+    let overlap = o.overlap
+    let units = String(format: "%.2f U", Double(o.milliunits) / 1000)
     guard await s.whenReady() else { return say("RESULT not sent: the link wasn't ready") }
     var log = BolusLogFile.load()
     if let why = log.refusal(now: Date()) { return say("RESULT not sent: \(why)") }
@@ -209,10 +214,11 @@ func bolus(_ s: BenchSession, kind: BenchBolusKind, carbs: Int, bg: Int, noCartr
         return say("RESULT not sent: a bolus is active on the pump")
     }
     say(
-        "  \(kind.rawValue): 0.05 U, mask \(kind.mask), \(kind.source)"
+        "  \(kind.rawValue): \(units), mask \(kind.mask), \(kind.source)"
+            + (o.drop.map { "; the bench drops the link once the bolus is \($0.rawValue)" } ?? "")
             + (noCartridge ? "; no cartridge, so the pump should refuse it" : "; saline only, on no one"))
     let serial = s.identity?.unit.map { Int($0.serialNumber) }
-    let typed = await s.inbox.prompt("type this pump's serial number to send one 0.05 U bench bolus")
+    let typed = await s.inbox.prompt("type this pump's serial number to send one \(units) bench bolus")
     if let why = BenchSafetyGate.bolusRefusal(
         environment: env, typed: typed, pumpSerial: serial, noCartridge: noCartridge,
         reservoirUnits: reservoir?.currentInsulinAmount)
@@ -259,7 +265,7 @@ func bolus(_ s: BenchSession, kind: BenchBolusKind, carbs: Int, bg: Int, noCartr
 
     let request: InitiateBolusRequest
     do {
-        request = try kind.request(bolusId: id, carbs: carbs, bg: bg)
+        request = try kind.request(bolusId: id, carbs: carbs, bg: bg, milliunits: o.milliunits)
     } catch {
         await release("the request couldn't be built")
         return say("RESULT not sent: \(error)")
@@ -272,9 +278,21 @@ func bolus(_ s: BenchSession, kind: BenchBolusKind, carbs: Int, bg: Int, noCartr
     }
     say("  InitiateBolus cargo \(Hex.encode(request.cargo))")
     let sentAt = s.link.now
+    let dropsAtSend = s.drops
+    if o.drop == .sent { s.transport.dropAfterNextControlWrite = true }
     let initiate = await s.request(request, "InitiateBolus(\(kind.rawValue))", allowing: .delivery, deadline: 60)
+    // Never left armed for a later write: a refusal before the write went out leaves it set.
+    s.transport.dropAfterNextControlWrite = false
     say(String(format: "  reply after %.2f s", s.link.now - sentAt))
     var outcome: String?
+    // A `sent` drop happens once the write is out: the reply then never comes, or came first.
+    var dropping = false
+    if o.drop == .sent {
+        switch initiate {
+        case .reply, .unknown: dropping = true
+        case .pumpError, .notSent: break
+        }
+    }
     switch initiate {
     case .reply(let reply):
         let r = reply.message as? InitiateBolusResponse
@@ -282,6 +300,9 @@ func bolus(_ s: BenchSession, kind: BenchBolusKind, carbs: Int, bg: Int, noCartr
         if r?.status != 0 {
             outcome = "refused: status \(r?.status ?? -1)"
             await release("the pump refused the bolus")
+        } else if o.drop == .accepted {
+            s.transport.dropNow()
+            dropping = true
         }
     case .pumpError(let e):
         outcome = "op-77 error \(e.errorCodeId)"
@@ -301,7 +322,22 @@ func bolus(_ s: BenchSession, kind: BenchBolusKind, carbs: Int, bg: Int, noCartr
         }
         if overlap { await reportOverlap(s, cancel: c, dropsBefore: drops) }
     }
-    if outcome == nil, case .reply = initiate { outcome = await follow(s, id: id) }
+    if dropping {
+        // The link can still read as ready for a moment after the cancel; wait until it has seen the drop.
+        let until = s.link.now + 10
+        while s.drops == dropsAtSend, s.link.now < until { await s.pause(0.25) }
+        if s.drops == dropsAtSend { say("  the link didn't drop within 10 s of the cancel") }
+        let back = await s.whenReady(timeout: 180)
+        say(back ? "  the link is back after the drop" : "  the link didn't come back within 180 s")
+    }
+    let followFor: Double = o.milliunits > BenchBolusKind.milliunits ? 300 : 120
+    if outcome == nil, case .reply = initiate {
+        outcome = await follow(s, id: id, limit: followFor)
+    } else if outcome == nil, dropping, case .unknown = initiate {
+        // Shown, never settled from: an unknown outcome is settled by hand, from the pump's history.
+        let seen = await follow(s, id: id, limit: followFor)
+        say("  after the drop the pump's status says: \(seen ?? "nothing that settles bolus \(id)")")
+    }
     await lastBolus(s)
     if let history, let page = await newHistory(s, since: history.lastSequenceNum) { say("  history since: \(page)") }
     if let outcome {
@@ -348,14 +384,14 @@ func reportOverlap(_ s: BenchSession, cancel: RequestResult, dropsBefore: Int) a
     s.transport.hold.clear()
 }
 
-/// Follows the bolus every 2 s until the pump no longer reports it, up to two minutes. The outcome is
+/// Follows the bolus every 2 s until the pump no longer reports it, up to `limit` seconds. The outcome is
 /// what the pump's status said; nil when it was still active at the end.
 @MainActor
-func follow(_ s: BenchSession, id: Int) async -> String? {
+func follow(_ s: BenchSession, id: Int, limit: Double = 120) async -> String? {
     var last = -1
     var seen = false
     let start = s.link.now
-    let end = start + 120
+    let end = start + limit
     while s.link.now < end {
         guard let status = s.reply(await s.request(CurrentBolusStatusRequest()), as: CurrentBolusStatusResponse.self)
         else {

@@ -26,9 +26,26 @@ enum Job {
     case userInteraction
     case setTime(plusFive: Bool)
     case clearCheck(NotificationKind, Int)
-    case bolus(BenchBolusKind, carbs: Int, bg: Int, noCartridge: Bool, chunk: Int?, overlap: Bool)
+    case bolus(BenchBolusKind, BolusOptions)
     /// A bolus permission held for `seconds` and released, with no bolus: bit 31 (the pump revoking it).
     case permission(seconds: Double)
+}
+
+/// How a bench bolus is sent.
+struct BolusOptions {
+    var carbs = 1
+    var bg = 0
+    var milliunits = BenchBolusKind.milliunits
+    var noCartridge = false
+    var chunk: Int?
+    var overlap = false
+    var drop: BenchDrop?
+}
+
+/// The link-drop bolus (guesses 13 and 19): the bench drops the connection itself, as soon as the
+/// InitiateBolus write has gone out (`sent`, before any reply) or once the pump has accepted it (`accepted`).
+enum BenchDrop: String {
+    case sent, accepted
 }
 
 /// Runs the job once the link is first ready. Every request goes through the link's gates.
@@ -68,8 +85,8 @@ func runJob(_ s: BenchSession) async {
         await setTime(s, plusFive: plusFive)
     case .clearCheck(let kind, let id):
         await clearCheck(s, kind: kind, id: id)
-    case .bolus(let kind, let carbs, let bg, let noCartridge, _, let overlap):
-        await bolus(s, kind: kind, carbs: carbs, bg: bg, noCartridge: noCartridge, overlap: overlap)
+    case .bolus(let kind, let options):
+        await bolus(s, kind: kind, options)
     case .permission(let seconds):
         await permission(s, seconds: seconds)
     }

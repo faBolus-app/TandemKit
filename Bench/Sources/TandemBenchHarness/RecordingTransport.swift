@@ -30,6 +30,9 @@ final class RecordingTransport: LinkTransport {
     private(set) var heldSentAt: Date?
     private(set) var heldAnsweredAt: Date?
     private(set) var heldAnswerOpCode: UInt8?
+    /// The link-drop bolus: cancel the connection shortly after the next control write goes out.
+    var dropAfterNextControlWrite = false
+    private var peripheral: UUID?
 
     init(transcript: Transcript) {
         self.transcript = transcript
@@ -41,7 +44,15 @@ final class RecordingTransport: LinkTransport {
         }
     }
 
+    /// Ends the connection as a drop would: the link sees it disconnect and reconnects by itself.
+    func dropNow() {
+        guard let peripheral else { return transcript.line("no connection to drop") }
+        transcript.line("dropping the link on purpose")
+        inner.perform(.cancelConnection(peripheral))
+    }
+
     func perform(_ command: TransportCommand) {
+        if case .discover(let id) = command { peripheral = id }
         guard case .write(let characteristic, let packets) = command else {
             transcript.detail("bt> \(command)")
             inner.perform(command)
@@ -82,6 +93,14 @@ final class RecordingTransport: LinkTransport {
             if characteristic != .qualifyingEvents, characteristic != .authorization { onRequestWritten?() }
         }
         inner.perform(.write(characteristic, out))
+        if characteristic == .control, dropAfterNextControlWrite {
+            dropAfterNextControlWrite = false
+            // A moment for the packets to reach the radio; the reply takes longer than this.
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(250))
+                self.dropNow()
+            }
+        }
     }
 
     private func log(_ input: LinkInput) {
