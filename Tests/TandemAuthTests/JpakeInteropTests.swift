@@ -148,12 +148,6 @@ enum JpakeOracle {
         return isSupportedJavaMajor(major)
     }
 
-    /// Self-describing reason the oracle is unavailable, mirroring `OracleRunner`'s diagnostic
-    /// shape, so a wrong/absent JVM names itself instead of silently skipping.
-    static var unavailableDiagnostic: String {
-        "jar=\(jar) java=\(java) resolvedJavaMajor=\(resolvedJavaMajorVersion.map(String.init) ?? "unknown") (need >= \(minimumJavaMajor))"
-    }
-
     /// The JSON object after the "PREFIX: " on a server line.
     private static func json(_ line: String) throws -> [String: Any] {
         guard let braceIdx = line.firstIndex(of: "{") else { return [:] }

@@ -91,8 +91,9 @@ jobs:
           curl -fsSL -o /tmp/deslop.yml https://raw.githubusercontent.com/faBolus-app/faBolus/main/.semgrep/deslop.yml
           semgrep --config /tmp/deslop.yml --metrics=off .
       # SwiftPM's default build system writes no index store, which Periphery reads, so it builds
-      # with the native one.
+      # with the native one. The tests are built too, so code only they use isn't reported, and a
+      # protocol requirement's parameter a conformance doesn't read is kept.
       - name: Periphery (unused code)
         run: |
-          swift build --build-system native --scratch-path .build-periphery
-          periphery scan --retain-public --skip-build --index-store-path .build-periphery/debug/index/store
+          swift build --build-tests --build-system native --scratch-path .build-periphery
+          periphery scan --retain-public --retain-unused-protocol-func-params --skip-build --index-store-path .build-periphery/debug/index/store

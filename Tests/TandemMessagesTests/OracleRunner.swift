@@ -12,8 +12,6 @@ import Foundation
 ///   - JAR:  $PUMPX2_ORACLE_JAR, else vendor/pumpx2-oracle/cliparser/build/libs/cliparser.jar.
 enum OracleRunner {
     struct EncodeResult: Decodable {
-        let messageName: String
-        let txId: String
         let packets: [String]
         let characteristicName: String
         let characteristic: String

@@ -1,11 +1,10 @@
 import Foundation
-import TandemAuth
 import TandemLink
 import TandemMessages
 @testable import TandemBLE
 
 /// A clock whose time moves only when a test says so. While `suspended`, nothing fires, as on iOS when
-/// the app is suspended; timers due by then fire on `resume()`.
+/// the app is suspended.
 @MainActor
 final class ManualClock: LinkClock {
     private(set) var now: LinkTime = 0
@@ -36,13 +35,6 @@ final class ManualClock: LinkClock {
         now = end
         scheduled.removeAll { $0.token.cancelled }
     }
-
-    func resume() {
-        suspended = false
-        advance(by: 0)
-    }
-
-    var pendingTimers: Int { scheduled.filter { !$0.token.cancelled }.count }
 }
 
 /// The pump and the radio as CoreBluetooth would report them. The pump lives outside any one
