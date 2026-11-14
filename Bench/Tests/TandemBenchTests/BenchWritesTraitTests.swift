@@ -32,19 +32,28 @@ import Testing
 }
 
 @Suite struct BenchBolusTests {
-    /// A dose is 0.05 to 0.5 U in 0.05 U steps; anything else is refused before a request is built.
-    @Test func aDoseIsAWholeStepUpToHalfAUnit() throws {
+    /// A dose is 0.05 to 1 U in 0.05 U steps; anything else is refused before a request is built.
+    @Test func aDoseIsAWholeStepUpToOneUnit() throws {
         #expect(BenchBolusKind.milliunits(forUnits: 0.05) == 50)
         #expect(BenchBolusKind.milliunits(forUnits: 0.35) == 350)
-        #expect(BenchBolusKind.milliunits(forUnits: 0.5) == 500)
-        for bad in [0, 0.04, 0.07, 0.55, 1, 2, -1, .nan, .infinity] {
+        #expect(BenchBolusKind.milliunits(forUnits: 1) == 1000)
+        for bad in [0, 0.04, 0.07, 1.05, 2, -1, .nan, .infinity] {
             #expect(BenchBolusKind.milliunits(forUnits: bad) == nil)
         }
-        #expect(throws: BenchDoseOutOfRange(milliunits: 550)) {
-            try BenchBolusKind.units.request(bolusId: 1, carbs: 0, bg: 0, milliunits: 550)
+        #expect(throws: BenchDoseOutOfRange(milliunits: 1050)) {
+            try BenchBolusKind.units.request(bolusId: 1, carbs: 0, bg: 0, milliunits: 1050)
         }
         #expect(throws: BenchDoseOutOfRange(milliunits: 0)) {
             try BenchBolusKind.units.request(bolusId: 1, carbs: 0, bg: 0, milliunits: 0)
+        }
+    }
+
+    /// Only a bolus stopped as it starts may be more than 0.05 U: a cancel, or a link dropped on acceptance.
+    @Test func onlyAStoppedBolusIsLarger() {
+        for kind in BenchBolusKind.allCases {
+            #expect(kind.allows(milliunits: 50, droppedOnAccept: false))
+            #expect(kind.allows(milliunits: 1000, droppedOnAccept: false) == (kind == .cancel))
+            #expect(kind.allows(milliunits: 1000, droppedOnAccept: true))
         }
     }
 

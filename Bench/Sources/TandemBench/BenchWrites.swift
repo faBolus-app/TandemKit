@@ -10,7 +10,7 @@ import TandemMessages
 /// 10), and the bench run is what confirms the pump takes it. Every mask comes from
 /// `InitiateBolusRequest.typeBitmask`, the one the app uses too. `cancel` is a units-only bolus
 /// cancelled as soon as the pump accepts it.
-/// A bench dose outside 0.05 to 0.5 U.
+/// A bench dose outside 0.05 to 1 U.
 public struct BenchDoseOutOfRange: Error, Equatable {
     public let milliunits: UInt32
 }
@@ -20,17 +20,23 @@ public enum BenchBolusKind: String, CaseIterable, Sendable {
 
     /// 0.05 U, the pump's smallest bolus, and the default.
     public static let milliunits: UInt32 = InitiateBolusRequest.minBolusMilliunits
-    /// The largest bench bolus, saline only: 0.5 U, enough for a cancel partway through (guess 21) while the
-    /// bench's saline lasts.
-    public static let maxMilliunits: UInt32 = 500
+    /// The largest bench bolus, saline only: 1 U, and only for one stopped as it starts (see `allows`).
+    public static let maxMilliunits: UInt32 = 1000
 
-    /// `units` as milliunits, or nil unless it is 0.05 to 0.5 U in 0.05 U steps.
+    /// `units` as milliunits, or nil unless it is 0.05 to 1 U in 0.05 U steps.
     public static func milliunits(forUnits units: Double) -> UInt32? {
         guard units.isFinite else { return nil }
         let steps = (units * 20).rounded()
         guard abs(units * 20 - steps) < 1e-6 else { return nil }
         let mu = UInt32(clamping: Int(steps) * 50)
         return (milliunits...maxMilliunits).contains(mu) ? mu : nil
+    }
+
+    /// Whether this bolus may be `milliunits`. The bench's saline is limited, so a bolus left to finish is
+    /// 0.05 U. Up to 1 U only for one stopped as it starts, so that it is still running when the stop lands:
+    /// `cancel`, or a link dropped once the pump accepts it (the owner cancels on the pump if it runs on).
+    public func allows(milliunits: UInt32, droppedOnAccept: Bool) -> Bool {
+        milliunits <= (self == .cancel || droppedOnAccept ? Self.maxMilliunits : Self.milliunits)
     }
 
     public var mask: Int {
