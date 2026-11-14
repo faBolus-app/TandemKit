@@ -56,7 +56,7 @@ let usage = """
       clearcheck <reminder|alert|alarm|cgm> <id 0-63>
                                 dismiss one notification, read its bit at 2, 30 and 120 s and the history
       bolus <units|carb|correction|cancel> [--units U] [--carbs G] [--bg MGDL] [--no-cartridge] [--chunk 18]
-                                one bolus, 0.05 U unless --units (up to 2 U); --bg 20-600:
+                                one bolus, 0.05 U unless --units (up to 0.5 U); --bg 20-600:
                                 saline only (PUMP_SALINE_ATTESTED=1, on no one), or
                                 --no-cartridge (PUMP_NO_CARTRIDGE_ATTESTED=1) for the pump's refusal; at most 3 an hour, logged in
                                 ~/.tandemkit-bench/bench-boluses.json (PUMP_BOLUS_LOG)
@@ -207,7 +207,7 @@ func parseJob(_ command: String, _ rest: [String]) -> Job {
         var options = BolusOptions(carbs: carbs, bg: bg, noCartridge: noCartridge, chunk: chunk, overlap: overlap)
         if let unitsText {
             guard let mu = BenchBolusKind.milliunits(forUnits: number(unitsText, "--units")) else {
-                fail("--units must be 0.05 to 2 in steps of 0.05")
+                fail("--units must be 0.05 to 0.5 in steps of 0.05")
             }
             options.milliunits = mu
         }
