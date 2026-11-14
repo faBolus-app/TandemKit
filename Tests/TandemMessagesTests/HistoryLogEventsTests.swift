@@ -208,6 +208,7 @@ private func record(typeId: Int, pumpTimeSec: UInt32, seq: UInt32, tail: [UInt8]
         let event = HistoryLogParser.parse(record: rec)
         let m = try? #require(event as? BolusCompletedHistoryLog)
         #expect(m?.completionStatusId == 3)
+        #expect(m?.completionStatus == .completed)
         #expect(m?.bolusId == 1057)
         #expect(abs((m?.insulinDelivered ?? 0) - 1.7869551) < 0.0001)
         #expect(abs((m?.iob ?? 0) - 3.652852) < 0.0001)

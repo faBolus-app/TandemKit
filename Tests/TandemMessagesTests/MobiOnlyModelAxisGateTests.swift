@@ -12,7 +12,8 @@ import Testing
 ///
 /// F2 moves that restriction onto the axis it actually belongs to: `supportedDevices: [.mobi]`.
 ///
-/// **Scope — exactly three messages, and why not five.** Only messages whose Mobi restriction is
+/// **Scope — two messages, and why not five.** `LastBolusStatusV3Request` was the third; it is now sent
+/// to a t:slim at API 3.1 or later, as t:connect asks for it (its own test is at the end). Only messages whose Mobi restriction is
 /// INHERITED from upstream pumpX2's `MOBI_API_V3_5` tagging are covered. The two AAM reads that also carry
 /// `.mobi_v3_5` (`HighestAamRequest` op-120, `ActiveAamBitsRequest` op-146) are deliberately EXCLUDED: that
 /// floor is this repo's own Control-IQ-era proxy, not an upstream device-family claim, and
@@ -24,21 +25,18 @@ import Testing
 ///
 /// **What these tests are and are not.** The oracle is DERIVED from the project's documented fail-safe
 /// contract (an unproven restriction fails SAFE = no-send), not observed from hardware. See the session
-/// file for the kept message where that inherited claim is weakest — `LastBolusStatusV3Request`, which a
-/// sibling session is separately considering sending to a t:slim.
 @Suite struct MobiOnlyModelAxisGateTests {
 
     /// The above-the-whole-table version this pump actually reported. Deliberately built with the
     /// initializer rather than a named constant, because the point is that it has no named constant.
     private let apiV4 = ApiVersion(major: 4, minor: 0)
 
-    /// The three formerly un-tagged, upstream-MOBI_ONLY messages, by name for legible failure output.
+    /// The formerly un-tagged, upstream-MOBI_ONLY messages, by name for legible failure output.
     /// The AAM pair is intentionally absent — see the suite doc comment.
     private var subjects: [(String, MessageProps)] {
         [
             ("SetG6TransmitterIdRequest", SetG6TransmitterIdRequest.props),
-            ("DisconnectPumpRequest", DisconnectPumpRequest.props),
-            ("LastBolusStatusV3Request", LastBolusStatusV3Request.props)
+            ("DisconnectPumpRequest", DisconnectPumpRequest.props)
         ]
     }
 
@@ -118,5 +116,18 @@ import Testing
         for (name, props) in subjects {
             #expect(props.isSupported(onModel: nil, apiVersion: apiV4), "\(name): documented fail-open on nil model")
         }
+    }
+
+    // MARK: - LastBolusStatusV3, by t:connect's version table
+
+    /// t:connect asks a t:slim for LastBolusStatus C at API 3.1 or later, and Mobi always.
+    @Test func lastBolusStatusCGoesToATslimFromAPI3Point1() {
+        let props = LastBolusStatusV3Request.props
+        #expect(props.supportedDevices == nil)
+        #expect(props.isSupported(onModel: .tslim, apiVersion: apiV4))
+        #expect(props.isSupported(onModel: .tslim, apiVersion: ApiVersion(major: 3, minor: 1)))
+        #expect(!props.isSupported(onModel: .tslim, apiVersion: .v3))
+        #expect(!props.isSupported(onModel: .tslim, apiVersion: .v2_5))
+        #expect(props.isSupported(onModel: .mobi, apiVersion: .mobi_v3_5))
     }
 }

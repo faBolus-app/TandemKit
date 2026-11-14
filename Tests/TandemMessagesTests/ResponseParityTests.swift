@@ -466,6 +466,7 @@ import Testing
         #expect(msg.bolusId == 10650)
         #expect(msg.deliveredVolume == 1000)
         #expect(msg.deliveredUnits == 1.0)
+        #expect(msg.endReasonId == 3 && msg.endReason == .completed)
     }
 
     /// A corrupted CRC must be rejected.
