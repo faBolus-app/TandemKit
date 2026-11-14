@@ -23,6 +23,17 @@ import Testing
         #expect(b.isAck && b.glucoseReading == 174 && b.isAutopopAllowed && b.maxBolusHourlyTotal == 0)
     }
 
+    /// Bytes 26 and 30 are when the reading was taken, by the pump clock and since the pump's reset, and 34
+    /// its status: in the two recordings, taken 20 minutes apart, both clocks move by exactly 1200 s.
+    @Test func aRecordedSnapshotCarriesItsReadingsTimeAndStatus() {
+        let a = BolusCalcDataSnapshotResponse(cargo: Self.recorded[0])
+        let b = BolusCalcDataSnapshotResponse(cargo: Self.recorded[1])
+        #expect(a.readingTimestamp == 0x1B54_A990 && a.readingSecondsSincePumpReset == 4061)
+        #expect(b.readingTimestamp - a.readingTimestamp == 1200)
+        #expect(b.readingSecondsSincePumpReset - a.readingSecondsSincePumpReset == 1200)
+        #expect(a.readingStatusId == 1 && b.readingStatusId == 1)
+    }
+
     @Test func aSnapshotWithANonZeroFirstByteIsNotAcknowledged() {
         var cargo = Self.recorded[0]
         cargo[0] = 1
@@ -112,6 +123,42 @@ import Testing
         #expect(egv(status: 3).egvStatus == .high)
         #expect(egv(status: 4).egvStatus == .unavailable)
         #expect(egv(status: 9).egvStatus == nil)
+    }
+
+    @Test func theCartridgesFillStatusIsNamed() {
+        #expect(InsulinStatusResponse(cargo: [200, 0, 1, 20]).fillStatus == .plus)
+        #expect(InsulinStatusResponse(cargo: [15, 0, 2, 20]).fillStatus == .low)
+        #expect(InsulinStatusResponse(cargo: [15, 0, 2, 20]).insulinLowAmount == 20)
+        #expect(InsulinStatusResponse(cargo: [0, 0, 9, 20]).fillStatus == nil)
+        #expect(InsulinStatusResponse.FillStatus.allCases.map(\.rawValue) == [0, 1, 2, 3])
+    }
+
+    @Test func theLastBolusRepliesNameTheirStatusAndEndReason() {
+        var v2 = [UInt8](repeating: 0, count: 24)
+        v2[0] = 1
+        v2[13] = 1
+        #expect(LastBolusStatusV2Response(cargo: v2).endReason == .alarm)
+        v2[13] = 255
+        #expect(LastBolusStatusV2Response(cargo: v2).endReason == .other)
+        v2[13] = 4
+        #expect(LastBolusStatusV2Response(cargo: v2).endReason == nil)
+        var v3 = [UInt8](repeating: 0, count: 53)
+        v3[1] = 4
+        v3[14] = 3
+        let c = LastBolusStatusV3Response(cargo: v3)
+        #expect(c.standardBolusStatus == .finished && c.standardBolusEndReason == .completed)
+        v3[1] = 0
+        #expect(LastBolusStatusV3Response(cargo: v3).standardBolusStatus == .invalid)
+        v3[1] = 1
+        #expect(LastBolusStatusV3Response(cargo: v3).standardBolusStatus == nil)
+    }
+
+    /// Bit 28 means pump control only in the main feature set (index 0).
+    @Test func pumpControlIsReadFromTheMainFeatureSetOnly() {
+        let bit28: [UInt8] = [0, 0, 0, 0, 0x10]
+        #expect(PumpFeaturesV2Response(cargo: [0, 0] + bit28.dropFirst()).blePumpControlSupported == true)
+        #expect(PumpFeaturesV2Response(cargo: [0, 0, 0, 0, 0, 0]).blePumpControlSupported == false)
+        #expect(PumpFeaturesV2Response(cargo: [0, 1] + bit28.dropFirst()).blePumpControlSupported == nil)
     }
 }
 

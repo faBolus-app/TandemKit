@@ -214,18 +214,9 @@ public struct LastBolusStatusRequest: EmptyCurrentStatusRequest {
     public init(emptyCargo: Void = ()) { cargo = [] }
 }
 public struct LastBolusStatusV3Request: EmptyCurrentStatusRequest {
-    // Device gating (F2, debug `pump-software-4-0-unknown-version`): Mobi restriction moved onto the MODEL
-    // axis, because a t:slim X2 reported API 4.0 (above the whole table) and the `.mobi_v3_5` floor is
-    // lower-bound-only, so it stopped refusing this on a t:slim.
-    //
-    // ⚠️ WEAKEST of the six inherited claims — REVISIT before relying on it. "V3" is an era marker, not
-    // evidence of a device family: a t:slim X2 at API 4.0 may well answer op-0xBA. Debug session
-    // `tslim-reservoir-battery-zero` was handed this opcode as a CANDIDATE FIX PATH (the app sends no
-    // `*V3Request` at all, and the V1/V2-era reads it depends on are being durably rejected by this
-    // firmware). This tag turns an accidental permit into a DECLARED prohibition, so if that session wants
-    // to send 0xBA to a t:slim it must re-open this line rather than treat it as settled. Failing SAFE
-    // (no-send) is the correct default until a capture proves acceptance — it is not a proven restriction.
-    public static let props = statusProps(0xBA, supportedDevices: [.mobi], minApi: .mobi_v3_5)
+    // t:connect asks a t:slim for this form at API 3.1 or later (LastBolusStatusV2 at 2.2 or later), and Mobi
+    // always. Whether a t:slim answers it is unverified until a bench read.
+    public static let props = statusProps(0xBA, minApi: .v3_1)
     public var cargo: [UInt8] = []
     public init(emptyCargo: Void = ()) { cargo = [] }
 }

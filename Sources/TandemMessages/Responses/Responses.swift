@@ -1334,7 +1334,9 @@ public struct InsulinStatusResponse: ResponseMessage {
     public static let props = MessageProps(opCode: 37, size: 4, type: .response, characteristic: .currentStatus)
     public var cargo: [UInt8]
     public private(set) var currentInsulinAmount: Int = 0  // units remaining
-    public private(set) var isEstimate: Int = 0
+    /// Byte 2: how the pump estimates the cartridge, `fillStatus` named. pumpX2 calls it `isEstimate`.
+    public private(set) var fillStatusId: Int = 0
+    /// Byte 3: the low-insulin threshold, units.
     public private(set) var insulinLowAmount: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
@@ -1343,10 +1345,18 @@ public struct InsulinStatusResponse: ResponseMessage {
         // Defense-in-depth for a direct/refactor caller; unreachable via ResponseParser (it length-gates).
         guard raw.count >= Self.props.size else { return }
         currentInsulinAmount = Bytes.readShort(raw, 0)
-        isEstimate = Int(raw[2])
+        fillStatusId = Int(raw[2])
         insulinLowAmount = Int(raw[3])
     }
     public mutating func parse(_ raw: [UInt8]) { self = InsulinStatusResponse(cargo: raw) }
+
+    /// The cartridge's fill estimate: normal, "plus" (more than the gauge shows), low or empty. The values are
+    /// the ones Tandem's Mobi app reads from this byte; which a t:slim sends when is unverified.
+    public enum FillStatus: Int, Sendable, CaseIterable {
+        case normal = 0, plus = 1, low = 2, empty = 3
+    }
+    /// The fill estimate, or `nil` for an id outside the known set.
+    public var fillStatus: FillStatus? { FillStatus(rawValue: fillStatusId) }
 }
 
 /// Battery. `response/currentStatus/CurrentBatteryV2Response` (opcode 145, 11 bytes).
@@ -1531,6 +1541,8 @@ public struct LastBolusStatusV2Response: ResponseMessage {
     public private(set) var bolusId: Int = 0
     public private(set) var timestamp: UInt32 = 0
     public private(set) var deliveredVolume: UInt32 = 0  // milliunits
+    /// Byte 13: why the bolus ended, `endReason` named. pumpX2 calls it `bolusStatusId`.
+    public private(set) var endReasonId: Int = 0
     public private(set) var requestedVolume: UInt32 = 0  // milliunits
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
@@ -1542,12 +1554,21 @@ public struct LastBolusStatusV2Response: ResponseMessage {
         bolusId = Bytes.readShort(raw, 1)
         timestamp = Bytes.readUint32(raw, 5)
         deliveredVolume = Bytes.readUint32(raw, 9)
+        endReasonId = Int(raw[13])
         requestedVolume = Bytes.readUint32(raw, 20)
     }
     public mutating func parse(_ raw: [UInt8]) { self = LastBolusStatusV2Response(cargo: raw) }
     public var deliveredUnits: Double { Double(deliveredVolume) / 1000.0 }
     /// The reply describes a bolus (byte 0 is 1). Any other value says nothing about what went in.
     public var isValid: Bool { status == 1 }
+    /// Why the bolus ended, or `nil` for an id outside the known set.
+    public var endReason: BolusEndReason? { BolusEndReason(rawValue: endReasonId) }
+}
+
+/// Why a bolus ended, as the last-bolus replies report it (LastBolusStatusV2 byte 13, LastBolusStatusV3
+/// bytes 14 and 38). The values are the ones Tandem's apps name; which a t:slim sends when is unverified.
+public enum BolusEndReason: Int, Sendable, CaseIterable {
+    case userAbort = 0, alarm = 1, malfunction = 2, completed = 3, autoSuspend = 6, other = 255
 }
 
 /// Bolus-calculator snapshot — the therapy settings needed to turn carbs/BG into units, the
@@ -1601,6 +1622,13 @@ public struct BolusCalcDataSnapshotResponse: ResponseMessage {
     /// The pump allows its glucose reading to fill the calculator in automatically. Byte 37. Which pump
     /// states clear it is not known.
     public private(set) var isAutopopAllowed: Bool = false
+    /// Byte 26: when the pump took `glucoseReading`, pump time (seconds since 2008-01-01). Byte 30: the same
+    /// moment as seconds since the pump's reset. Byte 34: the reading's status, with
+    /// `CurrentEGVGuiDataResponse`'s ids. pumpX2 leaves bytes 26 to 36 undecoded; these offsets are the ones
+    /// Tandem's Mobi app reads, and are unverified on a t:slim.
+    public private(set) var readingTimestamp: UInt32 = 0
+    public private(set) var readingSecondsSincePumpReset: UInt32 = 0
+    public private(set) var readingStatusId: Int = 0
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
@@ -1619,6 +1647,9 @@ public struct BolusCalcDataSnapshotResponse: ResponseMessage {
         maxBolusHourlyTotal = Bytes.readUint32(raw, 20)
         maxBolusEventsExceeded = raw[24] != 0
         maxIobEventsExceeded = raw[25] != 0
+        readingTimestamp = Bytes.readUint32(raw, 26)
+        readingSecondsSincePumpReset = Bytes.readUint32(raw, 30)
+        readingStatusId = Int(raw[34])
         isAutopopAllowed = raw[37] != 0
     }
     public mutating func parse(_ raw: [UInt8]) { self = BolusCalcDataSnapshotResponse(cargo: raw) }
@@ -2573,6 +2604,17 @@ public struct LastBolusStatusV3Response: ResponseMessage {
     public private(set) var extendedBolusRequestedVolume: Int = 0
     public private(set) var extendedBolusSecondsSincePumpReset: Int = 0
     public private(set) var extendedBolusDuration: Int = 0
+
+    /// A bolus's status in this reply: no record (0), stopping (3) or finished (4). The values are the ones
+    /// Tandem's Mobi app reads; which a t:slim sends when is unverified.
+    public enum BolusStatus: Int, Sendable, CaseIterable {
+        case invalid = 0, stopping = 3, finished = 4
+    }
+    /// The standard bolus's status, or `nil` for an id outside the known set.
+    public var standardBolusStatus: BolusStatus? { BolusStatus(rawValue: standardBolusStatusId) }
+    /// Why the standard bolus ended, or `nil` for an id outside the known set.
+    public var standardBolusEndReason: BolusEndReason? { BolusEndReason(rawValue: standardBolusEndReasonId) }
+
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {
         cargo = raw
@@ -2637,6 +2679,12 @@ public struct PumpFeaturesV2Response: ResponseMessage {
         pumpFeaturesBitmask = Int(Bytes.readUint32(raw, 2))
     }
     public mutating func parse(_ raw: [UInt8]) { self = PumpFeaturesV2Response(cargo: raw) }
+
+    /// Index 0 is the main feature set (V1's bits); index 1 is the control set, whose bits mean other things.
+    public var isMainFeatureSet: Bool { supportedFeatureIndexId == 0 }
+    /// The main set's bit 28, the pump supporting control over Bluetooth (V1's `blePumpControlSupported`);
+    /// `nil` for a reply about another set, where bit 28 is something else.
+    public var blePumpControlSupported: Bool? { isMainFeatureSet ? pumpFeaturesBitmask & (1 << 28) != 0 : nil }
 }
 
 /// Read response. Ported from PumpVersionBResponse.java (opcode raw -123).

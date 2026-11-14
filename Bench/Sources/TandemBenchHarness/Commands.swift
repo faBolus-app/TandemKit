@@ -318,7 +318,7 @@ func cgm(_ s: BenchSession, minutes: Double) async {
 func lastBolus(_ s: BenchSession) async {
     // C first: it's the read in question, and on a pump that lacks it the op-77 ends probing for this
     // connection, which A and B (answered before on P1) don't need.
-    let c = await s.request(BenchLastBolusStatusV3Request(), "LastBolusStatusV3 (C, 0xBA)")
+    let c = await s.request(LastBolusStatusV3Request(), "LastBolusStatusV3 (C, 0xBA)")
     if let r = s.reply(c, as: LastBolusStatusV3Response.self) {
         say(
             "  C: typeMask \(r.lastBolusTypeBitmask); standard status \(r.standardBolusStatusId) id \(r.standardBolusId) "
@@ -378,7 +378,9 @@ func statusReads(_ s: BenchSession) async {
     func verdict(_ name: String, _ r: RequestResult) { verdicts.append("\(name) \(verdictText(r))") }
     let insulin = await s.request(InsulinStatusRequest())
     if let r = s.reply(insulin, as: InsulinStatusResponse.self) {
-        say("  insulin \(r.currentInsulinAmount) U, estimate \(r.isEstimate), low threshold \(r.insulinLowAmount) U")
+        say(
+            "  insulin \(r.currentInsulinAmount) U, fill status \(r.fillStatusId), low threshold \(r.insulinLowAmount) U"
+        )
     }
     verdict("InsulinStatus", insulin)
     let mirror = await s.request(HomeScreenMirrorRequest())

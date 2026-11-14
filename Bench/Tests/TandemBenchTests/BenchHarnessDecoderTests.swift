@@ -352,21 +352,6 @@ private struct BenchCalcSnapshot {
     }
 }
 
-@Suite struct BenchReadsTests {
-    /// The bench's copy of form C is the library's request on the wire, keyed the same, minus the tag.
-    @Test func lastBolusCIsTheLibraryRequestWithoutTheMobiTag() throws {
-        let bench = try Packetize.packetize(BenchLastBolusStatusV3Request(), txId: 4).map { $0.build() }
-        let library = try Packetize.packetize(LastBolusStatusV3Request(), txId: 4).map { $0.build() }
-        #expect(bench == library)
-        #expect(MessageKey(BenchLastBolusStatusV3Request()) == MessageKey(LastBolusStatusV3Request()))
-        #expect(BenchLastBolusStatusV3Request.props.responseOpCode == 0xBB)
-        #expect(BenchLastBolusStatusV3Request.props.supportedDevices == nil)
-        #expect(LastBolusStatusV3Request.props.supportedDevices == [.mobi])
-        #expect(!BenchLastBolusStatusV3Request.props.signed)
-        #expect(BenchLastBolusStatusV3Request().operationRisk == .read)
-    }
-}
-
 @Suite struct BenchMirrorTests {
     /// A suspended pump with Control-IQ's suspended state and a sensor fault, byte by byte.
     @Test func mirrorLinesNameEachIcon() {

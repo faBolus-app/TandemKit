@@ -36,6 +36,8 @@ public extension ApiVersion {
     static let v2_5 = ApiVersion(major: 2, minor: 5)
     /// v3.0 stub. Upstream `API_V3`.
     static let v3 = ApiVersion(major: 3, minor: 0)
+    /// v3.1: the version from which t:connect asks a t:slim for LastBolusStatus C.
+    static let v3_1 = ApiVersion(major: 3, minor: 1)
     /// v3.2 — software v7.7, 6-char numeric pairing PIN. Upstream `API_V3_2`.
     static let v3_2 = ApiVersion(major: 3, minor: 2)
     /// v3.4 — software v7.8 for the t:slim X2. Upstream `API_V3_4`.
