@@ -37,6 +37,10 @@ exchange, for a pairing test built from a real one; a transcript made with it st
 it can help someone work out the pairing code. A line typed during a run is stamped into it as a
 `NOTE`, to mark what was done at the pump.
 
+A 6-digit (JPAKE) pairing is saved, with its code, in `~/.tandemkit-bench/pairing-<peripheral id>.json`
+(readable by you only), and a later run with the same `PUMP_PERIPHERAL_ID` and code resumes from it, so
+the pump needn't be in pairing mode again. Delete the file to pair afresh.
+
 | Command | What it reads or does |
 | --- | --- |
 | `scan` | Lists pumps in pairing range. |
