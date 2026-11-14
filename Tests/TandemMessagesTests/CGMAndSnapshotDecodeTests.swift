@@ -61,6 +61,30 @@ import Testing
         #expect(mirror(alert: 4, basal: 4).cgmAlertIcon == .calibrate)
     }
 
+    /// Bytes 2, 3 and 4 are the two status icons and the bolus icon, with pumpX2's ids.
+    @Test func theStatusAndBolusIconsNameEveryKnownStateAndNoOther() {
+        func icons(_ s0: UInt8, _ s1: UInt8, _ bolus: UInt8) -> HomeScreenMirrorResponse {
+            var cargo = [UInt8](repeating: 0, count: 9)
+            cargo[2] = s0
+            cargo[3] = s1
+            cargo[4] = bolus
+            return HomeScreenMirrorResponse(cargo: cargo)
+        }
+        let m = icons(4, 1, 1)
+        #expect(
+            m.statusIcon0 == .cgmTransmitterOutOfRange && m.statusIcon1 == .bloodDrop && m.bolusStatusIcon == .autoBolus
+        )
+        #expect(icons(1, 0, 0).statusIcon0 == .cgmTransmitter && icons(1, 0, 0).bolusStatusIcon == .bolus)
+        #expect(icons(200, 200, 200).statusIcon0 == .hide)
+        #expect(icons(200, 200, 200).statusIcon1 == .hide && icons(200, 200, 200).bolusStatusIcon == .hide)
+        for id: UInt8 in [2, 3, 5, 199, 255] { #expect(icons(id, 0, 0).statusIcon0 == nil) }
+        for id: UInt8 in [2, 4, 199, 255] { #expect(icons(0, id, 0).statusIcon1 == nil) }
+        for id: UInt8 in [4, 5, 199, 255] { #expect(icons(0, 0, id).bolusStatusIcon == nil) }
+        #expect(HomeScreenMirrorResponse.StatusIcon0.allCases.map(\.rawValue) == [0, 1, 4, 200])
+        #expect(HomeScreenMirrorResponse.StatusIcon1.allCases.map(\.rawValue) == [0, 1, 200])
+        #expect(HomeScreenMirrorResponse.BolusStatusIcon.allCases.map(\.rawValue) == [0, 1, 2, 3, 200])
+    }
+
     @Test func theCGMAlertIconNamesEveryKnownStateAndNoOther() {
         #expect(mirror(alert: 255).cgmAlertIcon == .noError)
         #expect(mirror(alert: 15).cgmAlertIcon == .tripleDashes)
