@@ -6,6 +6,18 @@ git tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-11-13
+
+The home screen mirror's status and bolus icons are decoded, so faBolus can show a bolus or an automatic
+bolus running, the transmitter out of range and a calibration due. faBolus pins this release.
+
+### Added
+
+- `HomeScreenMirrorResponse.statusIcon0Id` and `statusIcon1Id` (bytes 2 and 3), and `statusIcon0`,
+  `statusIcon1` and `bolusStatusIcon` naming them and byte 4 with pumpX2's ids (the transmitter or the
+  transmitter out of range; a calibration's blood drop; a bolus, an automatic bolus, two locks), or `nil`
+  for an id outside each set. The offsets are pumpX2's, and which icon a t:slim shows when is unverified.
+
 ## [0.9.0] — 2026-11-13
 
 The home screen mirror's basal icon is named, so faBolus can show a suspended pump and a pump-set temp
@@ -160,7 +172,8 @@ firmware (`PairingAuth.createV1`, `LegacyPairingCoordinator`, chosen automatical
   `TandemBLE` (the CoreBluetooth central), with every outgoing message byte-exact against pumpx2's
   `cliparser` oracle. A signed 0.10 U saline bolus was delivered on a pump.
 
-[Unreleased]: https://github.com/faBolus-app/TandemKit/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/faBolus-app/TandemKit/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/faBolus-app/TandemKit/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/faBolus-app/TandemKit/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/faBolus-app/TandemKit/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/faBolus-app/TandemKit/compare/v0.6.0...v0.7.0
