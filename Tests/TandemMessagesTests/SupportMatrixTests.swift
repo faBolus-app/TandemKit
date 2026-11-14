@@ -7,14 +7,15 @@ import Testing
     private let p2Unit = PumpUnit(serialNumber: 2000, armSoftwareVersion: 7, mspSoftwareVersion: 7)
     private let p2API = ApiVersion(major: 4, minor: 0)
 
-    @Test func onlySevenSignedWritesAreAllowed() {
-        #expect(SupportMatrix.allowedSignedWrites.count == 7)
+    @Test func onlyEightSignedWritesAreAllowed() {
+        #expect(SupportMatrix.allowedSignedWrites.count == 8)
         #expect(SupportMatrix.isAllowedSignedWrite(InitiateBolusRequest()))
         #expect(SupportMatrix.isAllowedSignedWrite(DismissNotificationRequest(kind: .alert, notificationId: 1)))
         #expect(SupportMatrix.isAllowedSignedWrite(BolusPermissionReleaseRequest(bolusID: 1)))
         #expect(!SupportMatrix.isAllowedSignedWrite(ChangeTimeDateRequest(tandemEpochTime: 0)))
-        // The bench's two extra writes exist only under the BenchWrites trait, which this build lacks.
-        #expect(!SupportMatrix.isAllowedSignedWrite(UserInteractionRequest()))
+        // UserInteraction is allowed, as t:connect sends it; the bench's extra write exists only under the
+        // BenchWrites trait, which this build lacks.
+        #expect(SupportMatrix.isAllowedSignedWrite(UserInteractionRequest()))
         #expect(SupportMatrix.isAllowedSignedWrite(PumpVersionRequest()))  // unsigned: not the allowlist's business
         for key in SupportMatrix.allowedSignedWrites {
             #expect(key.characteristic == .control)

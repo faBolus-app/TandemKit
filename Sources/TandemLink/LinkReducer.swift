@@ -546,6 +546,16 @@ private final class Step {
         guard let connection = state.connection else { return }
         let restoredSetup = connection.adoptedFromRestore && connection.readyAt == nil
         if cancel { transport(.cancelConnection(connection.peripheralID)) }
+        // On a first JPAKE pairing, a drop during authentication is how the pump answers a wrong code, as
+        // Mobi reads it. One is retried, in case it was the radio; a second ends the pairing.
+        if state.phase == .authenticating, case .jpake = state.target?.credentials {
+            state.ladder.pairingDrops += 1
+            if state.ladder.pairingDrops >= config.pairingDropsToFail {
+                closeConnection(reason)
+                setPhase(.failed(.pairingDropped))
+                return
+            }
+        }
         let base = cooldownBase(reason)
         if !exempt && !restoredSetup { state.ladder.flaps += 1 }
         closeConnection(reason)

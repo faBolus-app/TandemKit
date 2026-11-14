@@ -160,6 +160,24 @@ import Testing
         #expect(PumpFeaturesV2Response(cargo: [0, 0, 0, 0, 0, 0]).blePumpControlSupported == false)
         #expect(PumpFeaturesV2Response(cargo: [0, 1] + bit28.dropFirst()).blePumpControlSupported == nil)
     }
+
+    /// CGM status B goes to a t:slim, as t:connect asks for it, with the time left at byte 14.
+    @Test func cgmStatusBGoesToATslimWithItsTimeLeft() {
+        #expect(CgmStatusV2Request.props.supportedDevices == nil)
+        #expect(CgmStatusV2Request.props.isSupported(onModel: .tslim, apiVersion: ApiVersion(major: 4, minor: 0)))
+        var cargo = [UInt8](repeating: 0, count: 20)
+        cargo[0] = 1
+        cargo.replaceSubrange(14..<18, with: [0x10, 0x0E, 0, 0])  // 3600 s
+        cargo[19] = 1
+        let b = CgmStatusV2Response(cargo: cargo)
+        #expect(b.sessionTimeRemainingSeconds == 3600 && b.gracePeriod)
+    }
+
+    @Test func theGracePeriodAlertsAreNamed() {
+        #expect(CGMAlertStatusResponse.name(for: 31)?.title == "Grace period started")
+        #expect(CGMAlertStatusResponse.name(for: 32)?.title == "Grace period ending")
+        #expect(CGMAlertStatusResponse.name(for: 39) == nil)
+    }
 }
 
 private func hex(_ s: String) -> [UInt8] {

@@ -196,7 +196,11 @@ public struct CGMAlertStatusResponse: ResponseMessage {
         25: ("Sensor reuse", "Sensor reuse detected."),
         26: ("Temperature", "CGM temperature out of range."),
         27: ("Failed connection", "The CGM connection failed."),
-        39: ("Transmitter expired", "The CGM transmitter has expired.")
+        // 28, 29, 31 and 32 are t:connect's names; it gives 39 no name of its own.
+        28: ("Check sensor", "Check the CGM sensor."),
+        29: ("CGM alert", "An alert from the CGM sensor (ESA)."),
+        31: ("Grace period started", "The sensor session ended and its grace period started."),
+        32: ("Grace period ending", "The sensor's grace period ends soon.")
     ]
 }
 

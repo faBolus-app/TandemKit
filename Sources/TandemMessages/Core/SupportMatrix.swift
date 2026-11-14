@@ -198,10 +198,12 @@ public struct SupportMatrix: Sendable, Equatable, Codable {
 
     /// The only signed writes TandemKit sends, on any pump: the remote-bolus family P1 accepts on API
     /// 2.5, InitiateBolus, DismissNotification (op-184), and BolusPermissionRelease, which closes a
-    /// granted permission no bolus followed, as Tandem's app does. The release has no bench evidence on
-    /// any pump, so it goes as an untested write. The other signed writes P1 was sent each drew op-77 and
-    /// a dropped link. Everything else signed is refused before a byte is built, whatever the pump's API
-    /// version.
+    /// granted permission no bolus followed, as Tandem's app does, and UserInteraction, which t:connect
+    /// sends when the bolus screen opens at API 3.0 or later (P1, at 2.5, refused it). The release and
+    /// UserInteraction have no bench evidence of acceptance on any pump, so they go as untested writes.
+    /// The other signed writes P1 was sent each drew op-77 and a dropped link. Everything else signed is
+    /// refused before a byte is built, whatever the pump's API version. None changes insulin delivery
+    /// except the bolus family's own.
     public static let allowedSignedWrites: Set<MessageKey> = [
         MessageKey(BolusPermissionRequest.self),
         MessageKey(InitiateBolusRequest.self),
@@ -209,7 +211,8 @@ public struct SupportMatrix: Sendable, Equatable, Codable {
         MessageKey(RemoteCarbEntryRequest.self),
         MessageKey(RemoteBgEntryRequest.self),
         MessageKey(DismissNotificationRequest.self),
-        MessageKey(BolusPermissionReleaseRequest.self)
+        MessageKey(BolusPermissionReleaseRequest.self),
+        MessageKey(UserInteractionRequest.self)
     ]
 
     public static func isAllowedSignedWrite(_ message: some Message) -> Bool {
@@ -223,12 +226,11 @@ public struct SupportMatrix: Sendable, Equatable, Codable {
     }
 
     #if BenchWrites
-    /// Bench builds only: the two signed writes the bench tests on a pump, on top of the seven. This
+    /// Bench builds only: the signed write the bench tests on a pump, on top of the eight. This
     /// exists only when a dependent enables the `BenchWrites` trait, which only the bench package
     /// does, so no app binary contains it. Neither changes insulin delivery, and each still needs
     /// its own per-call grant.
     public static let benchSignedWrites: Set<MessageKey> = [
-        MessageKey(UserInteractionRequest.self),
         MessageKey(ChangeTimeDateRequest.self)
     ]
     #endif

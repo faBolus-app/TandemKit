@@ -5,15 +5,16 @@ import Testing
 @testable import TandemBench
 
 /// The bench package builds TandemKit with the `BenchWrites` trait; these hold only in that build.
-/// TandemKit's own tests check the default build, where the two writes are refused.
+/// TandemKit's own tests check the default build, where the write is refused.
 @Suite struct BenchWritesTraitTests {
-    @Test func theBenchBuildAllowsItsTwoExtraWrites() {
-        #expect(SupportMatrix.isAllowedSignedWrite(UserInteractionRequest()))
+    @Test func theBenchBuildAllowsItsExtraWrite() {
         #expect(SupportMatrix.isAllowedSignedWrite(ChangeTimeDateRequest(tandemEpochTime: 1)))
-        #expect(SupportMatrix.benchSignedWrites.count == 2)
+        #expect(SupportMatrix.benchSignedWrites.count == 1)
+        // UserInteraction is now on the app's own list, so every build allows it.
+        #expect(SupportMatrix.isAllowedSignedWrite(UserInteractionRequest()))
     }
 
-    /// Nothing else is widened: every other signed write outside the seven stays refused.
+    /// Nothing else is widened: every other signed write outside the eight stays refused.
     @Test func everyOtherSignedWriteStaysRefused() {
         let others: [any Message] = [
             PlaySoundRequest(), SetMaxBolusLimitRequest(), SetModesRequest(), SetTempRateRequest(),
