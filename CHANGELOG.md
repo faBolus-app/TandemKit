@@ -6,6 +6,28 @@ git tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-11-13
+
+CGM status B and UserInteraction for a t:slim, the grace-period alert names, and a first pairing the pump
+drops. faBolus pins this release.
+
+### Added
+
+- `LinkFailure.pairingDropped` (breaking for exhaustive switches): a first JPAKE pairing whose link drops
+  during authentication twice in a row ends there instead of climbing the reconnect ladder, as Mobi takes
+  a drop there for a wrong code. `LinkConfig.pairingDropsToFail` (2) and `ReconnectLadder.pairingDrops`.
+- CGM alert names 28 (check sensor), 29 (ESA), 31 (grace period started) and 32 (grace period ending).
+
+### Changed
+
+- `CgmStatusV2Request` (CGM status B) is no longer Mobi-only, as t:connect asks a t:slim for it.
+- `UserInteractionRequest` is on the signed-write allowlist (now eight), as t:connect sends it at API 3.0
+  or later; it leaves the bench-only list.
+
+### Removed
+
+- CGM alert 39's name, which t:connect doesn't give it.
+
 ## [0.11.0] — 2026-11-13
 
 Names and decodes for faBolus's cartridge marks and stopped-bolus names, and for its calculator taking the
@@ -196,7 +218,8 @@ firmware (`PairingAuth.createV1`, `LegacyPairingCoordinator`, chosen automatical
   `TandemBLE` (the CoreBluetooth central), with every outgoing message byte-exact against pumpx2's
   `cliparser` oracle. A signed 0.10 U saline bolus was delivered on a pump.
 
-[Unreleased]: https://github.com/faBolus-app/TandemKit/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/faBolus-app/TandemKit/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/faBolus-app/TandemKit/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/faBolus-app/TandemKit/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/faBolus-app/TandemKit/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/faBolus-app/TandemKit/compare/v0.8.0...v0.9.0
