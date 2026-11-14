@@ -6,6 +6,30 @@ git tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-11-13
+
+Names and decodes for faBolus's cartridge marks and stopped-bolus names, and for its calculator taking the
+snapshot's own reading; LastBolusStatus C can now go to a t:slim. faBolus pins this release.
+
+### Added
+
+- `InsulinStatusResponse.fillStatus` (byte 2: normal, plus, low, empty).
+- `LastBolusStatusV2Response.endReason` (byte 13) and the shared `BolusEndReason`;
+  `LastBolusStatusV3Response.standardBolusStatus` (no record, stopping, finished) and
+  `standardBolusEndReason`.
+- `BolusCompletedHistoryLog.completionStatus`, named.
+- `BolusCalcDataSnapshotResponse.readingTimestamp`, `readingSecondsSincePumpReset` and `readingStatusId`
+  (bytes 26, 30 and 34): when its reading was taken and the reading's status. Unverified on a t:slim;
+  pumpX2's two recorded snapshots move both clocks by exactly the 1200 s between them.
+- `PumpFeaturesV2Response.blePumpControlSupported`, read from the main feature set only.
+- `ApiVersion.v3_1`.
+
+### Changed
+
+- `InsulinStatusResponse.isEstimate` is now `fillStatusId` (breaking).
+- `LastBolusStatusV3Request` is no longer Mobi-only: it is floored at API 3.1, as t:connect asks a t:slim
+  for it. The bench's untagged copy of it is removed.
+
 ## [0.10.0] — 2026-11-13
 
 The home screen mirror's status and bolus icons are decoded, so faBolus can show a bolus or an automatic
@@ -172,7 +196,8 @@ firmware (`PairingAuth.createV1`, `LegacyPairingCoordinator`, chosen automatical
   `TandemBLE` (the CoreBluetooth central), with every outgoing message byte-exact against pumpx2's
   `cliparser` oracle. A signed 0.10 U saline bolus was delivered on a pump.
 
-[Unreleased]: https://github.com/faBolus-app/TandemKit/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/faBolus-app/TandemKit/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/faBolus-app/TandemKit/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/faBolus-app/TandemKit/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/faBolus-app/TandemKit/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/faBolus-app/TandemKit/compare/v0.7.0...v0.8.0
