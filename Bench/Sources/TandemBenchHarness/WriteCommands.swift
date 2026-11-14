@@ -408,3 +408,58 @@ func verdictText(_ r: RequestResult) -> String {
     case .unknown(let why): return "unknown (\(why))"
     }
 }
+
+// MARK: Bolus permission, held and released with no bolus
+
+/// Guess 37: does the pump take back a granted permission (notice bit 31), when it lapses or when its own
+/// bolus screen opens? This sends BolusPermission and BolusPermissionRelease and nothing else: no carb or
+/// BG entry and no InitiateBolus, so nothing can be delivered, whatever is in the cartridge.
+@MainActor
+func permission(_ s: BenchSession, seconds: Double) async {
+    guard await s.whenReady() else { return say("RESULT not sent: the link wasn't ready") }
+    if let active = s.reply(await s.request(CurrentBolusStatusRequest()), as: CurrentBolusStatusResponse.self),
+        active.isActive
+    {
+        return say("RESULT not sent: a bolus is active on the pump")
+    }
+    say("  one BolusPermission, held \(Int(seconds)) s, then released; no bolus is sent")
+    let typed = await s.inbox.prompt("type this pump's serial number to ask for a bolus permission")
+    if let why = BenchSafetyGate.writeRefusal(
+        environment: env, typed: typed, pumpSerial: s.identity?.unit.map { Int($0.serialNumber) })
+    {
+        return say("RESULT not sent: \(why)")
+    }
+    var revokedAt: Double?
+    let start = s.link.now
+    s.noticeHandler = { raw in
+        if raw & (1 << 31) != 0, revokedAt == nil { revokedAt = s.link.now }
+    }
+    defer { s.noticeHandler = nil }
+    let permitResult = await s.request(
+        BolusPermissionRequest(), allowing: BolusPermissionRequest().operationRisk, deadline: 60)
+    if case .unknown = permitResult {
+        return say(
+            "RESULT permission outcome unknown: the pump may hold a permission until it lapses. Check the "
+                + "pump's bolus screen opens before anything else")
+    }
+    guard let permit = s.reply(permitResult, as: BolusPermissionResponse.self), permit.granted else {
+        let why = s.reply(permitResult, as: BolusPermissionResponse.self).map { "nack reason \($0.nackReasonId)" }
+        return say("RESULT permission not granted: \(why ?? verdictText(permitResult))")
+    }
+    let dropsBefore = s.drops
+    say("  permission granted, bolus id \(permit.bolusId). To test the pump's own bolus screen, open it now and")
+    say("  type a NOTE when you do; otherwise leave the pump alone")
+    let until = s.link.now + seconds
+    while s.link.now < until, revokedAt == nil { await s.pause(1) }
+    if let revokedAt { say(String(format: "  bit 31 arrived %.1f s after the request", revokedAt - start)) }
+    let r = await s.request(
+        BolusPermissionReleaseRequest(bolusID: permit.bolusId), allowing: BolusPermissionReleaseRequest().operationRisk)
+    let releaseStatus = s.reply(r, as: BolusPermissionReleaseResponse.self).map { " status \($0.status)" } ?? ""
+    say("  release: \(verdictText(r))\(releaseStatus)")
+    await s.pause(5)
+    say(
+        "RESULT permission: "
+            + (revokedAt.map { String(format: "revoked (bit 31) after %.1f s", $0 - start) }
+                ?? "not revoked in \(Int(seconds)) s")
+            + "; release \(verdictText(r))\(releaseStatus); link drops while held: \(s.drops - dropsBefore)")
+}

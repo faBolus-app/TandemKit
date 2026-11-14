@@ -34,6 +34,8 @@ let usage = """
                                 where the CGM reading and its timestamp sit in it; default 1 sample, 300 s
       cgm [minutes]             the home-screen icons (CGM alert, basal, bolus, Control-IQ state), the EGV
                                 status and the CGM session, once a minute (0 = once)
+      therapy [minutes]         CurrentBasalStatus, TempRate, both IOB reads and the active profile's values,
+                                once a minute (0 = once)
       lastbolus                 LastBolusStatus forms C (0xBA), B and A
       statusreads               InsulinStatus, HomeScreenMirror and CurrentBatteryV2, once each
       monitor [--poll S|off] [--battery S] [--minutes M]
@@ -59,6 +61,8 @@ let usage = """
                                 ~/.tandemkit-bench/bench-boluses.json (PUMP_BOLUS_LOG)
                                 --overlap (cancel only): write the cancel while a CurrentBolusStatus read
                                 still waits for its reply, as Mobi does (bench step 15)
+      permission [seconds]      one BolusPermission held for that long (default 120) and released, with no
+                                bolus: whether the pump revokes it (notice bit 31); needs PUMP_BENCH_WRITES=1
       bolus settle [note]       mark the last unsettled bench bolus settled after checking the pump
 
       --retest                  (any command) forget this pump's recorded result for each command
@@ -153,6 +157,12 @@ func parseJob(_ command: String, _ rest: [String]) -> Job {
         return .snapshot(samples: samples, interval: interval)
     case "cgm":
         return .cgm(minutes: rest.first.map { number($0, "minutes") } ?? 0)
+    case "therapy":
+        return .therapy(minutes: rest.first.map { number($0, "minutes") } ?? 0)
+    case "permission":
+        let seconds = rest.first.map { number($0, "seconds") } ?? 120
+        if !(10...900).contains(seconds) { fail("permission: seconds must be 10 to 900") }
+        return .permission(seconds: seconds)
     case "monitor":
         let pollText = option("--poll", in: &rest)
         let poll: Double? = pollText == "off" ? nil : pollText.map { number($0, "--poll") } ?? 60

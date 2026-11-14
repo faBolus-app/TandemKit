@@ -17,6 +17,8 @@ enum Job {
     case history([HistoryStep])
     case snapshot(samples: Int, interval: Double)
     case cgm(minutes: Double)
+    /// The basal, temp rate, IOB and active-profile reads, once a minute for `minutes` (0 = once).
+    case therapy(minutes: Double)
     case lastBolus
     case api
     case statusReads
@@ -25,6 +27,8 @@ enum Job {
     case setTime(plusFive: Bool)
     case clearCheck(NotificationKind, Int)
     case bolus(BenchBolusKind, carbs: Int, bg: Int, noCartridge: Bool, chunk: Int?, overlap: Bool)
+    /// A bolus permission held for `seconds` and released, with no bolus: bit 31 (the pump revoking it).
+    case permission(seconds: Double)
 }
 
 /// Runs the job once the link is first ready. Every request goes through the link's gates.
@@ -50,6 +54,8 @@ func runJob(_ s: BenchSession) async {
         await snapshot(s, samples: samples, interval: interval)
     case .cgm(let minutes):
         await cgm(s, minutes: minutes)
+    case .therapy(let minutes):
+        await therapy(s, minutes: minutes)
     case .lastBolus:
         await lastBolus(s)
     case .api:
@@ -64,6 +70,8 @@ func runJob(_ s: BenchSession) async {
         await clearCheck(s, kind: kind, id: id)
     case .bolus(let kind, let carbs, let bg, let noCartridge, _, let overlap):
         await bolus(s, kind: kind, carbs: carbs, bg: bg, noCartridge: noCartridge, overlap: overlap)
+    case .permission(let seconds):
+        await permission(s, seconds: seconds)
     }
 }
 
@@ -235,6 +243,14 @@ func snapshot(_ s: BenchSession, samples: Int, interval: Double) async {
         let egv = s.reply(await s.request(CurrentEGVGuiDataRequest()), as: CurrentEGVGuiDataResponse.self)
         let snap = s.reply(await s.request(BolusCalcDataSnapshotRequest()), as: BolusCalcDataSnapshotResponse.self)
         let mirror = s.reply(await s.request(HomeScreenMirrorRequest()), as: HomeScreenMirrorResponse.self)
+        // Last in the sample: an op-77 ends probing for the connection, and the reads above matter more.
+        let iob = s.reply(await s.request(ControlIQIOBRequest()), as: ControlIQIOBResponse.self)
+        if let snap {
+            say(
+                "  snapshot iob \(snap.iob) (raw), readingTimestamp \(snap.readingTimestamp), status \(snap.readingStatusId)"
+            )
+        }
+        if let iob { say("  ControlIQIOB: " + BenchTherapy.iobLine(iob)) }
         if let egv {
             let age = clock.map { " age \(Int($0.currentTime) - egv.bgReadingTimestampSeconds) s" } ?? ""
             say(
@@ -284,6 +300,8 @@ func cgm(_ s: BenchSession, minutes: Double) async {
         let mirror = s.reply(await s.request(HomeScreenMirrorRequest()), as: HomeScreenMirrorResponse.self)
         let egv = s.reply(await s.request(CurrentEGVGuiDataRequest()), as: CurrentEGVGuiDataResponse.self)
         let status = s.reply(await s.request(CGMStatusRequest()), as: CGMStatusResponse.self)
+        // Status B last: a pump without it answers op-77, which ends probing for this connection.
+        let statusB = s.reply(await s.request(CgmStatusV2Request()), as: CgmStatusV2Response.self)
         if let mirror {
             let icon = BenchCgmNames.alertIcon(mirror.cgmAlertIconId)
             icons[icon, default: 0] += 1
@@ -299,6 +317,12 @@ func cgm(_ s: BenchSession, minutes: Double) async {
                 "  CGMStatus: session \(status.sessionStateId) \(BenchCgmNames.sessionState(status.sessionStateId)), "
                     + "transmitter battery \(status.transmitterBatteryStatusId)")
         }
+        if let b = statusB {
+            say(
+                "  CGM status B: session \(b.sessionStateId), started \(b.sensorStartedTimestamp), "
+                    + "duration \(b.sessionDurationSeconds) s, time left \(b.sessionTimeRemainingSeconds) s, "
+                    + "sensor type \(b.cgmSensorTypeId), grace period \(b.gracePeriod)")
+        }
         if let mirror, let egv,
             BenchCgmNames.readingDespiteIcon(alertIcon: mirror.cgmAlertIconId, egvStatus: egv.egvStatusId)
         {
@@ -310,6 +334,52 @@ func cgm(_ s: BenchSession, minutes: Double) async {
     say(
         "RESULT \(samples) sample(s); icons seen: \(seen.isEmpty ? "none" : seen); reading-while-icon-not-NO_ERROR: \(shownDespiteIcon)"
     )
+}
+
+// MARK: therapy
+
+/// The reads behind the home screen's basal and IOB and the calculator's profile values, decoded next to
+/// the raw reply the session prints: guesses 7 (the target BG at byte 4), 16 and 35 (IOB and its time
+/// left) and 34 (a temp rate).
+@MainActor
+func therapy(_ s: BenchSession, minutes: Double) async {
+    let end = s.link.now + minutes * 60
+    var samples = 0
+    repeat {
+        if samples > 0 { await s.pause(60) }
+        samples += 1
+        // The reads faBolus already sends to a t:slim first: an op-77 on TempRate or an IOB read ends
+        // probing for this connection, and the profile and basal reads would be lost with it.
+        if let p = s.reply(await s.request(CurrentActiveIdpValuesRequest()), as: CurrentActiveIdpValuesResponse.self) {
+            say(
+                "  active profile: carb ratio \(p.currentCarbRatio), target BG \(p.currentTargetBg) (byte 4), "
+                    + "insulin duration \(p.currentInsulinDuration), ISF \(p.currentIsf)")
+        }
+        if let b = s.reply(await s.request(CurrentBasalStatusRequest()), as: CurrentBasalStatusResponse.self) {
+            say(
+                "  basal: profile \(b.profileBasalRate) current \(b.currentBasalRate) (milli-units/h), "
+                    + "modified bitmask \(b.basalModifiedBitmask)")
+        }
+        if let t = s.reply(await s.request(TempRateRequest()), as: TempRateResponse.self) {
+            say(
+                "  temp rate: active \(t.active) percent \(t.percentage) start \(t.startTimeRaw) duration \(t.duration)"
+            )
+        }
+        if let iob = s.reply(await s.request(ControlIQIOBRequest()), as: ControlIQIOBResponse.self) {
+            say("  ControlIQIOB: " + BenchTherapy.iobLine(iob))
+        }
+        if let n = s.reply(await s.request(NonControlIQIOBRequest()), as: NonControlIQIOBResponse.self) {
+            say("  NonControlIQIOB: iob \(n.iob) total \(n.totalIOB) time left \(n.timeRemainingSeconds) s")
+        }
+    } while s.link.now < end
+    say("RESULT \(samples) sample(s): compare each line with the pump's screens (note them with a NOTE)")
+}
+
+enum BenchTherapy {
+    static func iobLine(_ r: ControlIQIOBResponse) -> String {
+        "swan \(r.swan6hrIOB) mudaliar \(r.mudaliarIOB) total \(r.mudaliarTotalIOB) (milli-units), "
+            + "time left \(r.timeRemainingSeconds) s, type \(r.iobType)"
+    }
 }
 
 // MARK: last bolus

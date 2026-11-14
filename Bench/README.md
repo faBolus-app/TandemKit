@@ -43,8 +43,9 @@ it can help someone work out the pairing code. A line typed during a run is stam
 | `api` | The API version and the pump's software versions. |
 | `features [all\|legacy\|N..]` | The PumpFeaturesV2 sets by index (main, control and Dexcom by default; `all` adds the rest), every set bit by its pumpX2 name, and main-set bits 28 (`BLE_PUMP_CONTROL_SUPPORTED`) and 10 (`CONTROL_IQ_SUPPORTED`) called out. Below API 2.5, the legacy PumpFeaturesV1. |
 | `history [status\|anchor\|oldest\|cap..]` | The log's oldest and newest sequence numbers, which end of a page `startLog` names, and whether a page of 251-255 records is cut at 250. |
-| `snapshot [samples] [seconds]` | The bolus-calculator snapshot byte by byte, and where the CGM reading and its timestamp sit in the bytes pumpX2 doesn't decode. |
-| `cgm [minutes]` | The home-screen icons byte by byte (CGM alert, basal, bolus, Control-IQ state), the EGV status and the CGM session. |
+| `snapshot [samples] [seconds]` | The bolus-calculator snapshot byte by byte, and where the CGM reading and its timestamp sit in the bytes pumpX2 doesn't decode; then ControlIQIOB, to compare with the snapshot's IOB. |
+| `cgm [minutes]` | The home-screen icons byte by byte (CGM alert, basal, bolus, Control-IQ state), the EGV status, the CGM session, and CGM status B (the session's time left and the grace flag). |
+| `therapy [minutes]` | CurrentBasalStatus, TempRate, ControlIQIOB and NonControlIQIOB (with the time left), and the active profile's values (the target BG at byte 4), once a minute. |
 | `statusreads` | InsulinStatus, HomeScreenMirror and CurrentBatteryV2, once each. |
 | `lastbolus` | LastBolusStatus forms C (0xBA), B and A. Form C goes through a bench copy without the library's Mobi tag, so the link probes it on a t:slim. |
 | `monitor [--poll S\|off] [--battery S] [--minutes M]` | Holds the link and reads status every S seconds, or with `off` only the battery. Logs every drop, every reconnect's timing, every pump notice (and the pump clock after a time-change notice), the battery trend and the request rate. The 24-hour hold check, the range edge and the battery cost of a held link. |
@@ -56,6 +57,7 @@ The bench writes and the bench bolus ask for the pump's serial number before any
 | Command | What it sends |
 | --- | --- |
 | `userinteraction` | One UserInteractionRequest (API 3.0 and up), then 60 s of notices. Needs `PUMP_BENCH_WRITES=1`. |
+| `permission [seconds]` | One BolusPermission, held that long (default 120 s) and released, with no carb or BG entry and no InitiateBolus: whether the pump revokes it (notice bit 31) when it lapses or when its own bolus screen opens. Needs `PUMP_BENCH_WRITES=1`. |
 | `settime [--plus5]` | ChangeTimeDate with the pump's own time (a no-op), then with `--plus5` five minutes on and back; reads the clock back and the history. Needs `PUMP_BENCH_WRITES=1`. |
 | `clearcheck <kind> <id>` | One DismissNotification, then the notification's bit at 2, 30 and 120 s, and the history records since. |
 | `bolus <units\|carb\|correction\|cancel>` | One 0.05 U bolus through BolusPermission, the carb or BG entry, InitiateBolus (60 s deadline) and, for `cancel`, CancelBolus; then follows it and reads LastBolusStatus and the history. Saline only (`PUMP_SALINE_ATTESTED=1`: a saline cartridge, tubing into a container, on no one), or `--no-cartridge` for the pump's refusal (`PUMP_NO_CARTRIDGE_ATTESTED=1`, and the pump has to report an empty reservoir). At most three an hour; a bolus whose outcome isn't settled blocks the next until `bolus settle`. The log is `~/.tandemkit-bench/bench-boluses.json`. |
