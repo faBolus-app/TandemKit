@@ -324,6 +324,53 @@ import TandemMessages
         #expect(h.state.target?.credentials == .jpakeResume(derivedSecret: [9, 9]))
     }
 
+    /// On a first JPAKE pairing, the pump answering a wrong code by dropping the link (as Mobi reads it): one
+    /// drop is retried, a second ends the pairing, and nothing reconnects after it.
+    @Test func aFirstJpakePairingThatDropsTwiceEndsAsPairingDropped() {
+        var h = LinkHarness()
+        h.apply(.power(.poweredOn))
+        h.apply(
+            .connect(
+                PumpTarget(peripheralID: LinkHarness.pumpID, model: .tslim, credentials: .jpake(code: "123456")),
+                SupportMatrix()))
+        func authenticateAndDrop() {
+            h.apply(.connected(peripheralID: LinkHarness.pumpID, name: "tslim X2 1234"))
+            h.apply(.characteristicsDiscovered(Set(Characteristic.allCases)))
+            h.apply(.subscription(.currentStatus, isNotifying: true, failed: false))
+            h.apply(.subscription(.authorization, isNotifying: true, failed: false))
+            h.apply(.disconnected(peripheralID: LinkHarness.pumpID, nil))
+        }
+        authenticateAndDrop()
+        #expect(h.phase == .backingOff)
+        h.advance(by: 60)
+        authenticateAndDrop()
+        #expect(h.phase == .failed(.pairingDropped))
+        let connects = h.allCommands.filter { $0 == .connect(LinkHarness.pumpID) }.count
+        h.advance(by: 600)
+        #expect(h.allCommands.filter { $0 == .connect(LinkHarness.pumpID) }.count == connects)
+    }
+
+    /// A reconnect from the stored secret keeps the ordinary flap rule: a drop there isn't the code.
+    @Test func aResumeThatDropsDuringAuthenticationIsAFlap() {
+        var h = LinkHarness()
+        h.apply(.power(.poweredOn))
+        h.apply(
+            .connect(
+                PumpTarget(
+                    peripheralID: LinkHarness.pumpID, model: .tslim, credentials: .jpakeResume(derivedSecret: [9])),
+                SupportMatrix()))
+        for _ in 0..<3 {
+            h.apply(.connected(peripheralID: LinkHarness.pumpID, name: "tslim X2 1234"))
+            h.apply(.characteristicsDiscovered(Set(Characteristic.allCases)))
+            h.apply(.subscription(.currentStatus, isNotifying: true, failed: false))
+            h.apply(.subscription(.authorization, isNotifying: true, failed: false))
+            h.apply(.disconnected(peripheralID: LinkHarness.pumpID, nil))
+            #expect(h.phase == .backingOff)
+            h.advance(by: 60)
+        }
+        #expect(h.state.ladder.pairingDrops == 0)
+    }
+
     // MARK: identity
 
     @Test func nameContradictingTheStoredModelIsRejected() {

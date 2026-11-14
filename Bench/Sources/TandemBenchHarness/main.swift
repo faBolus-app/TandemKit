@@ -11,7 +11,7 @@ import TandemMessages
 // `userinteraction` and `settime` send the bench's two extra signed writes (the BenchWrites trait);
 // `bolus` sends one 0.05 U InitiateBolus, saline only or to a pump with no cartridge. Each write asks
 // for the pump's serial number first, and each is allowed for that one call. Every request goes through the link's gates (the
-// support matrix, careful probing, the seven allowed signed writes), and each run writes a transcript:
+// support matrix, careful probing, the eight allowed signed writes), and each run writes a transcript:
 // every line printed, plus every packet in both directions (authorization frames redacted unless
 // PUMP_RECORD_PAIRING=1).
 

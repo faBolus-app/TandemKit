@@ -34,6 +34,9 @@ public struct LinkConfiguration: Sendable, Equatable {
     public var cooldownCap: Double = 30
     /// Flaps in a row before `connectionUnstable` is reported. Guess.
     public var unstableAfterFlaps = 3
+    /// Drops during authentication of a first JPAKE pairing that end it as `pairingDropped`: one retry for
+    /// the radio, then the code is taken as wrong. Guess, from Mobi taking one drop there as a wrong code.
+    public var pairingDropsToFail = 2
     /// From `connected` to ready (services, subscriptions, authentication, handshake). The old
     /// client's establishment bound.
     public var establishmentTimeout: Double = 30
@@ -213,6 +216,9 @@ public enum LinkFailure: Sendable, Equatable {
     case identityMismatch(stored: PumpModel, seen: PumpModel)
     /// A pairing scan found nothing in time.
     case pumpNotFound
+    /// A first JPAKE pairing's link dropped during authentication twice in a row. Mobi takes a drop there as
+    /// the pump's answer to a wrong code.
+    case pairingDropped
 }
 
 /// Why a connection closed. Each connection's span ends with exactly one of these.

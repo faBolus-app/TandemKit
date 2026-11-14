@@ -181,8 +181,9 @@ public struct CGMStatusRequest: EmptyCurrentStatusRequest {
     public init(emptyCargo: Void = ()) { self.cargo = [] }
 }
 public struct CgmStatusV2Request: EmptyCurrentStatusRequest {
-    // -66; response 0xBF (191); upstream MOBI_ONLY
-    public static let props = statusProps(0xBE, supportedDevices: [.mobi], minApi: .mobi_v3_5)
+    // CGM status B (190 -> 191). t:connect asks a t:slim for it at API 3.2 or later, and with no floor after a
+    // G7 grace-period alert below 4.1; Mobi reads the same 20-byte layout pumpX2 gives.
+    public static let props = statusProps(0xBE)
     public var cargo: [UInt8] = []
     public init(emptyCargo: Void = ()) { self.cargo = [] }
 }

@@ -52,6 +52,8 @@ public struct ReconnectLadder: Sendable, Equatable {
     public internal(set) var flaps = 0
     /// Whether `connectionUnstable` was reported and not yet followed by `connectionRestored`.
     public internal(set) var reportedUnstable = false
+    /// Drops during authentication of a first JPAKE pairing, toward `LinkFailure.pairingDropped`.
+    public internal(set) var pairingDrops = 0
 
     public init() {}
 }
