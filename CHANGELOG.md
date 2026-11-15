@@ -6,10 +6,27 @@ git tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-11-15
+
+What a saline bench on a t:slim at API 4.0 showed: the carb entry's default, and notes on the snapshot,
+LastBolusStatus C, BolusCompleted and a signed refusal. faBolus pins this release.
+
+### Added
+
+- Bench: a therapy read, CGM status B, ControlIQIOB beside the snapshot, the notifications showing by id,
+  a bolus permission held with no bolus, boluses up to 0.5 U with a BG of 20 to 600 and with the link
+  dropped on purpose, `bolus cancel --once-delivering`, 12 bench boluses an hour, a saved JPAKE pairing
+  that later runs resume, and `PUMP_BENCH_SERIAL`. The BG entry goes before the carb entry, as the app
+  sends them, and a bolus never seen active is settled from history's completed record.
+
 ### Changed
 
 - `RemoteCarbEntryRequest`'s `unknown` defaults to 1, as in every pumpX2 capture: a t:slim at API 4.0
   refuses the entry with 0. A caller that relied on the default now sends 1 there.
+- Doc comments: the calculator snapshot's bytes 20-23 (bolus insulin in the last 60 minutes),
+  `mudaliarTotalIOB`, LastBolusStatus C after a cancel before delivery starts (it keeps naming the bolus
+  before), BolusCompleted's status 0 for a cancel, and why a signed refusal off the pump's clock reads as
+  `staleSignedReply`.
 
 ## [0.12.0] — 2026-11-13
 
@@ -223,7 +240,8 @@ firmware (`PairingAuth.createV1`, `LegacyPairingCoordinator`, chosen automatical
   `TandemBLE` (the CoreBluetooth central), with every outgoing message byte-exact against pumpx2's
   `cliparser` oracle. A signed 0.10 U saline bolus was delivered on a pump.
 
-[Unreleased]: https://github.com/faBolus-app/TandemKit/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/faBolus-app/TandemKit/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/faBolus-app/TandemKit/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/faBolus-app/TandemKit/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/faBolus-app/TandemKit/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/faBolus-app/TandemKit/compare/v0.9.0...v0.10.0
