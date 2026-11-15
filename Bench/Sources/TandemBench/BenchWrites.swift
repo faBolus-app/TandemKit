@@ -135,6 +135,16 @@ public struct BenchBolusLog: Codable, Sendable, Equatable {
 
 /// The checks before a bench write or bolus goes out. Each returns why it may not, or nil.
 public enum BenchSafetyGate {
+    /// The serial a write is checked against when `PUMP_BENCH_SERIAL` names it (a session script sets it
+    /// for its one bench pump), so nothing is typed; nil means it's asked for at the prompt. Either way it
+    /// has to match the pump the link reached.
+    public static func presetSerial(environment: [String: String]) -> String? {
+        guard let s = environment["PUMP_BENCH_SERIAL"]?.trimmingCharacters(in: .whitespaces), !s.isEmpty else {
+            return nil
+        }
+        return s
+    }
+
     /// The serial typed at the prompt has to be this pump's, so a write never reaches the wrong pump.
     public static func serialRefusal(typed: String, pumpSerial: Int?) -> String? {
         guard let pumpSerial else { return "this pump's serial number isn't known yet" }

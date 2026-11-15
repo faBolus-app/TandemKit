@@ -49,7 +49,8 @@ let usage = """
                                 dismiss one pump notification; --chunk re-cuts the control write's
                                 packets at that size (the chunk-size check)
 
-    Bench writes and the bench bolus (each asks for the pump's serial number before it sends):
+    Bench writes and the bench bolus (each checks the pump's serial number before it
+                                sends: typed, or PUMP_BENCH_SERIAL if set):
       userinteraction           one UserInteractionRequest (API 3.0 and up), then 60 s of notices;
                                 needs PUMP_BENCH_WRITES=1
       settime [--plus5]         set the pump clock to its own time (a no-op), then with --plus5 +5 min and

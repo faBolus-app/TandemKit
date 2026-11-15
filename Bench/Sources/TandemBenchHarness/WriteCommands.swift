@@ -3,6 +3,16 @@ import TandemBench
 import TandemLink
 import TandemMessages
 
+/// The serial to check a write against: `PUMP_BENCH_SERIAL` if set, otherwise typed at the prompt.
+@MainActor
+func serialToCheck(_ s: BenchSession, _ prompt: String) async -> String {
+    if let preset = BenchSafetyGate.presetSerial(environment: env) {
+        say("  serial \(preset) from PUMP_BENCH_SERIAL; checked against the pump this link reached")
+        return preset
+    }
+    return await s.inbox.prompt(prompt)
+}
+
 /// Lines typed during a run: a prompt waiting for one takes it; otherwise it's stamped as a NOTE.
 @MainActor
 final class LineInbox {
@@ -78,7 +88,8 @@ func userInteraction(_ s: BenchSession) async {
     if let api = s.identity?.apiVersion, api < .v3 {
         return say("RESULT not sent: API \(s.apiText(api)) is below 3.0 (P1 rejected it with an op-77 and a drop)")
     }
-    let typed = await s.inbox.prompt("type this pump's serial number (the `ready` line above) to send UserInteraction")
+    let typed = await serialToCheck(
+        s, "type this pump's serial number (the `ready` line above) to send UserInteraction")
     if let why = BenchSafetyGate.writeRefusal(
         environment: env, typed: typed, pumpSerial: s.identity?.unit.map { Int($0.serialNumber) })
     {
@@ -103,7 +114,7 @@ func setTime(_ s: BenchSession, plusFive: Bool) async {
         return say("RESULT not sent: a bolus is active on the pump")
     }
     say("  Control-IQ should be off for this run: a clock jump moves its schedule")
-    let typed = await s.inbox.prompt("type this pump's serial number to set its clock")
+    let typed = await serialToCheck(s, "type this pump's serial number to set its clock")
     if let why = BenchSafetyGate.writeRefusal(
         environment: env, typed: typed, pumpSerial: s.identity?.unit.map { Int($0.serialNumber) })
     {
@@ -218,7 +229,7 @@ func bolus(_ s: BenchSession, kind: BenchBolusKind, _ o: BolusOptions) async {
             + (o.drop.map { "; the bench drops the link once the bolus is \($0.rawValue)" } ?? "")
             + (noCartridge ? "; no cartridge, so the pump should refuse it" : "; saline only, on no one"))
     let serial = s.identity?.unit.map { Int($0.serialNumber) }
-    let typed = await s.inbox.prompt("type this pump's serial number to send one \(units) bench bolus")
+    let typed = await serialToCheck(s, "type this pump's serial number to send one \(units) bench bolus")
     if let why = BenchSafetyGate.bolusRefusal(
         environment: env, typed: typed, pumpSerial: serial, noCartridge: noCartridge,
         reservoirUnits: reservoir?.currentInsulinAmount)
@@ -459,7 +470,7 @@ func permission(_ s: BenchSession, seconds: Double) async {
         return say("RESULT not sent: a bolus is active on the pump")
     }
     say("  one BolusPermission, held \(Int(seconds)) s, then released; no bolus is sent")
-    let typed = await s.inbox.prompt("type this pump's serial number to ask for a bolus permission")
+    let typed = await serialToCheck(s, "type this pump's serial number to ask for a bolus permission")
     if let why = BenchSafetyGate.writeRefusal(
         environment: env, typed: typed, pumpSerial: s.identity?.unit.map { Int($0.serialNumber) })
     {

@@ -159,6 +159,16 @@ import Testing
         #expect(BenchSafetyGate.serialRefusal(typed: "123456", pumpSerial: nil) != nil)
     }
 
+    @Test func aPresetSerialStandsInForTheTypedOne() {
+        #expect(BenchSafetyGate.presetSerial(environment: [:]) == nil)
+        #expect(BenchSafetyGate.presetSerial(environment: ["PUMP_BENCH_SERIAL": " "]) == nil)
+        let preset = BenchSafetyGate.presetSerial(environment: ["PUMP_BENCH_SERIAL": " 123456 "])
+        #expect(preset == "123456")
+        // It is still checked against the pump reached: a different pump refuses.
+        #expect(BenchSafetyGate.serialRefusal(typed: preset ?? "", pumpSerial: 123456) == nil)
+        #expect(BenchSafetyGate.serialRefusal(typed: preset ?? "", pumpSerial: 654321) != nil)
+    }
+
     @Test func aWriteNeedsTheFlagAndTheSerial() {
         #expect(BenchSafetyGate.writeRefusal(environment: [:], typed: "1", pumpSerial: 1) != nil)
         #expect(BenchSafetyGate.writeRefusal(environment: ["PUMP_BENCH_WRITES": "1"], typed: "1", pumpSerial: 1) == nil)

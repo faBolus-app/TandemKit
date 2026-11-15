@@ -56,7 +56,7 @@ the pump needn't be in pairing mode again. Delete the file to pair afresh.
 | `notices [minutes]` | `monitor --poll off`: the pump's notices with nothing else on the link, for notice bit 19. |
 | `dismiss [--chunk 18] <kind> <id>` | Dismisses one pump notification once the link has held. `--chunk` re-cuts the control write's packets at that size in the bench transport, for the chunk-size check. |
 
-The bench writes and the bench bolus ask for the pump's serial number before anything goes out:
+The bench writes and the bench bolus check the pump's serial number before anything goes out: typed at a prompt, or taken from `PUMP_BENCH_SERIAL` when that is set. Either way a different pump refuses it:
 
 | Command | What it sends |
 | --- | --- |
