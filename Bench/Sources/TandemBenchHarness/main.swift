@@ -64,6 +64,8 @@ let usage = """
                                 ~/.tandemkit-bench/bench-boluses.json (PUMP_BOLUS_LOG)
                                 --overlap (cancel only): write the cancel while a CurrentBolusStatus read
                                 still waits for its reply, as Mobi does (bench step 15)
+                                --once-delivering (cancel only): cancel once the pump reports the bolus
+                                delivering (status 1) rather than as soon as it accepts it
                                 --drop sent|accepted: the bench drops the link once the InitiateBolus write
                                 is out, or once the pump accepts it, then reconnects and follows the bolus
       permission [seconds]      one BolusPermission held for that long (default 120) and released, with no
@@ -195,18 +197,21 @@ func parseJob(_ command: String, _ rest: [String]) -> Job {
         let dropText = option("--drop", in: &rest)
         let noCartridge = rest.contains("--no-cartridge")
         let overlap = rest.contains("--overlap")
-        rest.removeAll { $0 == "--no-cartridge" || $0 == "--overlap" }
+        let onceDelivering = rest.contains("--once-delivering")
+        rest.removeAll { $0 == "--no-cartridge" || $0 == "--overlap" || $0 == "--once-delivering" }
         guard rest.count == 1, let kind = BenchBolusKind(rawValue: rest[0]) else {
             fail(
                 "usage: bolus <units|carb|correction|cancel> [--units U] [--carbs G] [--bg MGDL] [--no-cartridge]"
-                    + " [--chunk 18] [--overlap] [--drop sent|accepted]")
+                    + " [--chunk 18] [--overlap] [--once-delivering] [--drop sent|accepted]")
         }
         if overlap, kind != .cancel { fail("--overlap is for `bolus cancel` only") }
+        if onceDelivering, kind != .cancel { fail("--once-delivering is for `bolus cancel` only") }
         if let chunk, !(1...40).contains(chunk) { fail("--chunk must be 1 to 40") }
         if !(0...300).contains(carbs) { fail("--carbs must be 0 to 300") }
         // 20-600 is the meter range a t:slim takes on its own screen; outside 40-400 is guess 28's question.
         if bg != 0, !(20...600).contains(bg) { fail("--bg must be 20 to 600") }
         var options = BolusOptions(carbs: carbs, bg: bg, noCartridge: noCartridge, chunk: chunk, overlap: overlap)
+        options.onceDelivering = onceDelivering
         if let unitsText {
             guard let mu = BenchBolusKind.milliunits(forUnits: number(unitsText, "--units")) else {
                 fail("--units must be 0.05 to 1 in steps of 0.05")

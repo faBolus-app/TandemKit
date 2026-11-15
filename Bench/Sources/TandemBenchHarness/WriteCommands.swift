@@ -254,23 +254,27 @@ func bolus(_ s: BenchSession, kind: BenchBolusKind, _ o: BolusOptions) async {
         say("  released the permission (\(why)): \(verdictText(r))")
     }
 
+    // The entries as the app sends them (PumpSession's BolusCommands): the BG first, then the carbs, with
+    // the bytes every pumpX2 capture has (a BG from source REMOTE, 1; the carb entry's third byte 1).
     let pumpTime = clock?.pumpTimeSinceReset ?? 0
-    if kind == .carb {
-        let r = await s.request(
-            RemoteCarbEntryRequest(carbs: carbs, pumpTimeSecondsSinceBoot: pumpTime, bolusId: id), allowing: .benign)
-        guard s.reply(r, as: RemoteCarbEntryResponse.self)?.status == 0 else {
-            await release("the carb entry wasn't accepted")
-            return say("RESULT not sent: RemoteCarbEntry \(verdictText(r))")
-        }
-    }
-    if kind == .correction {
+    if kind == .correction || (kind == .carb && bg > 0) {
         // Never a calibration: that would shift the CGM.
         let entry = RemoteBgEntryRequest(
-            bg: bg, useForCgmCalibration: false, isAutopopBg: false, pumpTimeSecondsSinceBoot: pumpTime, bolusId: id)
+            bg: bg, useForCgmCalibration: false, entryTypeId: 0, sourceId: 1, pumpTimeSecondsSinceBoot: pumpTime,
+            bolusId: id)
         let r = await s.request(entry, allowing: .benign)
         guard s.reply(r, as: RemoteBgEntryResponse.self)?.status == 0 else {
             await release("the BG entry wasn't accepted")
             return say("RESULT not sent: RemoteBgEntry \(verdictText(r))")
+        }
+    }
+    if kind == .carb {
+        let r = await s.request(
+            RemoteCarbEntryRequest(carbs: carbs, unknown: 1, pumpTimeSecondsSinceBoot: pumpTime, bolusId: id),
+            allowing: .benign)
+        guard s.reply(r, as: RemoteCarbEntryResponse.self)?.status == 0 else {
+            await release("the carb entry wasn't accepted")
+            return say("RESULT not sent: RemoteCarbEntry \(verdictText(r))")
         }
     }
 
@@ -325,6 +329,7 @@ func bolus(_ s: BenchSession, kind: BenchBolusKind, _ o: BolusOptions) async {
         say("  !!! outcome unknown (\(why)): check the pump's screen and history before anything else")
     }
     if outcome == nil, kind == .cancel {
+        if o.onceDelivering { await waitUntilDelivering(s, id: id) }
         let drops = s.drops
         if overlap { await holdAStatusRead(s) }
         let c = await s.request(CancelBolusRequest(bolusId: id), allowing: CancelBolusRequest().operationRisk)
@@ -351,6 +356,12 @@ func bolus(_ s: BenchSession, kind: BenchBolusKind, _ o: BolusOptions) async {
     }
     await lastBolus(s)
     if let history, let page = await newHistory(s, since: history.lastSequenceNum) { say("  history since: \(page)") }
+    // The pump's own record settles it, as in the app: a bolus cancelled before it starts never shows as
+    // active, and LastBolusStatus keeps naming the bolus before it, but its BolusCompleted record is there.
+    if outcome == nil, let ended = completedInHistory(s, id: id) {
+        say("  settled from the pump's history: \(ended)")
+        outcome = ended
+    }
     if let outcome {
         _ = log.settleLast(outcome)
         _ = BolusLogFile.save(log)
@@ -358,6 +369,26 @@ func bolus(_ s: BenchSession, kind: BenchBolusKind, _ o: BolusOptions) async {
     } else {
         say("RESULT bolus \(id) \(kind.rawValue): outcome not settled; check the pump, then `bolus settle`")
     }
+}
+
+/// Waits, at most 40 s, for the pump to report bolus `id` delivering (status 1), so a cancel lands after
+/// insulin has started to move. The cancel goes either way: a bolus never seen delivering is still stopped.
+@MainActor
+func waitUntilDelivering(_ s: BenchSession, id: Int) async {
+    let start = s.link.now
+    while s.link.now - start < 40 {
+        if let status = s.reply(await s.request(CurrentBolusStatusRequest()), as: CurrentBolusStatusResponse.self) {
+            if status.bolusId == id, status.statusId == 1 {
+                return say(String(format: "  delivering after %.1f s; cancelling now", s.link.now - start))
+            }
+            // Right after the accept the pump may not list the bolus yet; after 3 s, not listing it means it ended.
+            if !status.isActive, status.bolusId != id, s.link.now - start > 3 {
+                return say("  the pump no longer reports bolus \(id); cancelling anyway")
+            }
+        }
+        await s.pause(0.5)
+    }
+    say("  bolus \(id) wasn't reported delivering within 40 s; cancelling anyway")
 }
 
 /// The cancel-overlap check (bench step 15): a CurrentBolusStatus read whose write the transport holds
@@ -445,6 +476,12 @@ func newHistory(_ s: BenchSession, since: UInt32) async -> String? {
         for event in frame.events { types.append("\(type(of: event))") }
     }
     return "\(page.received.count) record(s): " + types.joined(separator: ", ")
+}
+
+/// How bolus `id` ended by its BolusCompleted record in the history just read, or nil if it isn't there.
+@MainActor
+func completedInHistory(_ s: BenchSession, id: Int) -> String? {
+    BenchBolusLog.outcomeFromHistory(bolusId: id, events: s.historyFrames.flatMap { $0.frame.events })
 }
 
 func verdictText(_ r: RequestResult) -> String {

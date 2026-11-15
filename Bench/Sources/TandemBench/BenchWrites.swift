@@ -76,7 +76,7 @@ public enum BenchBolusKind: String, CaseIterable, Sendable {
 
 /// Every bench bolus sent, kept between runs so a restart can't repeat one: a bolus whose outcome
 /// wasn't settled blocks the next until the person at the bench has checked the pump, and at most
-/// three go out in any hour.
+/// `perHour` go out in any hour.
 public struct BenchBolusLog: Codable, Sendable, Equatable {
     public struct Entry: Codable, Sendable, Equatable {
         public var date: Date
@@ -86,8 +86,10 @@ public struct BenchBolusLog: Codable, Sendable, Equatable {
         /// nil until the outcome is known: from the pump's replies, or `bolus settle` after a check.
         public var outcome: String?
 
+        /// `date` is kept to the whole second, as the log file stores it, so the copy in memory and the
+        /// copy read back from disk are the same entry.
         public init(date: Date, serial: Int, kind: String, bolusId: Int, outcome: String? = nil) {
-            self.date = date
+            self.date = Date(timeIntervalSince1970: date.timeIntervalSince1970.rounded(.down))
             self.serial = serial
             self.kind = kind
             self.bolusId = bolusId
@@ -116,7 +118,9 @@ public struct BenchBolusLog: Codable, Sendable, Equatable {
     /// meanwhile). An entry is one bolus (serial, bolus id, date); where both have it, a settled outcome
     /// wins over none, and this log's wins over `other`'s.
     public func merging(_ other: BenchBolusLog) -> BenchBolusLog {
-        func key(_ e: Entry) -> String { "\(e.serial)/\(e.bolusId)/\(e.date.timeIntervalSince1970)" }
+        func key(_ e: Entry) -> String {
+            "\(e.serial)/\(e.bolusId)/\(Int64(e.date.timeIntervalSince1970.rounded(.down)))"
+        }
         var byKey: [String: Entry] = [:]
         for e in other.entries { byKey[key(e)] = e }
         for e in entries {
@@ -124,6 +128,18 @@ public struct BenchBolusLog: Codable, Sendable, Equatable {
             byKey[key(e)] = e
         }
         return BenchBolusLog(entries: byKey.values.sorted { $0.date < $1.date })
+    }
+
+    /// How bolus `bolusId` ended by the pump's BolusCompleted record among `events`, or nil if none is there.
+    /// The pump's own record settles a bolus, as in the app, even one that never showed as active.
+    public static func outcomeFromHistory(bolusId: Int, events: [any HistoryLogEvent]) -> String? {
+        for case let e as BolusCompletedHistoryLog in events where e.bolusId == bolusId {
+            let how = e.completionStatus.map { "\($0)" } ?? "status \(e.completionStatusId)"
+            return String(
+                format: "history: BolusCompleted %@, %.2f U delivered of %.2f U", how, Double(e.insulinDelivered),
+                Double(e.insulinRequested))
+        }
+        return nil
     }
 
     public mutating func settleLast(_ outcome: String) -> Bool {

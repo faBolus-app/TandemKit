@@ -142,6 +142,34 @@ import Testing
         #expect(merged.refusal(now: t.addingTimeInterval(10))?.contains("20") == true)
     }
 
+    /// A bolus settled in the run that sent it: the entry in memory has a fraction of a second, the file keeps
+    /// whole seconds, and the two are still one entry, so no unsettled copy is left to block the next bolus.
+    @Test func aBolusSettledInItsOwnRunLeavesOneEntry() throws {
+        let sent = Date(timeIntervalSince1970: 1_800_000_000.734)
+        var mine = BenchBolusLog(entries: [.init(date: sent, serial: 1, kind: "units", bolusId: 3173)])
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let disk = try decoder.decode(BenchBolusLog.self, from: try encoder.encode(mine))
+        let settled = mine.settleLast("ended (status 0)")
+        #expect(settled)
+        let merged = mine.merging(disk)
+        #expect(merged.entries.count == 1)
+        #expect(merged.refusal(now: sent.addingTimeInterval(60)) == nil)
+    }
+
+    /// P3, 2026-11-14: bolus 3184 cancelled before it started. It never showed as active, but its
+    /// BolusCompleted record (SN 695541) settles it: nothing delivered of 0.05 U.
+    @Test func aBolusCompletedRecordSettlesItsBolus() throws {
+        let record = BolusCompletedHistoryLog(
+            cargo: try Hex.decode("1400ec3d7f23f59c0a000000700c319e394000000000cdcc4c3d"))
+        #expect(
+            BenchBolusLog.outcomeFromHistory(bolusId: 3184, events: [record])
+                == "history: BolusCompleted userAborted, 0.00 U delivered of 0.05 U")
+        #expect(BenchBolusLog.outcomeFromHistory(bolusId: 3183, events: [record]) == nil)
+    }
+
     @Test func theLogRoundTrips() throws {
         let log = BenchBolusLog(entries: [
             .init(date: Date(timeIntervalSince1970: 1_800_000_000), serial: 9, kind: "carb", bolusId: 4)

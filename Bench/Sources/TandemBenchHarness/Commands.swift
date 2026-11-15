@@ -39,6 +39,9 @@ struct BolusOptions {
     var noCartridge = false
     var chunk: Int?
     var overlap = false
+    /// `cancel` only: the cancel waits until the pump reports the bolus delivering (status 1), not just
+    /// accepted (status 2, which lasts about 15 s before any insulin moves).
+    var onceDelivering = false
     var drop: BenchDrop?
 }
 
