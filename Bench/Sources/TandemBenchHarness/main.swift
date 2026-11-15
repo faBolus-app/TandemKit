@@ -37,7 +37,8 @@ let usage = """
       therapy [minutes]         CurrentBasalStatus, TempRate, both IOB reads and the active profile's values,
                                 once a minute (0 = once)
       lastbolus                 LastBolusStatus forms C (0xBA), B and A
-      statusreads               InsulinStatus, HomeScreenMirror and CurrentBatteryV2, once each
+      statusreads               InsulinStatus, HomeScreenMirror and CurrentBatteryV2, once each, and the
+                                reminders, alerts, alarms and CGM alerts showing (the id dismiss takes)
       monitor [--poll S|off] [--battery S] [--minutes M]
                                 hold the link (the 24 h hold check, range edge, battery); reads the app's
                                 status set every S seconds (default 60), or with `off` only the battery

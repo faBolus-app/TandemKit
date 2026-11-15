@@ -50,7 +50,7 @@ the pump needn't be in pairing mode again. Delete the file to pair afresh.
 | `snapshot [samples] [seconds]` | The bolus-calculator snapshot byte by byte, and where the CGM reading and its timestamp sit in the bytes pumpX2 doesn't decode; then ControlIQIOB, to compare with the snapshot's IOB. |
 | `cgm [minutes]` | The home-screen icons byte by byte (CGM alert, basal, bolus, Control-IQ state), the EGV status, the CGM session, and CGM status B (the session's time left and the grace flag). |
 | `therapy [minutes]` | CurrentBasalStatus, TempRate, ControlIQIOB and NonControlIQIOB (with the time left), and the active profile's values (the target BG at byte 4), once a minute. |
-| `statusreads` | InsulinStatus, HomeScreenMirror and CurrentBatteryV2, once each. |
+| `statusreads` | InsulinStatus, HomeScreenMirror and CurrentBatteryV2, once each, then the reminders, alerts, alarms and CGM alerts showing, by id (the id `dismiss` and `clearcheck` take). |
 | `lastbolus` | LastBolusStatus forms C (0xBA), B and A. Form C goes through a bench copy without the library's Mobi tag, so the link probes it on a t:slim. |
 | `monitor [--poll S\|off] [--battery S] [--minutes M]` | Holds the link and reads status every S seconds, or with `off` only the battery. Logs every drop, every reconnect's timing, every pump notice (and the pump clock after a time-change notice), the battery trend and the request rate. The 24-hour hold check, the range edge and the battery cost of a held link. |
 | `notices [minutes]` | `monitor --poll off`: the pump's notices with nothing else on the link, for notice bit 19. |

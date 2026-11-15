@@ -480,6 +480,21 @@ func statusReads(_ s: BenchSession) async {
         say("  battery \(r.currentBatteryIbc)%, abc \(r.currentBatteryAbc), charging status \(r.chargingStatus)")
     }
     verdict("CurrentBatteryV2", battery)
+    // What's showing, by kind and id: the id `dismiss` and `clearcheck` take.
+    func showing(_ kind: String, _ result: RequestResult, _ list: [PumpNotification]?) {
+        verdict(kind, result)
+        guard let list else { return }
+        let ids = list.map { "\($0.id) (\($0.title))" }
+        say("  \(kind): " + (ids.isEmpty ? "none" : ids.joined(separator: ", ")))
+    }
+    let reminders = await s.request(ReminderStatusRequest())
+    showing("reminder", reminders, s.reply(reminders, as: ReminderStatusResponse.self)?.notifications)
+    let alerts = await s.request(AlertStatusRequest())
+    showing("alert", alerts, s.reply(alerts, as: AlertStatusResponse.self)?.notifications)
+    let alarms = await s.request(AlarmStatusRequest())
+    showing("alarm", alarms, s.reply(alarms, as: AlarmStatusResponse.self)?.notifications)
+    let cgm = await s.request(CGMAlertStatusRequest())
+    showing("cgm", cgm, s.reply(cgm, as: CGMAlertStatusResponse.self)?.notifications)
     say("RESULT " + verdicts.joined(separator: "; "))
 }
 
