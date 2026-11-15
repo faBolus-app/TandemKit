@@ -325,17 +325,43 @@ import TandemMessages
         #expect(h.phase == .connecting)
     }
 
-    @Test func comingToTheForegroundAfterTheDelayRanOutConnectsAtOnce() {
+    @Test func comingToTheForegroundAfterTheDelayRanOutReissuesThePendingConnect() {
+        // The delay is over, so the connect is pending like any other: reissued, not cancelled, so a
+        // cancel and a connect never cross.
         var h = backgroundTarget()
         h.apply(.connectFailed(peripheralID: Self.id, drop))
         h.apply(.backgroundTimeEnding)
         h.sleep(for: 60)  // the pump is out of range; the delayed connect is pending
         h.apply(.appActive(true))
-        #expect(h.commands == [.cancelPendingConnect(Self.id), .connect(Self.id)])
-        #expect(h.phase == .connecting)
-        h.apply(.connectFailed(peripheralID: Self.id, drop))  // the cancel's answer
-        #expect(h.state.ladder.flaps == 1)
         #expect(h.commands == [.connect(Self.id)])
+        #expect(h.phase == .connecting)
+        #expect(!h.state.pendingConnectDelayed)
+    }
+
+    @Test func aCancelsAnswerWhileBackingOffDoesntHideALaterFailure() {
+        var h = backgroundTarget()
+        h.apply(.connectFailed(peripheralID: Self.id, drop))
+        h.apply(.backgroundTimeEnding)
+        h.sleep(for: 4)
+        h.apply(.appActive(true))
+        h.apply(.connectFailed(peripheralID: Self.id, drop))  // the cancel's answer, while backing off
+        h.advance(by: 6)
+        #expect(h.commands == [.connect(Self.id)])
+        h.apply(.connectFailed(peripheralID: Self.id, drop))  // the new connect really failing
+        #expect(h.state.ladder.flaps == 2)
+        #expect(h.phase == .backingOff)
+    }
+
+    @Test func aCancelNeverAnsweredDoesntHideALaterFailure() {
+        var h = backgroundTarget()
+        h.apply(.stop)
+        h.apply(
+            .connect(
+                PumpTarget(peripheralID: Self.id, model: .tslim, credentials: .legacy(code: LinkHarness.legacyCode)),
+                SupportMatrix()))
+        h.sleep(for: 60)
+        h.apply(.connectFailed(peripheralID: Self.id, drop))
+        #expect(h.state.ladder.flaps == 1, "long after the cancel, a failure is the pump's")
     }
 
     @Test func aConnectCompletingAsTheDelayIsCancelledIsKept() {

@@ -57,7 +57,12 @@ public final class CoreBluetoothTransport: NSObject, LinkTransport {
             connect(id, startDelay: startDelay)
         case .cancelPendingConnect(let id):
             connectAfterCancel[id] = nil
-            guard let peripheral = peripherals[id], peripheral.state == .connecting else { return }
+            // Bluetooth off ends pending connects itself, and a call now would be API misuse. Whether a
+            // peripheral reads connecting or disconnected while its start delay runs isn't documented, so
+            // both are cancelled.
+            guard central.state == .poweredOn, let peripheral = peripherals[id],
+                peripheral.state == .connecting || peripheral.state == .disconnected
+            else { return }
             central.cancelPeripheralConnection(peripheral)
         case .cancelConnection(let id):
             connectAfterCancel[id] = nil

@@ -67,9 +67,10 @@ public struct LinkState: Sendable {
     var backoffUntil: LinkTime?
     /// The pending connect out carries a start delay.
     var pendingConnectDelayed = false
-    /// The pump whose pending connect the link cancelled. CoreBluetooth may answer that cancel with a
-    /// `didFailToConnect`, which isn't the pump failing; the first one after it isn't counted.
-    var cancelledPendingConnect: UUID?
+    /// The pending connect the link cancelled last. CoreBluetooth may answer that cancel with a
+    /// `didFailToConnect`, which isn't the pump failing: the first one for this pump within
+    /// `CancelledConnect.answerWindow` isn't counted.
+    var cancelledPendingConnect: CancelledConnect?
     /// CoreBluetooth refused a start delay (`CBError.invalidParameters`), so background connects go out
     /// plain, at once, as before the delay was used.
     var startDelayUnsupported = false
@@ -103,6 +104,14 @@ public struct ReconnectLadder: Sendable, Equatable {
     public internal(set) var pairingDrops = 0
 
     public init() {}
+}
+
+struct CancelledConnect: Sendable, Equatable {
+    var peripheralID: UUID
+    var at: LinkTime
+    /// How long after a cancel a connect failure is taken as its answer. Guess: CoreBluetooth answers a
+    /// cancel at once if at all, and a bound keeps a cancel it never answers from hiding a later failure.
+    static let answerWindow: Double = 5
 }
 
 struct PairingCandidate: Sendable, Equatable {

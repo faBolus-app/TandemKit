@@ -186,7 +186,7 @@ private final class Step {
             transport(.cancelConnection(id))
         } else if state.phase == .connecting, let id = state.target?.peripheralID {
             transport(.cancelConnection(id))  // the pending connect, a delayed one included
-            state.cancelledPendingConnect = id
+            state.cancelledPendingConnect = CancelledConnect(peripheralID: id, at: now)
         }
         if case .scanning = state.phase { transport(.stopScan) }
         cancelTimer(.scan)
@@ -200,17 +200,15 @@ private final class Step {
     func appActive(_ active: Bool) {
         state.appActive = active
         guard active, state.phase == .connecting, let id = state.target?.peripheralID else { return }
-        if state.pendingConnectDelayed {
+        if state.pendingConnectDelayed, let until = state.backoffUntil, until > now {
             // Back in the foreground, the cooldown is waited out by the link's own timer, as every
             // foreground cooldown is: the delayed connect is cancelled and the timer runs for what is left.
-            // Reissuing a plain connect instead isn't known to cut the system's delay short.
+            // Reissuing a plain connect instead isn't known to cut the system's delay short. A delay already
+            // over leaves a pending connect like any other, reissued below.
             cancelPendingConnect(id)
-            let remaining = (state.backoffUntil ?? now) - now
-            guard remaining > 0 else { return startConnecting() }
-            startTimer(.backoff, after: remaining)
-            setPhase(.backingOff)
-            return
+            return waitCooldown(until: until)
         }
+        state.pendingConnectDelayed = false
         // A pending connect can be lost with no callback; reissuing it is harmless (the old client's
         // watchdog existed for a link that otherwise stayed down until a force quit).
         transport(.connect(id))
@@ -220,7 +218,7 @@ private final class Step {
     func cancelPendingConnect(_ id: UUID) {
         transport(.cancelPendingConnect(id))
         state.pendingConnectDelayed = false
-        state.cancelledPendingConnect = id
+        state.cancelledPendingConnect = CancelledConnect(peripheralID: id, at: now)
     }
 
     func retest(_ key: MessageKey) {
@@ -573,6 +571,13 @@ private final class Step {
 
     /// A delayed connect stays in `connecting`, so its failure lands here too.
     func connectFailed(_ id: UUID, _ error: BluetoothError?) {
+        // A failure answering the link's own cancel, in whatever phase it lands; one that doesn't come in
+        // time is no longer expected.
+        var answersCancel = false
+        if let cancelled = state.cancelledPendingConnect, cancelled.peripheralID == id {
+            state.cancelledPendingConnect = nil
+            answersCancel = now - cancelled.at <= CancelledConnect.answerWindow
+        }
         guard id == state.target?.peripheralID, state.connection == nil, state.phase == .connecting else { return }
         if state.pendingConnectDelayed, error == BluetoothError(domain: "CBErrorDomain", code: 1) {
             // invalidParameters for a whole-second start delay: this system doesn't take the option. The
@@ -580,11 +585,10 @@ private final class Step {
             state.startDelayUnsupported = true
             return issueConnect(id)
         }
-        if state.cancelledPendingConnect == id {
-            // Possibly CoreBluetooth answering the link's own cancel. Whether it does is unverified; if this
-            // was the new connect failing instead, the connect is issued again (harmless if it's still
-            // pending), so there's always one out.
-            state.cancelledPendingConnect = nil
+        if answersCancel {
+            // Whether CoreBluetooth answers a cancel this way is unverified; if this was the new connect
+            // failing instead, the connect is issued again (harmless if it's still pending), so there's
+            // always one out.
             return issueConnect(id)
         }
         state.telemetry.failedConnects += 1
@@ -676,9 +680,14 @@ private final class Step {
             emit(.connectionUnstable(flaps: flaps))
         }
         let doubled = base * pow(2, Double(min(max(failuresBefore, 0), 30)))
-        let wait = min(doubled, config.cooldownCap)
-        startTimer(.backoff, after: wait)
-        state.backoffUntil = now + wait
+        waitCooldown(until: now + min(doubled, config.cooldownCap))
+    }
+
+    /// Backs off until `until`, when the timer issues the pending connect. `backoffUntil` is kept with
+    /// the timer so a connect issued early, in the background, can carry the rest as a start delay.
+    func waitCooldown(until: LinkTime) {
+        state.backoffUntil = until
+        startTimer(.backoff, after: until - now)
         setPhase(.backingOff)
     }
 
@@ -817,6 +826,10 @@ private final class Step {
                 && !connection.resubscribing.contains($0)
         }
         state.connection?.unavailable.formUnion(unanswered)
+        // Asked once more, so a subscription whose first request was lost can still come back.
+        for characteristic in ServiceUUID.notificationCharacteristics where unanswered.contains(characteristic) {
+            transport(.subscribe(characteristic))
+        }
         startTimer(.hold, after: config.holdWindow)
         state.telemetry.becameReady(at: now)
         setPhase(.ready)
