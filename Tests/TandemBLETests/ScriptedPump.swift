@@ -9,7 +9,7 @@ import TandemMessages
 final class ManualClock: LinkClock {
     private(set) var now: LinkTime = 0
     var suspended = false
-    private var scheduled: [(due: LinkTime, token: Token, action: @MainActor () -> Void)] = []
+    private var scheduled: [(due: LinkTime, token: Token, system: Bool, action: @MainActor () -> Void)] = []
 
     final class Token: LinkClockToken {
         var cancelled = false
@@ -18,16 +18,24 @@ final class ManualClock: LinkClock {
 
     func schedule(after seconds: Double, _ action: @escaping @MainActor () -> Void) -> any LinkClockToken {
         let token = Token()
-        scheduled.append((now + seconds, token, action))
+        scheduled.append((now + seconds, token, false, action))
+        return token
+    }
+
+    /// Something the system runs on its own time, which goes on while the app is suspended (a
+    /// connect's start delay, held by bluetoothd).
+    @discardableResult
+    func scheduleInSystem(after seconds: Double, _ action: @escaping @MainActor () -> Void) -> Token {
+        let token = Token()
+        scheduled.append((now + seconds, token, true, action))
         return token
     }
 
     func advance(by seconds: Double) {
         let end = now + seconds
-        while !suspended,
-            let next = scheduled.enumerated().filter({ !$0.element.token.cancelled && $0.element.due <= end })
-                .min(by: { $0.element.due < $1.element.due })
-        {
+        while let next = scheduled.enumerated().filter({
+            !$0.element.token.cancelled && $0.element.due <= end && (!suspended || $0.element.system)
+        }).min(by: { $0.element.due < $1.element.due }) {
             scheduled.remove(at: next.offset)
             now = max(now, next.element.due)
             next.element.action()
@@ -67,6 +75,11 @@ final class ScriptedTransport: LinkTransport {
     private(set) var commands: [TransportCommand] = []
     /// A connect the transport was asked for and the pump hasn't completed (out of range or off).
     private(set) var pendingConnect = false
+    /// A pending connect's start delay: it can't complete before this.
+    private(set) var connectNotBefore: LinkTime = 0
+    private var startDelayTimer: ManualClock.Token?
+    /// Fail a start delay with invalidParameters, as a system that doesn't take the option would.
+    var rejectsStartDelay = false
 
     init(pump: ScriptedPump, clock: ManualClock) {
         self.pump = pump
@@ -90,9 +103,26 @@ final class ScriptedTransport: LinkTransport {
         switch command {
         case .connect(let id) where id == ScriptedPump.id:
             pendingConnect = true
+            connectNotBefore = clock.now
+            startDelayTimer?.cancel()
             completeConnectIfPossible()
+        case .delayedConnect(let id, let startDelay) where id == ScriptedPump.id:
+            if rejectsStartDelay {
+                report?(.connectFailed(peripheralID: id, BluetoothError(domain: "CBErrorDomain", code: 1)))
+                return
+            }
+            pendingConnect = true
+            connectNotBefore = clock.now + Double(startDelay)
+            startDelayTimer?.cancel()
+            startDelayTimer = clock.scheduleInSystem(after: Double(startDelay)) { [weak self] in
+                self?.completeConnectIfPossible()
+            }
+        case .cancelPendingConnect:
+            pendingConnect = false
+            startDelayTimer?.cancel()
         case .cancelConnection:
             pendingConnect = false
+            startDelayTimer?.cancel()
             if pump.linked {
                 pump.linked = false
                 report?(.disconnected(peripheralID: ScriptedPump.id, nil))
@@ -111,7 +141,7 @@ final class ScriptedTransport: LinkTransport {
     }
 
     func completeConnectIfPossible() {
-        guard pendingConnect, pump.inRange, pump.poweredOn, !pump.linked else { return }
+        guard pendingConnect, clock.now >= connectNotBefore, pump.inRange, pump.poweredOn, !pump.linked else { return }
         pendingConnect = false
         pump.linked = true
         report?(.connected(peripheralID: ScriptedPump.id, name: ScriptedPump.name))
@@ -137,6 +167,7 @@ final class ScriptedTransport: LinkTransport {
             // A power-off cancels pending connects and drops the link; didDisconnect doesn't reliably
             // follow (the link handles this from the power state).
             pendingConnect = false
+            startDelayTimer?.cancel()
             pump.linked = false
             report?(.power(.poweredOff))
         } else {
@@ -174,7 +205,8 @@ final class ScriptedTransport: LinkTransport {
         case (.authorization, PumpChallengeRequest.props.opCode):
             send(PumpChallengeResponse(cargo: [0, 0, 1]), txId)
             if let after = pump.dropAfterPairing {
-                _ = clock.schedule(after: after) { [weak self] in self?.drop() }
+                // The pump's own doing, so it happens while the app is suspended too.
+                clock.scheduleInSystem(after: after) { [weak self] in self?.drop() }
             }
         case (.currentStatus, ApiVersionRequest.props.opCode):
             send(ApiVersionResponse(cargo: [2, 0, 5, 0]), txId)

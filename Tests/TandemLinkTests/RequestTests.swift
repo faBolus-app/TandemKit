@@ -352,6 +352,49 @@ import TandemMessages
         #expect(h.writes(of: CurrentBatteryV1Request.self) == 3)
     }
 
+    @Test func aReadThatDropsTheLinkKeepsSittingOutAfterTryingAnotherPump() {
+        var h = readyP1()
+        let key = MessageKey(CurrentBatteryV1Request.self)
+        for _ in 0..<2 {
+            _ = h.submit(CurrentBatteryV1Request())
+            h.replyError(code: 0)
+            h.apply(.disconnected(peripheralID: Self.id, drop))
+            h.connectAndAuthenticate()
+            h.answerHandshake(pumpTime: Self.pumpTime)
+        }
+        #expect(h.state.sittingOut.contains(key))
+        // A pairing scan, a try at another pump, then back to this one.
+        h.apply(.scanForPairing)
+        let other = UUID(uuidString: "00000000-0000-0000-0000-0000000000B2")!
+        h.apply(
+            .connect(
+                PumpTarget(peripheralID: other, model: .tslim, credentials: .jpake(code: "123456")), SupportMatrix()))
+        #expect(!h.state.sittingOut.contains(key), "another pump has its own record")
+        h.apply(.stop)
+        h.apply(
+            .connect(
+                PumpTarget(peripheralID: Self.id, model: .tslim, credentials: .legacy(code: LinkHarness.legacyCode)),
+                SupportMatrix()))
+        #expect(h.state.sittingOut.contains(key))
+    }
+
+    @Test func dropRecordsAreKeptForTheLastFourPumps() {
+        var state = LinkState()
+        let key = MessageKey(CurrentBatteryV1Request.self)
+        let pumps = (1...5).map { UUID(uuidString: "00000000-0000-0000-0000-00000000000\($0)")! }
+        for pump in pumps {
+            state.dropsRecordedOn = pump
+            state.sittingOutAfterDrops.insert(key)
+        }
+        state.dropsRecordedOn = pumps[0]
+        #expect(state.sittingOutAfterDrops.isEmpty, "the oldest record went")
+        for pump in pumps.dropFirst() {
+            state.dropsRecordedOn = pump
+            #expect(state.sittingOutAfterDrops == [key])
+        }
+        #expect(state.drops.count == LinkState.dropRecordsKept)
+    }
+
     @Test func transientErrorGetsABoundedRetry() {
         var h = readyP1()
         let id = h.submit(CurrentBatteryV1Request())

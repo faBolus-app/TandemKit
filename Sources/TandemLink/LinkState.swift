@@ -17,15 +17,62 @@ public struct LinkState: Sendable {
     /// Commands past the retry budget for the undefined error code, not sent until they come back. One the
     /// pump answered that way on a link that stayed up sits out the connection, so a read it fumbled (IOB,
     /// the alerts, history) is tried again on the next one. One it answered that way and then dropped the
-    /// link after sits out until `retest` or another pump, because each try costs the connection.
+    /// link after sits out on that pump until `retest`, because each try costs the connection.
     public var sittingOut: Set<MessageKey> { (connection?.sittingOut ?? []).union(sittingOutAfterDrops) }
-    /// Undefined-code errors the link dropped after, per command, toward `sittingOutAfterDrops`.
-    var undefinedErrorDrops: [MessageKey: Int] = [:]
-    var sittingOutAfterDrops: Set<MessageKey> = []
+    /// Undefined-code errors the link dropped after, per command, toward `sittingOutAfterDrops`: the
+    /// record of the pump the caller last connected to.
+    var undefinedErrorDrops: [MessageKey: Int] {
+        get { dropsRecordedOn.flatMap { drops[$0]?.counts } ?? [:] }
+        set { updateDrops { $0.counts = newValue } }
+    }
+    var sittingOutAfterDrops: Set<MessageKey> {
+        get { dropsRecordedOn.flatMap { drops[$0]?.sittingOut } ?? [] }
+        set { updateDrops { $0.sittingOut = newValue } }
+    }
+    /// The pump whose drop record applies: the one the caller last connected to. Kept apart from `target`,
+    /// which `stop` and a pairing scan clear, so connecting to the same pump again doesn't send it a read
+    /// already known to drop its link.
+    var dropsRecordedOn: UUID?
+    /// Each pump's drop record, so trying another pump (a pairing that fails, a pump of an unsupported
+    /// model) doesn't forget the paired one's. Diagnostics-sized: only the `dropRecordsKept` pumps recorded
+    /// last are kept, and a pump with nothing recorded takes no slot.
+    private(set) var drops: [UUID: DropRecord] = [:]
+    private var dropOrder: [UUID] = []
+    static let dropRecordsKept = 4
+
+    struct DropRecord: Sendable {
+        var counts: [MessageKey: Int] = [:]
+        var sittingOut: Set<MessageKey> = []
+    }
+
+    private mutating func updateDrops(_ change: (inout DropRecord) -> Void) {
+        guard let id = dropsRecordedOn else { return }
+        var record = drops[id] ?? DropRecord()
+        change(&record)
+        dropOrder.removeAll { $0 == id }
+        guard !record.counts.isEmpty || !record.sittingOut.isEmpty else {
+            drops[id] = nil
+            return
+        }
+        drops[id] = record
+        dropOrder.append(id)
+        while dropOrder.count > Self.dropRecordsKept { drops[dropOrder.removeFirst()] = nil }
+    }
     /// The open connection, from `connected` to its disconnect.
     public internal(set) var connection: Connection?
     /// Peripherals iOS handed back on relaunch, until the target is known and Bluetooth is on.
     var restored: [RestoredPeripheral] = []
+    /// When the running reconnect cooldown ends, so a connect issued before then in the background can
+    /// carry the rest of it as a start delay. Cleared when the cooldown's timer fires or a connection opens.
+    var backoffUntil: LinkTime?
+    /// The pending connect out carries a start delay.
+    var pendingConnectDelayed = false
+    /// The pump whose pending connect the link cancelled. CoreBluetooth may answer that cancel with a
+    /// `didFailToConnect`, which isn't the pump failing; the first one after it isn't counted.
+    var cancelledPendingConnect: UUID?
+    /// CoreBluetooth refused a start delay (`CBError.invalidParameters`), so background connects go out
+    /// plain, at once, as before the delay was used.
+    var startDelayUnsupported = false
     /// A pairing scan was asked for while Bluetooth was off.
     var wantsPairingScan = false
     /// The pumps a pairing scan listed, by their last sighting stronger than the floor.

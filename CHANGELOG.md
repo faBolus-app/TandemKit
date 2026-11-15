@@ -6,6 +6,40 @@ git tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+### Added
+
+- `TransportCommand.delayedConnect(_:startDelay:)` and `TransportCommand.cancelPendingConnect(_:)`
+  (breaking for exhaustive switches: a `LinkTransport` must perform both). `CoreBluetoothTransport` passes
+  the delay as `CBConnectPeripheralOptionStartDelayKey`.
+
+### Changed
+
+- In the background, when background time ends or none is given during a reconnect cooldown, the pending
+  connect now goes out with the rest of the cooldown as its start delay (whole seconds, at least 1),
+  instead of at once. This changes what 0.8.0 recorded: at once, a pump that drops every link looped
+  connect, authenticate, drop while the app was suspended. The foreground timer is unchanged. Coming to
+  the foreground during the delay cancels it and runs the timer for what is left. A system that rejects
+  the option (`CBError.invalidParameters`) gets a plain connect, with no flap, and no delay is tried again.
+  That bluetoothd holds the delay while the app is suspended is unverified on a phone (`WIP-REGISTER.md`).
+- The link's drop record (a read that drops the link sits out) is kept per pump, for the last four, so
+  `stop`, a pairing scan, or trying another pump no longer forgets the paired pump's.
+
+### Fixed
+
+- A request on an optional characteristic whose first subscription iOS never answered (or answered not
+  notifying) was taken and never sent, and held up every request behind it, a cancel included. Such a
+  characteristic is now unavailable once the link is ready, and requests on it end
+  `notSent(.characteristicUnavailable)`; a later confirmation makes it available again.
+- A hold or settle window that ended while the app was suspended no longer sends a queued request before
+  the input that woke the link is applied. A disconnect, `stop` or cancel then tore down a request it had
+  just written, reported unknown.
+- A connect failure that answers the link's own cancel of a pending connect isn't counted as a failure.
+- Doc comments: `holdWindow` (a later drop waits the base cooldown, not reconnects at once),
+  `pairingScanTimeout` (the scan stops at the timer, pumps listed or not, unless the strongest pump
+  accepts connections first; 0.8.0's entry says it runs until a pump is picked), and `connect` (for the
+  pump already being kept, the ladder stays).
+- Bench: `bolus cancel --overlap` clears the held status write when the cancel isn't written.
+
 ## [0.13.0] — 2026-11-15
 
 What a saline bench on a t:slim at API 4.0 showed: the carb entry's default, and notes on the snapshot,

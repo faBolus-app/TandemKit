@@ -62,9 +62,10 @@ import TandemMessages
         h.advance(by: 60)
         h.apply(.appActive(false))
         h.apply(.disconnected(peripheralID: Self.id, drop))
-        // No background time held the cooldown: the driver ends it, and the pending connect goes out.
+        // No background time held the cooldown: the pending connect goes out now, with the cooldown's
+        // 1 s as its start delay.
         h.apply(.backgroundTimeEnding)
-        #expect(h.commands == [.connect(Self.id)])
+        #expect(h.commands == [.delayedConnect(Self.id, startDelay: 1)])
         h.sleep(for: 300)  // out of range for 5 minutes, app suspended
         #expect(h.phase == .connecting)
         h.connectAndAuthenticate()
@@ -180,7 +181,7 @@ import TandemMessages
 
     // MARK: background
 
-    @Test func backgroundFlapWaitsTheCooldownUntilBackgroundTimeEnds() {
+    @Test func backgroundFlapCarriesTheRestOfTheCooldownAsAStartDelay() {
         var h = LinkHarness()
         h.makeReady()
         h.apply(.appActive(false))
@@ -189,10 +190,192 @@ import TandemMessages
         #expect(h.phase == .backingOff)
         #expect(h.state.ladder.flaps == 1)
         h.apply(.backgroundTimeEnding)
-        #expect(h.commands.contains(.connect(Self.id)))
+        #expect(h.commands == [.delayedConnect(Self.id, startDelay: 1)])
         #expect(h.timers[.backoff] == nil)
         #expect(h.phase == .connecting)
         #expect(h.state.ladder.flaps == 1, "still counted")
+    }
+
+    @Test func theStartDelayIsWholeSecondsAndAtLeastOne() {
+        // CoreBluetooth fails a fractional start delay with invalidParameters.
+        var h = backgroundTarget()
+        h.apply(.connectFailed(peripheralID: Self.id, drop))  // 10 s
+        h.sleep(for: 0.7)
+        h.apply(.backgroundTimeEnding)
+        #expect(h.commands == [.delayedConnect(Self.id, startDelay: 10)], "9.3 s left, rounded up")
+        h.apply(.connectFailed(peripheralID: Self.id, drop))  // 20 s
+        h.sleep(for: 19.8)
+        h.apply(.backgroundTimeEnding)
+        #expect(h.commands == [.delayedConnect(Self.id, startDelay: 1)], "0.2 s left, at least 1 s")
+        h.apply(.connectFailed(peripheralID: Self.id, drop))  // 30 s
+        h.sleep(for: 31)
+        h.apply(.backgroundTimeEnding)
+        #expect(h.commands == [.connect(Self.id)], "the cooldown already passed")
+    }
+
+    @Test func aForegroundCooldownNeverUsesAStartDelay() {
+        var h = LinkHarness()
+        h.makeReady()
+        h.advance(by: 10)
+        h.apply(.disconnected(peripheralID: Self.id, drop))
+        h.apply(.backgroundTimeEnding)  // a late callback: the timer runs in the foreground
+        #expect(h.commands.isEmpty)
+        #expect(h.phase == .backingOff)
+        h.advance(by: 1)
+        #expect(h.commands == [.connect(Self.id)])
+        #expect(!h.allCommands.contains { if case .delayedConnect = $0 { return true } else { return false } })
+    }
+
+    @Test func aDelayedConnectThatFailsIsAFlap() {
+        var h = backgroundTarget()
+        h.apply(.connectFailed(peripheralID: Self.id, drop))
+        h.apply(.backgroundTimeEnding)
+        h.apply(.connectFailed(peripheralID: Self.id, drop))
+        #expect(h.state.ladder.flaps == 2)
+        #expect(h.state.telemetry.failedConnects == 2)
+        #expect(h.phase == .backingOff)
+        #expect(h.timers[.backoff] == h.now + 20)
+    }
+
+    @Test func aDelayedConnectThatCompletesConnects() {
+        var h = backgroundTarget()
+        h.apply(.connectFailed(peripheralID: Self.id, drop))
+        h.apply(.backgroundTimeEnding)
+        h.sleep(for: 10)
+        h.connectAndAuthenticate()
+        h.answerHandshake()
+        #expect(h.phase == .ready)
+        #expect(h.state.backoffUntil == nil && !h.state.pendingConnectDelayed)
+    }
+
+    @Test func invalidParametersFallsBackToAPlainConnectAndIsRemembered() {
+        let invalidParameters = BluetoothError(domain: "CBErrorDomain", code: 1)
+        var h = backgroundTarget()
+        h.apply(.connectFailed(peripheralID: Self.id, drop))
+        h.apply(.backgroundTimeEnding)
+        #expect(h.commands == [.delayedConnect(Self.id, startDelay: 10)])
+        h.apply(.connectFailed(peripheralID: Self.id, invalidParameters))
+        #expect(h.commands == [.connect(Self.id)], "the option is unsupported: connect plain, at once")
+        #expect(h.phase == .connecting)
+        #expect(h.state.ladder.flaps == 1, "not a flap")
+        #expect(h.state.telemetry.failedConnects == 1)
+        #expect(h.timers[.backoff] == nil, "no cooldown")
+        h.apply(.connectFailed(peripheralID: Self.id, drop))
+        h.apply(.backgroundTimeEnding)
+        #expect(h.commands == [.connect(Self.id)], "no start delay is tried again")
+    }
+
+    @Test func invalidParametersOnAPlainConnectIsAFailure() {
+        // Only a delayed connect's invalidParameters means the option; otherwise a connect failing at once
+        // could loop with no cooldown.
+        var h = backgroundTarget()
+        h.apply(.connectFailed(peripheralID: Self.id, BluetoothError(domain: "CBErrorDomain", code: 1)))
+        #expect(h.state.ladder.flaps == 1)
+        #expect(h.phase == .backingOff)
+    }
+
+    @Test func stopCancelsADelayedConnect() {
+        var h = backgroundTarget()
+        h.apply(.connectFailed(peripheralID: Self.id, drop))
+        h.apply(.backgroundTimeEnding)
+        h.apply(.stop)
+        #expect(h.commands == [.cancelConnection(Self.id)])
+        #expect(h.phase == .idle)
+        #expect(!h.state.pendingConnectDelayed && h.state.backoffUntil == nil)
+    }
+
+    @Test func aFailureAnsweringTheLinksOwnCancelIsNotCounted() {
+        var h = backgroundTarget()
+        h.apply(.stop)  // cancels the pending connect
+        h.apply(
+            .connect(
+                PumpTarget(peripheralID: Self.id, model: .tslim, credentials: .legacy(code: LinkHarness.legacyCode)),
+                SupportMatrix()))
+        h.apply(.connectFailed(peripheralID: Self.id, drop))  // the cancelled connect's answer
+        #expect(h.state.ladder.flaps == 0)
+        #expect(h.commands == [.connect(Self.id)], "issued again, in case it was the new connect's")
+        h.apply(.connectFailed(peripheralID: Self.id, drop))
+        #expect(h.state.ladder.flaps == 1, "only the first one after the cancel is taken as its answer")
+    }
+
+    @Test func bluetoothOffCancelsADelayedConnect() {
+        var h = backgroundTarget()
+        h.apply(.connectFailed(peripheralID: Self.id, drop))
+        h.apply(.backgroundTimeEnding)
+        h.apply(.power(.poweredOff))
+        #expect(h.commands == [.cancelPendingConnect(Self.id)])
+        #expect(h.phase == .waitingForBluetooth)
+        h.apply(.power(.poweredOn))
+        #expect(h.commands == [.connect(Self.id)], "back on, it connects afresh")
+    }
+
+    @Test func comingToTheForegroundCancelsTheDelayAndRunsTheTimerForTheRest() {
+        var h = backgroundTarget()
+        h.apply(.connectFailed(peripheralID: Self.id, drop))  // 10 s
+        h.apply(.backgroundTimeEnding)
+        h.sleep(for: 4)
+        h.apply(.appActive(true))
+        #expect(h.commands == [.cancelPendingConnect(Self.id)])
+        #expect(h.phase == .backingOff)
+        #expect(h.timers[.backoff] == h.now + 6)
+        h.apply(.connectFailed(peripheralID: Self.id, drop))  // answering the cancel, while backing off
+        #expect(h.state.ladder.flaps == 1)
+        h.advance(by: 6)
+        #expect(h.commands == [.connect(Self.id)])
+        #expect(h.phase == .connecting)
+    }
+
+    @Test func comingToTheForegroundAfterTheDelayRanOutConnectsAtOnce() {
+        var h = backgroundTarget()
+        h.apply(.connectFailed(peripheralID: Self.id, drop))
+        h.apply(.backgroundTimeEnding)
+        h.sleep(for: 60)  // the pump is out of range; the delayed connect is pending
+        h.apply(.appActive(true))
+        #expect(h.commands == [.cancelPendingConnect(Self.id), .connect(Self.id)])
+        #expect(h.phase == .connecting)
+        h.apply(.connectFailed(peripheralID: Self.id, drop))  // the cancel's answer
+        #expect(h.state.ladder.flaps == 1)
+        #expect(h.commands == [.connect(Self.id)])
+    }
+
+    @Test func aConnectCompletingAsTheDelayIsCancelledIsKept() {
+        var h = backgroundTarget()
+        h.apply(.connectFailed(peripheralID: Self.id, drop))
+        h.apply(.backgroundTimeEnding)
+        h.sleep(for: 4)
+        h.apply(.appActive(true))
+        #expect(h.phase == .backingOff)
+        h.connectAndAuthenticate()  // its didConnect was already queued
+        h.answerHandshake()
+        #expect(h.phase == .ready)
+        #expect(h.timers[.backoff] == nil)
+    }
+
+    @Test func aRestoredSetupThatDropsReconnectsAtOnceInTheBackground() {
+        var h = LinkHarness()
+        h.apply(.appActive(false))
+        h.apply(.restored([RestoredPeripheral(peripheralID: Self.id, isConnected: true, name: "tslim X2 ***693")]))
+        h.apply(.power(.poweredOn))
+        h.apply(
+            .connect(
+                PumpTarget(peripheralID: Self.id, model: .tslim, credentials: .legacy(code: LinkHarness.legacyCode)),
+                SupportMatrix()))
+        #expect(h.phase == .discovering)
+        h.apply(.disconnected(peripheralID: Self.id, drop))
+        #expect(h.commands.contains(.connect(Self.id)))
+        #expect(h.phase == .connecting)
+    }
+
+    /// A pump that won't connect, the app in the background.
+    func backgroundTarget() -> LinkHarness {
+        var h = LinkHarness()
+        h.apply(.power(.poweredOn))
+        h.apply(.appActive(false))
+        h.apply(
+            .connect(
+                PumpTarget(peripheralID: Self.id, model: .tslim, credentials: .legacy(code: LinkHarness.legacyCode)),
+                SupportMatrix()))
+        return h
     }
 
     @Test func backgroundTimeEndingOutsideACooldownDoesNothing() {
@@ -211,12 +394,16 @@ import TandemMessages
             .connect(
                 PumpTarget(peripheralID: Self.id, model: .tslim, credentials: .legacy(code: LinkHarness.legacyCode)),
                 SupportMatrix()))
+        var delays: [Int] = []
         for _ in 0..<20 {
             h.apply(.connectFailed(peripheralID: Self.id, drop))
             h.apply(.backgroundTimeEnding)
+            if case .delayedConnect(Self.id, let delay) = h.commands.last { delays.append(delay) }
         }
         #expect(h.phase == .connecting)
-        #expect(connects(h) == 21)
+        #expect(connects(h) == 1)
+        // Each connect waits out its cooldown in the system, doubling to the cap, as in the foreground.
+        #expect(delays == [10, 20] + Array(repeating: 30, count: 18))
     }
 
     @Test func goingToTheBackgroundDuringBackoffKeepsTheCooldown() {
