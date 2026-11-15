@@ -40,7 +40,9 @@ import TandemMessages
 
     // MARK: scanning
 
-    @Test func pairingScanReportsPumpsWithTheirModelAndTimesOut() {
+    /// A t:slim advertises no registration state: once one is listed the scan never fails as
+    /// `pumpNotFound`; it runs until a pump is picked or the scan is stopped.
+    @Test func pairingScanReportsPumpsWithTheirModelAndKeepsThemListed() {
         var h = LinkHarness()
         h.apply(.power(.poweredOn))
         h.apply(.scanForPairing)
@@ -51,11 +53,49 @@ import TandemMessages
             h.events == [
                 .discovered(peripheralID: LinkHarness.pumpID, name: "tslim X2 ***693", model: .tslim, rssi: -60)
             ])
+        h.advance(by: 599)
+        #expect(h.phase == .scanning(forPairing: true))
+        #expect(!h.allCommands.contains(.stopScan))
+    }
+
+    @Test func pairingScanThatListsNothingTimesOut() {
+        var h = LinkHarness()
+        h.apply(.power(.poweredOn))
+        h.apply(.scanForPairing)
+        h.apply(.discovered(peripheralID: LinkHarness.pumpID, name: "tslim X2 ***693", rssi: -80))  // too weak
         h.advance(by: 119)
-        #expect(h.phase == .scanning(forPairing: true), "a pump found that isn't taking a pairing doesn't stop it")
+        #expect(h.phase == .scanning(forPairing: true))
         h.advance(by: 1)
         #expect(h.phase == .failed(.pumpNotFound))
         #expect(h.allCommands.last == .stopScan)
+    }
+
+    /// CoreBluetooth's 127 is an unknown signal: it lists a pump but never ranks it the strongest, and an
+    /// unknown sighting of a listed pump neither replaces its known signal nor reports it again.
+    @Test func unknownSignalNeverRanksStrongest() {
+        var h = LinkHarness()
+        h.apply(.power(.poweredOn))
+        h.apply(.scanForPairing)
+        let unknown = UUID()
+        h.apply(
+            .discovered(
+                peripheralID: LinkHarness.pumpID, name: "Tandem Mobi 2", rssi: -60, manufacturerData: Self.advertised(2)
+            ))
+        h.apply(
+            .discovered(peripheralID: unknown, name: "Tandem Mobi 1", rssi: 127, manufacturerData: Self.advertised(1)))
+        #expect(h.events.count == 1, "listed")
+        #expect(h.timers[.scan] != nil, "the strongest known is paired elsewhere")
+        h.clearLog()
+        h.apply(
+            .discovered(
+                peripheralID: LinkHarness.pumpID, name: "Tandem Mobi 2", rssi: 127, manufacturerData: Self.advertised(2)
+            ))
+        #expect(h.events.isEmpty)
+        #expect(h.state.pairingCandidates[LinkHarness.pumpID]?.rssi == -60)
+        h.apply(
+            .discovered(peripheralID: unknown, name: "Tandem Mobi 1", rssi: -40, manufacturerData: Self.advertised(1)))
+        #expect(h.events.count == 1, "its signal is known now")
+        #expect(h.timers[.scan] == LinkConfiguration().pairingScanMaxDuration, "the pump timer stopped")
     }
 
     @Test func pairingScanListsOnlyPumpsStrongerThanTheFloor() {
@@ -103,9 +143,11 @@ import TandemMessages
             .discovered(
                 peripheralID: LinkHarness.pumpID, name: "Tandem Mobi 2", rssi: -30,
                 manufacturerData: Self.advertised(1)))
-        #expect(h.timers[.scan] == nil)
-        h.advance(by: 600)
-        #expect(h.phase == .scanning(forPairing: true), "the scan runs until a pump is picked")
+        #expect(h.timers[.scan] == LinkConfiguration().pairingScanMaxDuration, "only the hard cap is left")
+        h.advance(by: 599)
+        #expect(h.phase == .scanning(forPairing: true), "the scan runs until a pump is picked or the cap")
+        h.advance(by: 1)
+        #expect(h.phase == .idle)
     }
 
     @Test func registrationStateNeedsTandemsFormat() {
@@ -348,6 +390,85 @@ import TandemMessages
         let connects = h.allCommands.filter { $0 == .connect(LinkHarness.pumpID) }.count
         h.advance(by: 600)
         #expect(h.allCommands.filter { $0 == .connect(LinkHarness.pumpID) }.count == connects)
+    }
+
+    func firstJpakePairing() -> LinkHarness {
+        var h = LinkHarness()
+        h.apply(.power(.poweredOn))
+        h.apply(
+            .connect(
+                PumpTarget(peripheralID: LinkHarness.pumpID, model: .tslim, credentials: .jpake(code: "123456")),
+                SupportMatrix()))
+        return h
+    }
+
+    func authenticate(_ h: inout LinkHarness) {
+        h.apply(.connected(peripheralID: LinkHarness.pumpID, name: "tslim X2 1234"))
+        h.apply(.characteristicsDiscovered(Set(Characteristic.allCases)))
+        for c in ServiceUUID.notificationCharacteristics { h.apply(.subscription(c, isNotifying: true, failed: false)) }
+        #expect(h.phase == .authenticating)
+    }
+
+    enum PairingEnd: CaseIterable { case drop, authorizationWriteFails, silence }
+
+    func end(_ h: inout LinkHarness, _ how: PairingEnd) {
+        switch how {
+        case .drop: h.apply(.disconnected(peripheralID: LinkHarness.pumpID, nil))
+        case .authorizationWriteFails:
+            // iOS reports the write failing as the link goes, before didDisconnect, which then finds no
+            // connection.
+            h.apply(.writeFailed(.authorization, txId: nil))
+            h.apply(.disconnected(peripheralID: LinkHarness.pumpID, nil))
+        case .silence: h.advance(by: LinkConfiguration().establishmentTimeout)
+        }
+    }
+
+    /// What a pump refusing a first pairing looks like from here, each way and mixed: one is retried, a
+    /// second in a row ends the pairing for the user, and nothing reconnects with the wrong code after it.
+    @Test(arguments: PairingEnd.allCases, PairingEnd.allCases)
+    func aFirstJpakePairingThePumpRefusesTwiceEndsAsPairingDropped(first: PairingEnd, second: PairingEnd) {
+        var h = firstJpakePairing()
+        authenticate(&h)
+        end(&h, first)
+        #expect(h.phase == .backingOff)
+        h.advance(by: 60)
+        authenticate(&h)
+        end(&h, second)
+        #expect(h.phase == .failed(.pairingDropped))
+        let connects = h.allCommands.filter { $0 == .connect(LinkHarness.pumpID) }.count
+        h.advance(by: 600)
+        #expect(h.allCommands.filter { $0 == .connect(LinkHarness.pumpID) }.count == connects)
+    }
+
+    /// A frame the link couldn't parse or didn't expect says nothing about the code: an ordinary flap.
+    @Test func aGarbledPairingFrameIsAFlapNotAWrongCode() {
+        var h = firstJpakePairing()
+        for _ in 0..<3 {
+            authenticate(&h)
+            h.apply(.authenticationFailed(rejected: false))
+            #expect(h.phase == .backingOff)
+            h.advance(by: 60)
+        }
+        #expect(h.state.ladder.pairingDrops == 0)
+    }
+
+    // MARK: pairing scan cap
+
+    /// A pairing scan with a pump listed still stops at the hard cap, for the battery, and picking the
+    /// listed pump afterwards connects.
+    @Test func pairingScanWithAPumpListedStopsAtTheCapAndThePumpCanStillBePicked() {
+        var h = LinkHarness()
+        h.apply(.power(.poweredOn))
+        h.apply(.scanForPairing)
+        h.apply(.discovered(peripheralID: LinkHarness.pumpID, name: "tslim X2 ***693", rssi: -60))
+        h.advance(by: LinkConfiguration().pairingScanMaxDuration - 1)
+        #expect(h.phase == .scanning(forPairing: true))
+        h.advance(by: 1)
+        #expect(h.phase == .idle)
+        #expect(h.allCommands.last == .stopScan)
+        h.apply(.connect(target, SupportMatrix()))
+        #expect(h.commands.contains(.connect(LinkHarness.pumpID)))
+        #expect(h.phase == .connecting)
     }
 
     /// A reconnect from the stored secret keeps the ordinary flap rule: a drop there isn't the code.

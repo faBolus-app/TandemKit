@@ -3,13 +3,13 @@ import TandemLink
 import TandemMessages
 @testable import TandemBLE
 
-/// A clock whose time moves only when a test says so. While `suspended`, nothing fires, as on iOS when
-/// the app is suspended.
+/// A clock whose time moves only when a test says so. While `suspended`, only the system's waits fire
+/// (`scheduleSystem`), as on iOS when the app is suspended.
 @MainActor
 final class ManualClock: LinkClock {
     private(set) var now: LinkTime = 0
     var suspended = false
-    private var scheduled: [(due: LinkTime, token: Token, action: @MainActor () -> Void)] = []
+    private var scheduled: [(due: LinkTime, token: Token, system: Bool, action: @MainActor () -> Void)] = []
 
     final class Token: LinkClockToken {
         var cancelled = false
@@ -18,16 +18,24 @@ final class ManualClock: LinkClock {
 
     func schedule(after seconds: Double, _ action: @escaping @MainActor () -> Void) -> any LinkClockToken {
         let token = Token()
-        scheduled.append((now + seconds, token, action))
+        scheduled.append((now + seconds, token, false, action))
+        return token
+    }
+
+    /// A wait the system runs (CoreBluetooth's connect start delay), which goes on while the app is
+    /// suspended.
+    @discardableResult
+    func scheduleSystem(after seconds: Double, _ action: @escaping @MainActor () -> Void) -> Token {
+        let token = Token()
+        scheduled.append((now + seconds, token, true, action))
         return token
     }
 
     func advance(by seconds: Double) {
         let end = now + seconds
-        while !suspended,
-            let next = scheduled.enumerated().filter({ !$0.element.token.cancelled && $0.element.due <= end })
-                .min(by: { $0.element.due < $1.element.due })
-        {
+        while let next = scheduled.enumerated().filter({
+            !$0.element.token.cancelled && $0.element.due <= end && (!suspended || $0.element.system)
+        }).min(by: { $0.element.due < $1.element.due }) {
             scheduled.remove(at: next.offset)
             now = max(now, next.element.due)
             next.element.action()
@@ -48,8 +56,15 @@ final class ScriptedPump {
 
     var inRange = true
     var poweredOn = true
-    /// The link iOS keeps for the app, if any.
-    var linked = false
+    /// The link iOS keeps for the app, if any. Its subscriptions go with it.
+    var linked = false {
+        didSet { if !linked { notifying = [] } }
+    }
+    /// Characteristics notifying on the link: they survive the app's termination with the link.
+    var notifying: Set<Characteristic> = []
+    /// iOS answers setNotifyValue(true) on a characteristic already notifying. Off: the unverified case
+    /// where it stays silent.
+    var confirmsAlreadyNotifying = false
     /// Drop the link this long after pairing, if set.
     var dropAfterPairing: Double?
     var pumpTime: UInt32 = 586_961_779
@@ -67,6 +82,9 @@ final class ScriptedTransport: LinkTransport {
     private(set) var commands: [TransportCommand] = []
     /// A connect the transport was asked for and the pump hasn't completed (out of range or off).
     private(set) var pendingConnect = false
+    /// When the pending connect starts, after a start delay.
+    private var connectStartsAt: LinkTime = 0
+    private var startDelay: ManualClock.Token?
 
     init(pump: ScriptedPump, clock: ManualClock) {
         self.pump = pump
@@ -89,10 +107,26 @@ final class ScriptedTransport: LinkTransport {
         commands.append(command)
         switch command {
         case .connect(let id) where id == ScriptedPump.id:
+            // The conservative reading of CoreBluetooth: a second connect doesn't cut short the start
+            // delay of one already pending; only a cancel does.
+            if !pendingConnect { connectStartsAt = clock.now }
             pendingConnect = true
             completeConnectIfPossible()
+        case .delayedConnect(let id, let delay) where id == ScriptedPump.id:
+            pendingConnect = true
+            connectStartsAt = clock.now + delay
+            startDelay?.cancel()
+            startDelay = clock.scheduleSystem(after: delay) { [weak self] in self?.completeConnectIfPossible() }
+        case .cancelPendingConnect:
+            // A peripheral already connected isn't pending: left alone.
+            guard !pump.linked else { return }
+            pendingConnect = false
+            startDelay?.cancel()
+            startDelay = nil
         case .cancelConnection:
             pendingConnect = false
+            startDelay?.cancel()
+            startDelay = nil
             if pump.linked {
                 pump.linked = false
                 report?(.disconnected(peripheralID: ScriptedPump.id, nil))
@@ -100,7 +134,15 @@ final class ScriptedTransport: LinkTransport {
         case .discover(let id) where id == ScriptedPump.id:
             report?(.characteristicsDiscovered(Set(Characteristic.allCases)))
         case .subscribe(let c):
-            report?(.subscription(c, isNotifying: true, failed: false))
+            // As CoreBluetoothTransport does: a characteristic already notifying is reported subscribed
+            // from its own state, whether or not iOS calls back.
+            if pump.notifying.contains(c) {
+                report?(.subscription(c, isNotifying: true, failed: false))
+                if pump.confirmsAlreadyNotifying { report?(.subscription(c, isNotifying: true, failed: false)) }
+            } else {
+                pump.notifying.insert(c)
+                report?(.subscription(c, isNotifying: true, failed: false))
+            }
         case .readDeviceInformation:
             report?(.deviceInformation(modelNumber: "1000354"))
         case .write(let c, let packets):
@@ -111,7 +153,7 @@ final class ScriptedTransport: LinkTransport {
     }
 
     func completeConnectIfPossible() {
-        guard pendingConnect, pump.inRange, pump.poweredOn, !pump.linked else { return }
+        guard pendingConnect, clock.now >= connectStartsAt, pump.inRange, pump.poweredOn, !pump.linked else { return }
         pendingConnect = false
         pump.linked = true
         report?(.connected(peripheralID: ScriptedPump.id, name: ScriptedPump.name))

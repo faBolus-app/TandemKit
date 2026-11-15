@@ -6,6 +6,58 @@ git tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+### Added
+
+- `TransportCommand.delayedConnect(_:startDelay:)` and `TransportCommand.cancelPendingConnect(_:)`, and
+  `LinkTimer.subscriptions` (breaking for exhaustive switches; a `LinkTransport` must perform both new
+  commands).
+- `SupportMatrix.signedWriteMinimumApi` and `SupportMatrix.isAllowedSignedWrite(_:apiVersion:)`.
+- `LinkConfiguration.pairingScanMaxDuration` (600 s): a pairing scan with pumps listed stops there, to
+  `idle`; picking a listed pump still connects.
+- `BolusEndReason.stoppedWireless` (4) and `.rejectedWireless` (5), as pumpX2 has them.
+- `LastBolusStatusV3Response.EndReason`, the V3 end reasons Tandem's Mobi app names, unverified on a pump.
+
+### Changed
+
+- When background time ends or is refused during a reconnect cooldown, the connect carries the rest of
+  the cooldown as CoreBluetooth's start delay instead of going out at once whatever the failures in a row,
+  which let a pump that drops every connection loop connect, authenticate, drop. Coming to the foreground
+  during the delay cancels it and connects at once; a `didFailToConnect` answering that cancel isn't a
+  flap. A rescan for a delayed connect keeps the rest of its cooldown.
+- The link refuses UserInteraction below API 3.0 (`notSent(.unsupported)`), as API 2.5 rejects it and
+  drops the link; the floor was only the caller's.
+- `BolusEndReason` is LastBolusStatusV2's set only, as pumpX2 has it: `other` (255), which pumpX2 doesn't
+  have, moves to `LastBolusStatusV3Response.EndReason`, and `standardBolusEndReason` is now of that type
+  (breaking).
+
+### Fixed
+
+- A request on an optional characteristic whose first subscription iOS never confirms, or answers as not
+  notifying with no error, no longer waits with no deadline: after `establishmentTimeout` the
+  characteristic is unavailable and the request ends `notSent(.characteristicUnavailable)`. A later
+  confirmation makes it usable again.
+- A settle or hold window that ended while the app was suspended no longer sends the next queued request
+  before the input that woke the link is applied; a disconnect then left that request unknown with no
+  byte sent.
+- A `setAppActive(true)` that comes before CoreBluetooth's restored state is no longer overwritten.
+- A read that drops the pump's link keeps sitting out after `stop`, a pairing scan, or a connection to
+  another pump or to one of an unsupported model, when the link reconnects to that pump; a `retest` then
+  can't clear the paired pump's records. Each pump keeps its own record, for the last four pumps.
+- A first JPAKE pairing ends as `pairingDropped` after two refusals in a row as the pump gives them: a link
+  drop, a failed authorization write (iOS reports it before the disconnect) or silence until the
+  establishment timeout. A malformed or unexpected authentication frame no longer counts.
+- An optional characteristic that stops notifying while setup is still discovering is unavailable rather
+  than waited on with no deadline.
+- On a restored link, a characteristic already notifying is reported subscribed at once, so the first
+  subscriptions' bound can't mark `control` unavailable when iOS doesn't call back.
+- A pairing scan that has listed a pump no longer fails as `pumpNotFound` (a t:slim advertises no
+  registration state), and CoreBluetooth's RSSI 127 never ranks a pump strongest.
+- CGM alert 39 is named again ("Transmitter expired", pumpX2's `TRANSMITTER_EXPIRED_CGM_ALERT`).
+- Bench: `bolus cancel --overlap` no longer leaves the held status write pending when the cancel isn't
+  sent.
+- The `BenchWrites` trait's description and the docs: it adds only ChangeTimeDate, and there are eight
+  allowed signed writes.
+
 ## [0.12.0] — 2026-11-13
 
 CGM status B and UserInteraction for a t:slim, the grace-period alert names, and a first pairing the pump

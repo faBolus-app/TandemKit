@@ -58,7 +58,8 @@ public struct FactoryResetBRequest: Message {
 
 /// Marks a user interaction (opcode 0x84 → 0x85). Empty cargo.
 /// Tells the pump the user is interacting, resetting its inactivity timer. t:connect sends it when the
-/// bolus screen opens, at API 3.0 or later; that choice is the caller's, as with every API floor.
+/// bolus screen opens, at API 3.0 or later; the link refuses it below that
+/// (`SupportMatrix.signedWriteMinimumApi`), since API 2.5 rejects it and drops the link.
 public struct UserInteractionRequest: Message {
     public static let props = MessageProps(
         opCode: 0x84, size: 0, signed: true, type: .request, characteristic: .control, responseOpCode: 0x85)

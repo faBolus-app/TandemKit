@@ -352,6 +352,146 @@ import TandemMessages
         #expect(h.writes(of: CurrentBatteryV1Request.self) == 3)
     }
 
+    /// Makes CurrentBatteryV1 sit out on the paired pump: twice an undefined error and a drop after it.
+    func sitOutAfterDrops(_ h: inout LinkHarness) {
+        for _ in 0..<2 {
+            _ = h.submit(CurrentBatteryV1Request())
+            h.replyError(code: 0)
+            h.apply(.disconnected(peripheralID: Self.id, drop))
+            h.connectAndAuthenticate()
+            h.answerHandshake(pumpTime: Self.pumpTime)
+        }
+        #expect(h.state.sittingOut.contains(MessageKey(CurrentBatteryV1Request.self)))
+    }
+
+    /// Stopping, or a pairing scan, then reconnecting to the same pump keeps what that pump's link did:
+    /// the read that drops it isn't tried again, which would cost two more connections.
+    @Test(arguments: [false, true])
+    func aReadThatDropsTheLinkStillSitsOutAfterStopOrAPairingScan(scan: Bool) {
+        var h = readyP1()
+        sitOutAfterDrops(&h)
+        h.apply(scan ? .scanForPairing : .stop)
+        h.apply(.stop)
+        h.makeReady(pumpTime: Self.pumpTime)
+        let refused = h.submit(CurrentBatteryV1Request())
+        #expect(h.results[refused] == .notSent(.sittingOut))
+        #expect(h.writes(of: CurrentBatteryV1Request.self) == 2)
+    }
+
+    /// A pairing attempt with another pump that fails doesn't forget what the paired pump's link did.
+    @Test func failedPairingWithAnotherPumpKeepsThePairedPumpsSitOuts() {
+        var h = readyP1()
+        let key = MessageKey(CurrentBatteryV1Request.self)
+        sitOutAfterDrops(&h)
+        h.apply(.scanForPairing)
+        let other = UUID(uuidString: "00000000-0000-0000-0000-0000000000B2")!
+        h.apply(
+            .connect(
+                PumpTarget(peripheralID: other, model: .tslim, credentials: .jpake(code: "123456")), SupportMatrix()))
+        #expect(!h.state.sittingOut.contains(key))
+        h.apply(.connected(peripheralID: other, name: "tslim X2 ***111"))
+        h.apply(.characteristicsDiscovered(Set(Characteristic.allCases)))
+        for c in ServiceUUID.notificationCharacteristics { h.apply(.subscription(c, isNotifying: true, failed: false)) }
+        h.apply(.authenticationFailed(rejected: true))
+        #expect(h.phase == .failed(.authenticationRejected))
+        h.apply(.stop)
+        h.makeReady(pumpTime: Self.pumpTime)
+        let refused = h.submit(CurrentBatteryV1Request())
+        #expect(h.results[refused] == .notSent(.sittingOut))
+        #expect(h.writes(of: CurrentBatteryV1Request.self) == 2)
+    }
+
+    /// Connecting to a pump of a model the release doesn't support switches to its record too, so a
+    /// retest then can't clear the paired pump's records or evidence.
+    @Test func unsupportedModelDoesNotSeeOrClearThePairedPumpsSitOuts() {
+        var h = readyP1()
+        let key = MessageKey(CurrentBatteryV1Request.self)
+        sitOutAfterDrops(&h)
+        let mobi = UUID(uuidString: "00000000-0000-0000-0000-0000000000B3")!
+        h.apply(
+            .connect(PumpTarget(peripheralID: mobi, model: .mobi, credentials: .jpake(code: "123456")), SupportMatrix())
+        )
+        #expect(h.phase == .failed(.unsupportedModel(.mobi)))
+        #expect(!h.state.sittingOut.contains(key))
+        h.clearLog()
+        h.apply(.retest(key))
+        #expect(h.allEvents.isEmpty, "no unit to forget on")
+        h.apply(.stop)
+        h.makeReady(pumpTime: Self.pumpTime)
+        let refused = h.submit(CurrentBatteryV1Request())
+        #expect(h.results[refused] == .notSent(.sittingOut))
+    }
+
+    @Test func dropRecordsAreKeptForALimitedNumberOfPumps() {
+        var h = readyP1()
+        let key = MessageKey(CurrentBatteryV1Request.self)
+        sitOutAfterDrops(&h)
+        // Other pumps each record a drop, pushing the first pump's record out.
+        for n in 1...LinkState.dropRecordsKept {
+            let other = UUID(uuidString: String(format: "00000000-0000-0000-0000-0000000000%02X", n))!
+            h.apply(
+                .connect(
+                    PumpTarget(peripheralID: other, model: .tslim, credentials: .legacy(code: LinkHarness.legacyCode)),
+                    SupportMatrix()))
+            h.apply(.connected(peripheralID: other, name: "tslim X2 ***111"))
+            h.apply(.characteristicsDiscovered(Set(Characteristic.allCases)))
+            for c in ServiceUUID.notificationCharacteristics {
+                h.apply(.subscription(c, isNotifying: true, failed: false))
+            }
+            h.apply(.authenticated(key: LinkHarness.key, derivedSecret: nil))
+            h.answerHandshake(pumpTime: Self.pumpTime)
+            _ = h.submit(CurrentBatteryV1Request())
+            h.replyError(code: 0)
+            h.apply(.disconnected(peripheralID: other, drop))
+        }
+        #expect(h.state.drops.count == LinkState.dropRecordsKept)
+        h.apply(.stop)
+        h.makeReady(pumpTime: Self.pumpTime)
+        #expect(!h.state.sittingOut.contains(key))
+    }
+
+    /// A pump that never connected has no record, and takes no slot from one that did.
+    @Test func aPumpThatNeverConnectedGetsNoRecord() {
+        var h = readyP1()
+        sitOutAfterDrops(&h)
+        for n in 1...LinkState.dropRecordsKept + 1 {
+            let other = UUID(uuidString: String(format: "00000000-0000-0000-0000-0000000000%02X", n))!
+            h.apply(
+                .connect(
+                    PumpTarget(peripheralID: other, model: .tslim, credentials: .legacy(code: LinkHarness.legacyCode)),
+                    SupportMatrix()))
+        }
+        #expect(h.state.drops.count == 1)
+        h.apply(.stop)
+        h.makeReady(pumpTime: Self.pumpTime)
+        #expect(h.state.sittingOut.contains(MessageKey(CurrentBatteryV1Request.self)))
+    }
+
+    @Test func anotherPumpStartsWithoutTheLastOnesSitOuts() {
+        var h = readyP1()
+        let key = MessageKey(CurrentBatteryV1Request.self)
+        sitOutAfterDrops(&h)
+        h.apply(.stop)
+        let other = UUID(uuidString: "00000000-0000-0000-0000-0000000000B2")!
+        h.apply(
+            .connect(
+                PumpTarget(peripheralID: other, model: .tslim, credentials: .legacy(code: LinkHarness.legacyCode)),
+                SupportMatrix()))
+        #expect(!h.state.sittingOut.contains(key))
+    }
+
+    /// UserInteraction's API floor is the link's: below 3.0 it never reaches the pump (P1 at 2.5 rejected
+    /// it and dropped the link), whatever the caller checks.
+    @Test(arguments: [((2, 5), false), ((3, 0), true), ((4, 0), true)])
+    func userInteractionGoesOnlyAtApi3OrLater(api: (Int, Int), sent: Bool) {
+        var h = LinkHarness()
+        h.makeReady(api: api, unit: LinkHarness.p2Unit, pumpTime: Self.pumpTime)
+        h.advance(by: 10)
+        let id = h.submit(UserInteractionRequest(), allowing: UserInteractionRequest().operationRisk)
+        #expect(h.writes(of: UserInteractionRequest.self) == (sent ? 1 : 0))
+        #expect((h.results[id] == .notSent(.unsupported)) == !sent)
+    }
+
     @Test func transientErrorGetsABoundedRetry() {
         var h = readyP1()
         let id = h.submit(CurrentBatteryV1Request())

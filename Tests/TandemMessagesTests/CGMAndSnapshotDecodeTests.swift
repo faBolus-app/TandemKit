@@ -138,15 +138,21 @@ import Testing
         v2[0] = 1
         v2[13] = 1
         #expect(LastBolusStatusV2Response(cargo: v2).endReason == .alarm)
-        v2[13] = 255
-        #expect(LastBolusStatusV2Response(cargo: v2).endReason == .other)
+        // pumpX2's STOPPED_WIRELESS and REJECTED_WIRELESS.
         v2[13] = 4
+        #expect(LastBolusStatusV2Response(cargo: v2).endReason == .stoppedWireless)
+        v2[13] = 5
+        #expect(LastBolusStatusV2Response(cargo: v2).endReason == .rejectedWireless)
+        // 255 is in no V2 set pumpX2 knows.
+        v2[13] = 255
         #expect(LastBolusStatusV2Response(cargo: v2).endReason == nil)
         var v3 = [UInt8](repeating: 0, count: 53)
         v3[1] = 4
         v3[14] = 3
         let c = LastBolusStatusV3Response(cargo: v3)
         #expect(c.standardBolusStatus == .finished && c.standardBolusEndReason == .completed)
+        v3[14] = 255
+        #expect(LastBolusStatusV3Response(cargo: v3).standardBolusEndReason == .other)
         v3[1] = 0
         #expect(LastBolusStatusV3Response(cargo: v3).standardBolusStatus == .invalid)
         v3[1] = 1
@@ -176,7 +182,9 @@ import Testing
     @Test func theGracePeriodAlertsAreNamed() {
         #expect(CGMAlertStatusResponse.name(for: 31)?.title == "Grace period started")
         #expect(CGMAlertStatusResponse.name(for: 32)?.title == "Grace period ending")
-        #expect(CGMAlertStatusResponse.name(for: 39) == nil)
+        // pumpX2's TRANSMITTER_EXPIRED_CGM_ALERT, which t:connect doesn't name.
+        #expect(CGMAlertStatusResponse.name(for: 39)?.title == "Transmitter expired")
+        #expect(CGMAlertStatusResponse.identifiers[39]?.constant == "TRANSMITTER_EXPIRED_CGM_ALERT")
     }
 }
 

@@ -22,6 +22,20 @@ import Testing
         }
     }
 
+    /// UserInteraction's floor is the library's: API 2.5 rejects it and drops the link (P1), and t:connect
+    /// sends it only at 3.0 or later. An unknown version is refused; the other allowed writes have no floor.
+    @Test func userInteractionIsFlooredAtApi3() {
+        let write = UserInteractionRequest()
+        #expect(!SupportMatrix.isAllowedSignedWrite(write, apiVersion: .v2_5))
+        #expect(!SupportMatrix.isAllowedSignedWrite(write, apiVersion: nil))
+        #expect(SupportMatrix.isAllowedSignedWrite(write, apiVersion: .v3))
+        #expect(SupportMatrix.isAllowedSignedWrite(write, apiVersion: p2API))
+        #expect(SupportMatrix.isAllowedSignedWrite(InitiateBolusRequest(), apiVersion: .v2_5))
+        #expect(SupportMatrix.isAllowedSignedWrite(InitiateBolusRequest(), apiVersion: nil))
+        #expect(!SupportMatrix.isAllowedSignedWrite(ChangeTimeDateRequest(tandemEpochTime: 0), apiVersion: p2API))
+        #expect(SupportMatrix.isAllowedSignedWrite(PumpVersionRequest(), apiVersion: nil))
+    }
+
     /// A class-level rejection makes a read suspected, never unsupported, and still probe-able.
     @Test func classRejectionIsSuspectedNotUnsupported() {
         let m = SupportMatrix()

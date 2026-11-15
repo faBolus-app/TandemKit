@@ -469,6 +469,21 @@ import Testing
         #expect(msg.endReasonId == 3 && msg.endReason == .completed)
     }
 
+    /// Byte 13 as the oracle writes it, for every id its `BolusStatus` has: the wireless stop and reject
+    /// (4 and 5) among them, which a bolus cancelled over Bluetooth may carry.
+    @Test(arguments: [
+        (0, BolusEndReason.userAbort), (1, .alarm), (2, .malfunction), (3, .completed), (4, .stoppedWireless),
+        (5, .rejectedWireless), (6, .autoSuspend)
+    ])
+    func lastBolusStatusV2EndReasonMatchesTheOracle(id: Int, reason: BolusEndReason) throws {
+        let packets = try OracleRunner.encode(
+            txId: 9, messageName: "LastBolusStatusV2Response",
+            json: "[1, 10650, 461510714, 1000, \(id), 8, 8, 0, 1000]"
+        ).packets
+        let msg = try #require(try parse(packets).message as? LastBolusStatusV2Response)
+        #expect(msg.endReasonId == id && msg.endReason == reason)
+    }
+
     /// A corrupted CRC must be rejected.
     @Test func crcMismatchRejected() throws {
         let packets = try OracleRunner.encode(

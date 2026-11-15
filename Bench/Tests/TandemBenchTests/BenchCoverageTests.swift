@@ -274,7 +274,7 @@ import TandemMessages
         } else {
             Issue.record("expected N/A on new t:slim")
         }
-        // On a Mobi it is still never sent: not one of the seven allowed signed writes.
+        // On a Mobi it is still never sent: not one of the eight allowed signed writes.
         if case .notApplicable(let r) = plan("SetTempRateRequest", Self.mobiSaline) {
             #expect(r.contains("never sent"))
         } else {
@@ -282,7 +282,7 @@ import TandemMessages
         }
     }
 
-    /// A signed write outside TandemKit's seven allowed ones is never sent, so the bench can't cover it,
+    /// A signed write outside TandemKit's eight allowed ones is never sent, so the bench can't cover it,
     /// whatever its affordance; the allowed ones follow the affordance catalog.
     @Test func signedWriteDispositionFollowsTheAllowlistThenTheAffordanceCatalog() {
         for name in [

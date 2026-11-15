@@ -61,9 +61,9 @@ The bench writes and the bench bolus ask for the pump's serial number before any
 | `bolus <units\|carb\|correction\|cancel>` | One 0.05 U bolus through BolusPermission, the carb or BG entry, InitiateBolus (60 s deadline) and, for `cancel`, CancelBolus; then follows it and reads LastBolusStatus and the history. Saline only (`PUMP_SALINE_ATTESTED=1`: a saline cartridge, tubing into a container, on no one), or `--no-cartridge` for the pump's refusal (`PUMP_NO_CARTRIDGE_ATTESTED=1`, and the pump has to report an empty reservoir). At most three an hour; a bolus whose outcome isn't settled blocks the next until `bolus settle`. The log is `~/.tandemkit-bench/bench-boluses.json`. |
 | `bolus cancel --overlap` | The same cancel, written while a CurrentBolusStatus read still waits for its reply, as Mobi writes a cancel: the bench transport holds the read's write back, the link gives up on it after 2 s, and the held write goes out just before the cancel's. `OVERLAP PASSED` when the pump answers both and the link holds. The cancel goes 2 s later than plain `bolus cancel`. |
 
-UserInteraction and ChangeTimeDate are outside the seven allowed signed writes. The bench builds
-TandemKit with the `BenchWrites` trait, which adds exactly those two; an app's dependency names no
-trait, so its build has neither. The bolus masks come from `InitiateBolusRequest.typeBitmask`, the
+ChangeTimeDate is outside the eight allowed signed writes. The bench builds TandemKit with the
+`BenchWrites` trait, which adds exactly that one; an app's dependency names no trait, so its build
+doesn't have it. UserInteraction is one of the eight, refused below API 3.0. The bolus masks come from `InitiateBolusRequest.typeBitmask`, the
 same rule the app uses, and the units-only and carb cargoes have the layout of pumpX2's t:slim
 captures.
 
@@ -71,8 +71,8 @@ captures.
 the link probes it again.
 
 Every request goes through the link's own gates: the support matrix (kept between runs in
-`~/.tandemkit-bench/support-matrix.json`, or `PUMP_SUPPORT_MATRIX`), careful probing, and the seven
-allowed signed writes (plus the trait's two). The read commands send no signed write.
+`~/.tandemkit-bench/support-matrix.json`, or `PUMP_SUPPORT_MATRIX`), careful probing, and the eight
+allowed signed writes (plus the trait's one). The read commands send no signed write.
 
 The committed `bench-coverage/` matrix is the T-1 run on the old t:slim X2 (API 2.5, legacy pairing,
 no cartridge, no CGM), which `SupportMatrix` cites as evidence. The sweep runner that produced it was

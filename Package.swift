@@ -22,7 +22,7 @@ let package = Package(
     traits: [
         .trait(
             name: "BenchWrites",
-            description: "Bench only: adds UserInteraction and ChangeTimeDate to the signed writes the link sends.")
+            description: "Bench only: adds ChangeTimeDate to the signed writes the link sends.")
     ],
     targets: [
         // Portable protocol: framing, opcodes, message models, packetization.

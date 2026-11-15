@@ -233,6 +233,141 @@ import TandemMessages
         #expect(h.results[id] == .notSent(.characteristicUnavailable))
     }
 
+    /// Ready with every subscription confirmed but `.control`'s, which iOS never answers.
+    func readyWithControlUnconfirmed(_ h: inout LinkHarness) {
+        h.apply(.power(.poweredOn))
+        h.apply(.connect(target, SupportMatrix()))
+        h.apply(.connected(peripheralID: Self.id, name: "tslim X2 ***693"))
+        h.apply(.characteristicsDiscovered(Set(Characteristic.allCases)))
+        for c in ServiceUUID.notificationCharacteristics where c != .control {
+            h.apply(.subscription(c, isNotifying: true, failed: false))
+        }
+        h.apply(.authenticated(key: LinkHarness.key, derivedSecret: nil))
+        h.answerHandshake()
+        h.advance(by: 10)
+    }
+
+    /// iOS never confirms an optional characteristic's first subscription: a signed write on it waits
+    /// only until the first subscriptions' bound, then ends unsent (never unknown), and the link carries
+    /// on. A confirmation that comes later makes the characteristic usable again.
+    @Test func optionalSubscriptionNeverConfirmedEndsItsRequestsUnsent() {
+        var h = LinkHarness()
+        readyWithControlUnconfirmed(&h)
+        #expect(h.phase == .ready)
+        let bolus = h.submit(BolusPermissionRequest(), allowing: .delivery)
+        #expect(h.results[bolus] == nil)
+        h.advance(by: LinkConfiguration().establishmentTimeout - 10)
+        #expect(h.results[bolus] == .notSent(.characteristicUnavailable))
+        #expect(h.writes(of: BolusPermissionRequest.self) == 0)
+        let read = h.submit(CurrentBatteryV1Request())
+        #expect(
+            h.writes(of: CurrentBatteryV1Request.self) == 1,
+            "the link carries on: \(String(describing: h.results[read]))")
+        h.reply(CurrentBatteryV1Response(cargo: [0, 50]))
+        h.apply(.subscription(.control, isNotifying: true, failed: false))
+        _ = h.submit(BolusPermissionRequest(), allowing: .delivery)
+        #expect(h.writes(of: BolusPermissionRequest.self) == 1)
+    }
+
+    /// A first subscription iOS answers as not notifying, with no error, is as good as failed.
+    @Test func firstSubscriptionAnsweredNotNotifyingIsUnavailable() {
+        var h = LinkHarness()
+        readyWithControlUnconfirmed(&h)
+        h.apply(.subscription(.control, isNotifying: false, failed: false))
+        #expect(h.state.connection?.unavailable.contains(.control) == true)
+        #expect(h.timers[.subscriptions] == nil)
+        let id = h.submit(BolusPermissionRequest(), allowing: .delivery)
+        #expect(h.results[id] == .notSent(.characteristicUnavailable))
+    }
+
+    @Test func subscriptionBoundIsLetGoOnceEverySubscriptionIsAnswered() {
+        var h = LinkHarness()
+        h.makeReady()
+        #expect(h.allEffects(.startTimer(.subscriptions, after: LinkConfiguration().establishmentTimeout)))
+        #expect(h.timers[.subscriptions] == nil)
+    }
+
+    /// Every first subscription confirmed (the bound let go) and then one optional characteristic stops
+    /// notifying while setup is still discovering: it's unavailable, not left waiting with no deadline.
+    @Test func optionalSubscriptionLostWhileDiscoveringIsUnavailable() {
+        var h = LinkHarness()
+        h.apply(.power(.poweredOn))
+        h.apply(.connect(target, SupportMatrix()))
+        h.apply(.connected(peripheralID: Self.id, name: "tslim X2 ***693"))
+        h.apply(.characteristicsDiscovered(Set(Characteristic.allCases)))
+        for c in ServiceUUID.notificationCharacteristics where !LinkReducer.requiredCharacteristics.contains(c) {
+            h.apply(.subscription(c, isNotifying: true, failed: false))
+        }
+        h.apply(.subscription(.control, isNotifying: false, failed: false))
+        #expect(h.phase == .discovering)
+        #expect(h.state.connection?.unavailable.contains(.control) == true)
+        for c in LinkReducer.requiredCharacteristics { h.apply(.subscription(c, isNotifying: true, failed: false)) }
+        h.apply(.authenticated(key: LinkHarness.key, derivedSecret: nil))
+        h.answerHandshake()
+        h.advance(by: 10)
+        let id = h.submit(BolusPermissionRequest(), allowing: .delivery)
+        #expect(h.results[id] == .notSent(.characteristicUnavailable))
+    }
+
+    @Test func foregroundReportedBeforeRestorationIsKept() {
+        // The app can say it's active before CoreBluetooth delivers willRestoreState.
+        var h = LinkHarness()
+        h.state.appActive = LinkState().appActive
+        h.apply(.appActive(true))
+        h.apply(.restored([RestoredPeripheral(peripheralID: Self.id, isConnected: false, name: nil)]))
+        h.apply(.connect(target, SupportMatrix()))
+        h.apply(.power(.poweredOn))
+        #expect(h.state.appActive)
+        h.apply(.connectFailed(peripheralID: Self.id, drop))
+        #expect(h.phase == .backingOff)
+        h.apply(.appActive(true))
+        #expect(h.commands.isEmpty, "the foreground's cooldown runs on its timer")
+    }
+
+    @Test func settleWindowThatEndedWhileSuspendedSendsNothingToALinkThatDropped() {
+        var h = LinkHarness()
+        h.makeReady()
+        h.advance(by: 10)
+        h.apply(.appActive(false))
+        let read = h.submit(CurrentBatteryV1Request())
+        let signed = h.submit(BolusPermissionRequest(), allowing: .delivery)
+        h.replyError(code: 6)
+        h.sleep(for: 600)
+        h.apply(.disconnected(peripheralID: Self.id, drop))
+        #expect(h.writes(of: BolusPermissionRequest.self) == 0)
+        #expect(h.results[signed] == .notSent(.connectionLost))
+        guard case .pumpError = h.results[read] else {
+            Issue.record("expected the pump's error, got \(String(describing: h.results[read]))")
+            return
+        }
+    }
+
+    @Test func holdReachedWhileSuspendedSendsNothingToALinkThatDropped() {
+        var h = LinkHarness()
+        h.makeReady(api: (4, 0), unit: LinkHarness.p2Unit)
+        h.apply(.appActive(false))
+        let probe = h.submit(CurrentBatteryV2Request())  // untested: waits for the hold
+        h.sleep(for: 600)
+        h.apply(.disconnected(peripheralID: Self.id, drop))
+        #expect(h.writes(of: CurrentBatteryV2Request.self) == 0)
+        #expect(h.results[probe] == .notSent(.connectionLost))
+        #expect(h.state.telemetry.spans.last?.held == true)
+    }
+
+    @Test func windowThatEndedWhileSuspendedSendsWhatWaitsOnTheNextInput() {
+        var h = LinkHarness()
+        h.makeReady()
+        h.advance(by: 10)
+        h.apply(.appActive(false))
+        _ = h.submit(CurrentBatteryV1Request())
+        let signed = h.submit(BolusPermissionRequest(), allowing: .delivery)
+        h.replyError(code: 6)
+        h.sleep(for: 600)
+        h.apply(.appActive(true))
+        #expect(h.writes(of: BolusPermissionRequest.self) == 1)
+        #expect(h.results[signed] == nil)
+    }
+
     @Test func failedSubscriptionWhileReadyIsRestored() {
         var h = LinkHarness()
         h.makeReady()

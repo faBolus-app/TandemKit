@@ -8,8 +8,8 @@ let package = Package(
     name: "TandemKitBench",
     platforms: [.macOS(.v13)],
     dependencies: [
-        // BenchWrites: the bench's two extra signed writes (UserInteraction, ChangeTimeDate). Only this
-        // package enables it; an app's dependency doesn't, so they are compiled out of every app.
+        // BenchWrites: the bench's extra signed write (ChangeTimeDate). Only this package enables it; an
+        // app's dependency doesn't, so it is compiled out of every app.
         .package(name: "TandemKit", path: "..", traits: ["BenchWrites"])
     ],
     targets: [

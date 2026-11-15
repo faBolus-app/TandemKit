@@ -85,7 +85,57 @@ import TandemMessages
         r.connection.connect(to: target, support: SupportMatrix())
         r.transport.drop()  // before the hold: a flap
         #expect(r.connection.state.ladder.flaps == 1)
-        #expect(r.connection.state.phase == .ready)  // the pending connect completed at once
+        // No background time: the pending connect goes out at once, carrying the 1 s cooldown for
+        // CoreBluetooth to wait out while the app stays suspended.
+        #expect(r.transport.commands.last == .delayedConnect(ScriptedPump.id, startDelay: 1))
+        #expect(r.connection.state.phase == .connecting)
+        r.clock.advance(by: 1)
+        #expect(r.connection.state.phase == .ready)
+    }
+
+    /// In the background with no background time (refused, or ended at once), a pump that drops every
+    /// connection is still reconnected no faster than the cooldowns: each connect waits its cooldown out
+    /// as a start delay, instead of a connect, authenticate, drop loop.
+    @Test func backgroundPumpThatDropsEveryPairingIsNotLoopedWithoutBackgroundTime() {
+        let pump = ScriptedPump()
+        pump.dropAfterPairing = 2
+        let clock = ManualClock()
+        let transport = ScriptedTransport(pump: pump, clock: clock)
+        let time = BackgroundTime()
+        time.gives = false
+        let connection = PumpConnection(transport: transport, clock: clock, backgroundTime: time)
+        transport.start(restoring: false)
+        connection.connect(to: target, support: SupportMatrix())
+        clock.advance(by: 3600)
+        let connects = transport.commands.filter {
+            switch $0 {
+            case .connect(ScriptedPump.id), .delayedConnect(ScriptedPump.id, _): return true
+            default: return false
+            }
+        }.count
+        // As in the foreground: waits of 1, 2, 4, 8 and 16 s, then 30 s, each after a 2 s connection. Here
+        // each connect is issued at the drop and waits in CoreBluetooth, so one more is out at the end.
+        #expect(connects == 1 + 5 + (3600 - 41) / 32 + 1)
+    }
+
+    /// Opening the app while a delayed connect waits cancels it and connects at once.
+    @Test func openingTheAppDuringADelayedConnectConnectsAtOnce() {
+        let pump = ScriptedPump()
+        let clock = ManualClock()
+        let transport = ScriptedTransport(pump: pump, clock: clock)
+        let time = BackgroundTime()
+        time.gives = false
+        let connection = PumpConnection(transport: transport, clock: clock, backgroundTime: time)
+        transport.start(restoring: false)
+        connection.connect(to: target, support: SupportMatrix())
+        clock.advance(by: 30)
+        clock.suspended = true
+        transport.pumpWalksAway()  // a supervision timeout: 3 s
+        #expect(transport.commands.last == .delayedConnect(ScriptedPump.id, startDelay: 3))
+        transport.pumpComesBack()
+        #expect(connection.state.phase == .connecting, "still waiting out the delay")
+        connection.setAppActive(true)
+        #expect(connection.state.phase == .ready)
     }
 
     @Test func killAndRelaunchPicksUpTheRestoredLink() async {
@@ -102,6 +152,32 @@ import TandemMessages
         // The restored link is adopted, not reconnected: no new connect was issued.
         #expect(!relaunched.transport.commands.contains(.connect(ScriptedPump.id)))
         let result = await relaunched.connection.send(CurrentBatteryV1Request())
+        guard case .reply = result else {
+            Issue.record("expected a reply, got \(result)")
+            return
+        }
+    }
+
+    /// A restored link is still notifying on its characteristics, and iOS may not call back for a
+    /// subscription that already holds. They count as subscribed from CoreBluetooth's own state, so the
+    /// restored link authenticates and, past the first subscriptions' bound, a control write still goes.
+    @Test(arguments: [false, true])
+    func restoredLinkAlreadyNotifyingKeepsControlUsable(confirms: Bool) async {
+        let pump = ScriptedPump()
+        pump.confirmsAlreadyNotifying = confirms
+        let clock = ManualClock()
+        var first: Rig? = rig(pump: pump, clock: clock)
+        first?.connection.connect(to: target, support: SupportMatrix())
+        #expect(pump.notifying.contains(.control))
+        first = nil  // iOS terminates the app; it keeps the link and its subscriptions
+
+        let relaunched = rig(pump: pump, clock: clock, restoring: true)
+        relaunched.connection.connect(to: target, support: SupportMatrix())
+        #expect(relaunched.connection.state.phase == .ready)
+        clock.advance(by: 60)
+        #expect(relaunched.connection.state.connection?.unavailable.isEmpty == true)
+        #expect(relaunched.connection.state.telemetry.spans.isEmpty)
+        let result = await relaunched.connection.send(BolusPermissionRequest(), allowing: .delivery)
         guard case .reply = result else {
             Issue.record("expected a reply, got \(result)")
             return

@@ -1561,14 +1561,24 @@ public struct LastBolusStatusV2Response: ResponseMessage {
     public var deliveredUnits: Double { Double(deliveredVolume) / 1000.0 }
     /// The reply describes a bolus (byte 0 is 1). Any other value says nothing about what went in.
     public var isValid: Bool { status == 1 }
-    /// Why the bolus ended, or `nil` for an id outside the known set.
+    /// Why the bolus ended, or `nil` for an id outside pumpX2's set.
     public var endReason: BolusEndReason? { BolusEndReason(rawValue: endReasonId) }
 }
 
-/// Why a bolus ended, as the last-bolus replies report it (LastBolusStatusV2 byte 13, LastBolusStatusV3
-/// bytes 14 and 38). The values are the ones Tandem's apps name; which a t:slim sends when is unverified.
+/// Why a bolus ended, as LastBolusStatusV2 byte 13 reports it: pumpX2's
+/// `LastBolusStatusAbstractResponse.BolusStatus`, value for value (`STOPPED_USER_TERMINATED`,
+/// `STOPPED_ALARM`, `STOPPED_MALFUNCTION`, `COMPLETE`, `STOPPED_WIRELESS`, `REJECTED_WIRELESS`,
+/// `TERMINATED_PLGS`). pumpX2 has seen 0, 1 and 3 in history logs, and notes a cancel over Bluetooth
+/// written as 0; 2, 4, 5 and 6 are unobserved. LastBolusStatusV3 has its own set
+/// (`LastBolusStatusV3Response.EndReason`).
 public enum BolusEndReason: Int, Sendable, CaseIterable {
-    case userAbort = 0, alarm = 1, malfunction = 2, completed = 3, autoSuspend = 6, other = 255
+    case userAbort = 0, alarm = 1, malfunction = 2, completed = 3
+    /// Stopped over the wireless link.
+    case stoppedWireless = 4
+    /// The request over the wireless link was rejected.
+    case rejectedWireless = 5
+    /// Stopped by predictive low glucose suspend (pumpX2's `TERMINATED_PLGS`).
+    case autoSuspend = 6
 }
 
 /// Bolus-calculator snapshot — the therapy settings needed to turn carbs/BG into units, the
@@ -2610,10 +2620,16 @@ public struct LastBolusStatusV3Response: ResponseMessage {
     public enum BolusStatus: Int, Sendable, CaseIterable {
         case invalid = 0, stopping = 3, finished = 4
     }
+    /// Why a bolus in this reply ended (bytes 14 and 38). pumpX2 decodes the id but names no values; these
+    /// are the ones Tandem's Mobi app names, `other` (255) among them, which no V2 reply carries.
+    /// Unverified on a pump: which a t:slim sends when, and whether it uses 4 and 5 as V2 does.
+    public enum EndReason: Int, Sendable, CaseIterable {
+        case userAbort = 0, alarm = 1, malfunction = 2, completed = 3, autoSuspend = 6, other = 255
+    }
     /// The standard bolus's status, or `nil` for an id outside the known set.
     public var standardBolusStatus: BolusStatus? { BolusStatus(rawValue: standardBolusStatusId) }
     /// Why the standard bolus ended, or `nil` for an id outside the known set.
-    public var standardBolusEndReason: BolusEndReason? { BolusEndReason(rawValue: standardBolusEndReasonId) }
+    public var standardBolusEndReason: EndReason? { EndReason(rawValue: standardBolusEndReasonId) }
 
     public init() { cargo = [] }
     public init(cargo raw: [UInt8]) {

@@ -81,6 +81,7 @@ struct LinkHarness {
     var allCommands: [TransportCommand] {
         all.compactMap { if case .transport(let c) = $0 { return c } else { return nil } }
     }
+    func allEffects(_ effect: LinkEffect) -> Bool { all.contains(effect) }
     var events: [LinkEvent] { last.compactMap { if case .emit(let e) = $0 { return e } else { return nil } } }
     var allEvents: [LinkEvent] { all.compactMap { if case .emit(let e) = $0 { return e } else { return nil } } }
 

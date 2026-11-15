@@ -196,14 +196,14 @@ public struct SupportMatrix: Sendable, Equatable, Codable {
 
     // MARK: Signed writes
 
-    /// The only signed writes TandemKit sends, on any pump: the remote-bolus family P1 accepts on API
-    /// 2.5, InitiateBolus, DismissNotification (op-184), and BolusPermissionRelease, which closes a
-    /// granted permission no bolus followed, as Tandem's app does, and UserInteraction, which t:connect
-    /// sends when the bolus screen opens at API 3.0 or later (P1, at 2.5, refused it). The release and
-    /// UserInteraction have no bench evidence of acceptance on any pump, so they go as untested writes.
-    /// The other signed writes P1 was sent each drew op-77 and a dropped link. Everything else signed is
-    /// refused before a byte is built, whatever the pump's API version. None changes insulin delivery
-    /// except the bolus family's own.
+    /// The only signed writes TandemKit sends: the remote-bolus family P1 accepts on API 2.5,
+    /// InitiateBolus, DismissNotification (op-184), and BolusPermissionRelease, which closes a granted
+    /// permission no bolus followed, as Tandem's app does, and UserInteraction, which t:connect sends when
+    /// the bolus screen opens at API 3.0 or later (`signedWriteMinimumApi`; P1, at 2.5, refused it with
+    /// op-77 and a dropped link). The release and UserInteraction have no bench evidence of acceptance on
+    /// any pump, so they go as untested writes. The other signed writes P1 was sent each drew op-77 and a
+    /// dropped link. Everything else signed is refused before a byte is built, whatever the pump's API
+    /// version. None changes insulin delivery except the bolus family's own.
     public static let allowedSignedWrites: Set<MessageKey> = [
         MessageKey(BolusPermissionRequest.self),
         MessageKey(InitiateBolusRequest.self),
@@ -215,6 +215,23 @@ public struct SupportMatrix: Sendable, Equatable, Codable {
         MessageKey(UserInteractionRequest.self)
     ]
 
+    /// The API version below which an allowed signed write is refused, where one is known. The oracle
+    /// gives UserInteraction no floor; 3.0 is t:connect's, and P1 at 2.5 rejected it and dropped the link.
+    public static let signedWriteMinimumApi: [MessageKey: ApiVersion] = [
+        MessageKey(UserInteractionRequest.self): .v3
+    ]
+
+    /// Whether `message` may go to a pump reporting `apiVersion`: an allowed signed write (or no signed
+    /// write at all) at or above its floor. A floored write to a pump whose version isn't known is refused.
+    public static func isAllowedSignedWrite(_ message: some Message, apiVersion: ApiVersion?) -> Bool {
+        guard isAllowedSignedWrite(message) else { return false }
+        guard message.signed, let floor = signedWriteMinimumApi[MessageKey(message)] else { return true }
+        guard let apiVersion else { return false }
+        return apiVersion >= floor
+    }
+
+    /// Whether `message` is a signed write the link may ever send, on some pump. The API floor
+    /// (`signedWriteMinimumApi`) is checked once the pump's version is known.
     public static func isAllowedSignedWrite(_ message: some Message) -> Bool {
         guard message.signed else { return true }
         if allowedSignedWrites.contains(MessageKey(message)) { return true }
@@ -228,8 +245,8 @@ public struct SupportMatrix: Sendable, Equatable, Codable {
     #if BenchWrites
     /// Bench builds only: the signed write the bench tests on a pump, on top of the eight. This
     /// exists only when a dependent enables the `BenchWrites` trait, which only the bench package
-    /// does, so no app binary contains it. Neither changes insulin delivery, and each still needs
-    /// its own per-call grant.
+    /// does, so no app binary contains it. It doesn't change insulin delivery, and still needs its own
+    /// per-call grant.
     public static let benchSignedWrites: Set<MessageKey> = [
         MessageKey(ChangeTimeDateRequest.self)
     ]

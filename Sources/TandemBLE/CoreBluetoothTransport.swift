@@ -26,7 +26,8 @@ public final class CoreBluetoothTransport: NSObject, LinkTransport {
     /// again once it is: a connect issued in the same breath as a cancel waits for the cancel to finish,
     /// so the two can't cross.
     private var cancelling: Set<UUID> = []
-    private var connectAfterCancel: Set<UUID> = []
+    /// The start delay each waiting connect asked for (0 for none).
+    private var connectAfterCancel: [UUID: Double] = [:]
     /// The txId of each packet written and not yet acknowledged, per characteristic, oldest first.
     /// CoreBluetooth acknowledges writes with response in order but doesn't say which value it means.
     private var unacknowledged: [Characteristic: [UInt8]] = [:]
@@ -51,20 +52,15 @@ public final class CoreBluetoothTransport: NSObject, LinkTransport {
         case .stopScan:
             central.stopScan()
         case .connect(let id):
-            guard let peripheral = resolve(id) else {
-                report?(.peripheralUnavailable(id))
-                return
-            }
-            if cancelling.contains(id) {
-                connectAfterCancel.insert(id)
-                return
-            }
-            peripheral.delegate = self
-            // A pending connect has no timeout; CoreBluetooth completes it when the pump is in range, also
-            // while the app is suspended.
-            central.connect(peripheral, options: [CBConnectPeripheralOptionNotifyOnDisconnectionKey: true])
+            connect(id, startDelay: 0)
+        case .delayedConnect(let id, let startDelay):
+            connect(id, startDelay: startDelay)
+        case .cancelPendingConnect(let id):
+            connectAfterCancel[id] = nil
+            guard let peripheral = peripherals[id], peripheral.state == .connecting else { return }
+            central.cancelPeripheralConnection(peripheral)
         case .cancelConnection(let id):
-            connectAfterCancel.remove(id)
+            connectAfterCancel[id] = nil
             guard let peripheral = peripherals[id] else { return }
             // Only a connected link reliably reports its disconnect; a cancelled pending connect may not,
             // and a connect waiting on it would never go out.
@@ -83,6 +79,11 @@ public final class CoreBluetoothTransport: NSObject, LinkTransport {
                 report?(.subscription(characteristic, isNotifying: false, failed: true))
                 return
             }
+            // A link iOS restored can still be notifying on its characteristics, and whether iOS calls
+            // didUpdateNotificationState for setNotifyValue(true) on one already notifying is unverified
+            // (WIP-REGISTER.md). CoreBluetooth's own state says it is subscribed, so that's reported at
+            // once; a callback that comes as well is a duplicate the link takes as a no-op.
+            if cb.isNotifying { report?(.subscription(characteristic, isNotifying: true, failed: false)) }
             peripheral.setNotifyValue(true, for: cb)
         case .readDeviceInformation:
             if let peripheral = current, let modelNumber {
@@ -100,6 +101,33 @@ public final class CoreBluetoothTransport: NSObject, LinkTransport {
                 peripheral.writeValue(Data(packet), for: cb, type: .withResponse)
             }
         }
+    }
+
+    private func connect(_ id: UUID, startDelay: Double) {
+        guard let peripheral = resolve(id) else {
+            report?(.peripheralUnavailable(id))
+            return
+        }
+        if cancelling.contains(id) {
+            connectAfterCancel[id] = startDelay
+            return
+        }
+        peripheral.delegate = self
+        issueConnect(peripheral, startDelay: startDelay)
+    }
+
+    /// A pending connect has no timeout; CoreBluetooth completes it when the pump is in range, also while
+    /// the app is suspended.
+    ///
+    /// The start delay is `CBConnectPeripheralOptionStartDelayKey`, documented as the seconds the system
+    /// waits before it starts the connection. Not verified on a phone (WIP-REGISTER.md): that the wait
+    /// runs while the app is suspended, and whether a second connect to a peripheral already pending
+    /// replaces the first one's delay. Either way a connect stays pending, so the worst case is
+    /// connecting sooner or later than asked, never not at all.
+    private func issueConnect(_ peripheral: CBPeripheral, startDelay: Double) {
+        var options: [String: Any] = [CBConnectPeripheralOptionNotifyOnDisconnectionKey: true]
+        if startDelay > 0 { options[CBConnectPeripheralOptionStartDelayKey] = startDelay }
+        central.connect(peripheral, options: options)
     }
 
     private func resolve(_ id: UUID) -> CBPeripheral? {
@@ -136,8 +164,8 @@ public final class CoreBluetoothTransport: NSObject, LinkTransport {
     /// A cancel ended (disconnect or failed connect): issue the connect that waited for it.
     fileprivate func finishedCancelling(_ peripheral: CBPeripheral) {
         let id = peripheral.identifier
-        guard cancelling.remove(id) != nil, connectAfterCancel.remove(id) != nil else { return }
-        central.connect(peripheral, options: [CBConnectPeripheralOptionNotifyOnDisconnectionKey: true])
+        guard cancelling.remove(id) != nil, let startDelay = connectAfterCancel.removeValue(forKey: id) else { return }
+        issueConnect(peripheral, startDelay: startDelay)
     }
 
     /// Below poweredOff (resetting, unauthorized, unsupported) every peripheral object is invalid and must
@@ -150,11 +178,11 @@ public final class CoreBluetoothTransport: NSObject, LinkTransport {
             characteristics = [:]
             unacknowledged = [:]
             cancelling = []
-            connectAfterCancel = []
+            connectAfterCancel = [:]
         case .poweredOff:
             current = nil  // the links are gone; the objects stay valid
             cancelling = []
-            connectAfterCancel = []
+            connectAfterCancel = [:]
         default:
             break
         }

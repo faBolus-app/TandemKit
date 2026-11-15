@@ -26,10 +26,11 @@ oracle-parity test.**
   `characteristic`, `modifiesInsulinDelivery`, `responseOpCode`). `ResponseParser` dispatches on
   **(characteristic, opCode)** — opcodes are not globally unique.
 - `Sources/TandemMessages/Core/SupportMatrix.swift` — which commands a pump answers (supported,
-  unsupported, untested), with evidence per pump unit and firmware, and the seven signed writes that
-  are ever sent (`allowedSignedWrites`; the link refuses every other signed write). The `BenchWrites`
-  package trait, which only `Bench/Package.swift` enables, adds two more for bench runs
-  (`benchSignedWrites`: UserInteraction, ChangeTimeDate); without it they don't exist, so no app has them.
+  unsupported, untested), with evidence per pump unit and firmware, and the eight signed writes that
+  are ever sent (`allowedSignedWrites`, with an API floor where one is known in `signedWriteMinimumApi`;
+  the link refuses every other signed write). The `BenchWrites` package trait, which only
+  `Bench/Package.swift` enables, adds one more for bench runs (`benchSignedWrites`: ChangeTimeDate);
+  without it it doesn't exist, so no app has it.
 - `Sources/TandemAuth/` — `PairingCoordinator`, `JpakeAuth` / `EcJpakeContext` (EC-JPAKE via vendored
   mbedTLS), `Crypto`.
 - `Sources/TandemLink/` — the connection state machine: `LinkReducer.reduce(state, input)` returns the

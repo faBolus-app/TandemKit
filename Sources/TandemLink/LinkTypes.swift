@@ -42,12 +42,16 @@ public struct LinkConfiguration: Sendable, Equatable {
     public var establishmentTimeout: Double = 30
     /// How long a scan for a known pump runs before it counts as a flap (the old client's bound).
     public var scanTimeout: Double = 30
-    /// A pairing scan fails as `pumpNotFound` after this long, unless the strongest pump found advertises
-    /// that it is accepting connections first (Mobi's pump timer). The scan itself runs until it is
-    /// stopped or a pump is picked.
+    /// A pairing scan that has listed no pump after this long fails as `pumpNotFound`. The timer stops
+    /// early when the strongest pump found advertises that it is accepting connections (Mobi's pump
+    /// timer); once any pump is listed the scan doesn't fail, since a t:slim advertises no state, and runs
+    /// until it is stopped, a pump is picked, or `pairingScanMaxDuration`.
     public var pairingScanTimeout: Double = 120
+    /// A pairing scan stops after this long even with pumps listed (to `idle`; picking a listed pump still
+    /// connects), so a scan left running costs no more battery than this. Five pump timers; a guess.
+    public var pairingScanMaxDuration: Double = 600
     /// A pump this weak or weaker isn't listed for pairing (Mobi and t:connect: -75 dBm). CoreBluetooth's
-    /// 127, signal unknown, passes, as Mobi's does.
+    /// 127, signal unknown, passes, as Mobi's does, but never ranks as the strongest.
     public var pairingRSSIFloor = -75
     /// A listed pump is reported again when its signal moves by this many dB, not on every advertisement.
     public var pairingRSSIStep = 5
@@ -309,7 +313,8 @@ public enum NotSentReason: Sendable, Equatable {
     case signedWriteNotAllowed
     /// The model isn't known, and the message is restricted to some models.
     case identityUnknown
-    /// This pump doesn't support it: per its model, or recorded for this unit and firmware.
+    /// This pump doesn't support it: per its model, below the API version a signed write needs
+    /// (`SupportMatrix.signedWriteMinimumApi`), or recorded for this unit and firmware.
     case unsupported
     /// It drew the undefined error code more than the retry budget, so P1's error 0 can't loop: on this
     /// connection with the link up (it sits out the connection), or with the link dropping after it (it
@@ -317,7 +322,8 @@ public enum NotSentReason: Sendable, Equatable {
     case sittingOut
     /// It's untested here, and an earlier probe on this connection drew an op-77 (probing stops then).
     case probeStopped
-    /// The pump doesn't expose the characteristic it goes on.
+    /// The pump doesn't expose the characteristic it goes on, or its first subscription failed or wasn't
+    /// confirmed in time.
     case characteristicUnavailable
     case cancelled
     /// It couldn't be framed (`Packetize` refused it).
@@ -367,6 +373,9 @@ public enum LinkTimer: Hashable, Sendable {
     case hold
     case settle
     case resubscribe
+    /// The first subscriptions to the optional characteristics: one iOS hasn't confirmed when it fires
+    /// is taken as unavailable, so a request on it is refused instead of waiting with no deadline.
+    case subscriptions
     case request(RequestID)
 }
 
@@ -414,8 +423,9 @@ public enum LinkInput: Sendable {
     case authenticationFailed(rejected: Bool)
 
     case timerFired(LinkTimer)
-    /// The background time that kept a cooldown's timer running in the background is ending
-    /// (`LinkBackgroundTime`). Suspended, the timer wouldn't fire, so the pending connect goes out now.
+    /// The background time that kept a cooldown's timer running in the background is ending, or was
+    /// refused (`LinkBackgroundTime`). Suspended, the timer wouldn't fire, so the pending connect goes out
+    /// now, carrying what is left of the cooldown as its start delay (`TransportCommand.delayedConnect`).
     case backgroundTimeEnding
 }
 
@@ -443,7 +453,14 @@ public enum TransportCommand: Sendable, Equatable {
     /// Resolve the peripheral by identifier and issue a pending connect. Reports
     /// `peripheralUnavailable` when it can't be resolved.
     case connect(UUID)
+    /// As `connect`, but CoreBluetooth waits `startDelay` seconds before it starts connecting
+    /// (`CBConnectPeripheralOptionStartDelayKey`). The rest of a reconnect cooldown when the app has no
+    /// background time left: the wait runs in the system, where a suspended app's timer wouldn't.
+    case delayedConnect(UUID, startDelay: Double)
     case cancelConnection(UUID)
+    /// End a pending connect only: a peripheral already connected is left alone, because CoreBluetooth
+    /// may have completed the connect with its `didConnect` still queued, and that link is the one wanted.
+    case cancelPendingConnect(UUID)
     /// Set up this connected peripheral: it becomes the one the transport writes to and listens to.
     case discover(UUID)
     case subscribe(Characteristic)
