@@ -6,6 +6,11 @@ git tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-11-15
+
+The link review: a reconnect cooldown that holds in the background, an unanswered subscription that can no
+longer hold up requests, and catch-up after suspension in the right order. faBolus pins this release.
+
 ### Added
 
 - `TransportCommand.delayedConnect(_:startDelay:)` and `TransportCommand.cancelPendingConnect(_:)`
@@ -277,7 +282,8 @@ firmware (`PairingAuth.createV1`, `LegacyPairingCoordinator`, chosen automatical
   `TandemBLE` (the CoreBluetooth central), with every outgoing message byte-exact against pumpx2's
   `cliparser` oracle. A signed 0.10 U saline bolus was delivered on a pump.
 
-[Unreleased]: https://github.com/faBolus-app/TandemKit/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/faBolus-app/TandemKit/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/faBolus-app/TandemKit/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/faBolus-app/TandemKit/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/faBolus-app/TandemKit/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/faBolus-app/TandemKit/compare/v0.10.0...v0.11.0
