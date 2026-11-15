@@ -6,6 +6,11 @@ git tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+### Changed
+
+- `RemoteCarbEntryRequest`'s `unknown` defaults to 1, as in every pumpX2 capture: a t:slim at API 4.0
+  refuses the entry with 0. A caller that relied on the default now sends 1 there.
+
 ## [0.12.0] — 2026-11-13
 
 CGM status B and UserInteraction for a t:slim, the grace-period alert names, and a first pairing the pump

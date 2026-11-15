@@ -293,8 +293,9 @@ public struct BolusCompletedHistoryLog: HistoryLogEvent {
 
     /// How the bolus ended. The values are the ones Tandem's apps name: stopped by the user on the pump (0),
     /// by an alarm (1) or a malfunction (2), completed (3), stopped over the wireless link (4), a request over
-    /// the link the pump refused (5), and stopped for a predicted low (6). Which a t:slim records when is
-    /// unverified.
+    /// the link the pump refused (5), and stopped for a predicted low (6). A t:slim at API 4.0 records 0 for a
+    /// cancel from the phone and from its own screen alike, before delivery starts or part way; 4 hasn't been
+    /// seen. The rest are unverified.
     public enum CompletionStatus: Int, Sendable, CaseIterable {
         case userAborted = 0, terminatedByAlarm = 1, terminatedByMalfunction = 2, completed = 3
         case abortedViaWirelessLink = 4, rejectedViaWirelessLink = 5, abortedForPredictedLow = 6

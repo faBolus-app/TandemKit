@@ -18,7 +18,9 @@ public struct RemoteCarbEntryRequest: Message {
     public private(set) var pumpTimeSecondsSinceBoot: UInt32 = 0
     public private(set) var bolusId = 0
     public init() { cargo = [] }
-    public init(carbs: Int, unknown: Int = 0, pumpTimeSecondsSinceBoot: UInt32, bolusId: Int) {
+    /// `unknown` is 1 by default, as in every pumpX2 capture and its three-argument constructor: a t:slim at
+    /// API 4.0 answers the entry with status 1 when it is 0, and the bolus can't go.
+    public init(carbs: Int, unknown: Int = 1, pumpTimeSecondsSinceBoot: UInt32, bolusId: Int) {
         self.carbs = carbs
         self.unknown = unknown
         self.pumpTimeSecondsSinceBoot = pumpTimeSecondsSinceBoot
