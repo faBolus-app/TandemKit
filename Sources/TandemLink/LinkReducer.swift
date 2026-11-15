@@ -834,6 +834,11 @@ private final class Step {
             startSettleWindow()
             return
         }
+        // A replayed signed reply must never pass for a fresh one: an old op-77 taken as this write's refusal
+        // could hide a bolus that went. A t:slim at API 4.0 refuses some signed writes (ChangeTimeDate,
+        // DismissNotification) with an authentic op-77 whose trailer time is hours off its clock and whose
+        // error code is 0; that lands here too, so the write's outcome stays unknown, and the pump's history
+        // (a TIPS error record) is what says why.
         if inFlight.message.signed && !isFresh(parsed.signedPumpTime, inFlight) {
             complete(id, .unknown(.staleSignedReply))
             return dispatch()

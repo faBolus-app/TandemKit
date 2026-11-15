@@ -1285,6 +1285,8 @@ public struct ControlIQIOBResponse: ResponseMessage {
     public var cargo: [UInt8]
     public private(set) var mudaliarIOB: UInt32 = 0  // milliunits
     public private(set) var timeRemainingSeconds: UInt32 = 0
+    /// The Mudaliar IOB at the end of the last bolus, milliunits: on a t:slim at API 4.0 it equals the IOB
+    /// the history's BolusCompleted record gives, and it holds still between boluses.
     public private(set) var mudaliarTotalIOB: UInt32 = 0
     public private(set) var swan6hrIOB: UInt32 = 0
     public private(set) var iobType: Int = 0
@@ -1608,8 +1610,9 @@ public struct BolusCalcDataSnapshotResponse: ResponseMessage {
     public private(set) var carbEntryEnabled: Bool = false
     public private(set) var carbRatio: UInt32 = 0  // see carbRatioGramsPerUnit
     public private(set) var maxBolusAmount: Int = 0  // milliunits
-    /// The insulin bolused in the last hour, milliunits. Oracle @20 (uint32). pumpX2 documents it as a
-    /// configured hourly ceiling, which it is not.
+    /// The bolus insulin delivered in the last 60 minutes, milliunits. Oracle @20 (uint32). pumpX2 documents
+    /// it as a configured hourly ceiling, which it is not: on a t:slim at API 4.0 it is the sum of what went in,
+    /// partial and pump-screen boluses included, and a bolus drops out of it 60 minutes after it ended.
     public private(set) var maxBolusHourlyTotal: UInt32 = 0
     /// true if the maximum bolus has been exceeded for the interval. Oracle @24. LAYOUT +
     /// KNOWN-FALSE case oracle-backed only — the `true` case has never been observed in a
@@ -2580,7 +2583,9 @@ public struct LastBolusStatusResponse: ResponseMessage {
     public mutating func parse(_ raw: [UInt8]) { self = LastBolusStatusResponse(cargo: raw) }
 }
 
-/// Read response. Ported from LastBolusStatusV3Response.java (opcode raw -69).
+/// Read response. Ported from LastBolusStatusV3Response.java (opcode raw -69). On a t:slim at API 4.0 a bolus
+/// cancelled before delivery starts (the ~15 s it is pending) isn't written here: the record keeps naming the
+/// bolus before, and only the history's BolusCompleted record settles it.
 public struct LastBolusStatusV3Response: ResponseMessage {
     public static let props = MessageProps(opCode: 187, size: 53, type: .response, characteristic: .currentStatus)
     public var cargo: [UInt8]

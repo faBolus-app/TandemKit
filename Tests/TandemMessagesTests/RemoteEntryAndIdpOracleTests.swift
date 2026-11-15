@@ -22,6 +22,14 @@ import Testing
 
     /// The `isAutopopBg: false` convenience faBolus USED to call encodes source = PUMP(0) — i.e. NOT
     /// what any captured vector sends. This guards against regressing back to it.
+    /// Ground truth from a captured real-app payload (oracle `RemoteCarbEntryRequestTest.ID10677`): 5 g,
+    /// pumpTime 1200239, bolusId 10677, third byte 1. The default form gives the same bytes; a t:slim at API
+    /// 4.0 refuses the entry with 0 there.
+    @Test func remoteCarbEntryDefaultMatchesCapture() {
+        let req = RemoteCarbEntryRequest(carbs: 5, pumpTimeSecondsSinceBoot: 1_200_239, bolusId: 10677)
+        #expect(req.cargo == [5, 0, 1, 111, 80, 18, 0, 181, 41])
+    }
+
     @Test func legacyIsAutopopFalseEncodesPumpSource() {
         let legacy = RemoteBgEntryRequest(
             bg: 142, useForCgmCalibration: false, isAutopopBg: false,
