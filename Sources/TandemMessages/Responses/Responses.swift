@@ -1612,7 +1612,8 @@ public struct BolusCalcDataSnapshotResponse: ResponseMessage {
     public private(set) var maxBolusAmount: Int = 0  // milliunits
     /// The bolus insulin delivered in the last 60 minutes, milliunits. Oracle @20 (uint32). pumpX2 documents
     /// it as a configured hourly ceiling, which it is not: on a t:slim at API 4.0 it is the sum of what went in,
-    /// partial and pump-screen boluses included, and a bolus drops out of it 60 minutes after it ended.
+    /// partial and pump-screen boluses included, and a bolus drops out of it about an hour later (whether the
+    /// hour runs from its start or its end isn't shown).
     public private(set) var maxBolusHourlyTotal: UInt32 = 0
     /// true if the maximum bolus has been exceeded for the interval. Oracle @24. LAYOUT +
     /// KNOWN-FALSE case oracle-backed only — the `true` case has never been observed in a
