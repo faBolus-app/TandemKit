@@ -37,29 +37,37 @@ exchange, for a pairing test built from a real one; a transcript made with it st
 it can help someone work out the pairing code. A line typed during a run is stamped into it as a
 `NOTE`, to mark what was done at the pump.
 
+A 6-digit (JPAKE) pairing is saved, with its code, in `~/.tandemkit-bench/pairing-<peripheral id>.json`
+(readable by you only), and a later run with the same `PUMP_PERIPHERAL_ID` and code resumes from it, so
+the pump needn't be in pairing mode again. Delete the file to pair afresh.
+
 | Command | What it reads or does |
 | --- | --- |
 | `scan` | Lists pumps in pairing range. |
 | `api` | The API version and the pump's software versions. |
 | `features [all\|legacy\|N..]` | The PumpFeaturesV2 sets by index (main, control and Dexcom by default; `all` adds the rest), every set bit by its pumpX2 name, and main-set bits 28 (`BLE_PUMP_CONTROL_SUPPORTED`) and 10 (`CONTROL_IQ_SUPPORTED`) called out. Below API 2.5, the legacy PumpFeaturesV1. |
 | `history [status\|anchor\|oldest\|cap..]` | The log's oldest and newest sequence numbers, which end of a page `startLog` names, and whether a page of 251-255 records is cut at 250. |
-| `snapshot [samples] [seconds]` | The bolus-calculator snapshot byte by byte, and where the CGM reading and its timestamp sit in the bytes pumpX2 doesn't decode. |
-| `cgm [minutes]` | The home-screen icons byte by byte (CGM alert, basal, bolus, Control-IQ state), the EGV status and the CGM session. |
-| `statusreads` | InsulinStatus, HomeScreenMirror and CurrentBatteryV2, once each. |
+| `snapshot [samples] [seconds]` | The bolus-calculator snapshot byte by byte, and where the CGM reading and its timestamp sit in the bytes pumpX2 doesn't decode; then ControlIQIOB, to compare with the snapshot's IOB. |
+| `cgm [minutes]` | The home-screen icons byte by byte (CGM alert, basal, bolus, Control-IQ state), the EGV status, the CGM session, and CGM status B (the session's time left and the grace flag). |
+| `therapy [minutes]` | CurrentBasalStatus, TempRate, ControlIQIOB and NonControlIQIOB (with the time left), and the active profile's values (the target BG at byte 4), once a minute. |
+| `statusreads` | InsulinStatus, HomeScreenMirror and CurrentBatteryV2, once each, then the reminders, alerts, alarms and CGM alerts showing, by id (the id `dismiss` and `clearcheck` take). |
 | `lastbolus` | LastBolusStatus forms C (0xBA), B and A. Form C goes through a bench copy without the library's Mobi tag, so the link probes it on a t:slim. |
 | `monitor [--poll S\|off] [--battery S] [--minutes M]` | Holds the link and reads status every S seconds, or with `off` only the battery. Logs every drop, every reconnect's timing, every pump notice (and the pump clock after a time-change notice), the battery trend and the request rate. The 24-hour hold check, the range edge and the battery cost of a held link. |
 | `notices [minutes]` | `monitor --poll off`: the pump's notices with nothing else on the link, for notice bit 19. |
 | `dismiss [--chunk 18] <kind> <id>` | Dismisses one pump notification once the link has held. `--chunk` re-cuts the control write's packets at that size in the bench transport, for the chunk-size check. |
 
-The bench writes and the bench bolus ask for the pump's serial number before anything goes out:
+The bench writes and the bench bolus check the pump's serial number before anything goes out: typed at a prompt, or taken from `PUMP_BENCH_SERIAL` when that is set. Either way a different pump refuses it:
 
 | Command | What it sends |
 | --- | --- |
 | `userinteraction` | One UserInteractionRequest (API 3.0 and up), then 60 s of notices. Needs `PUMP_BENCH_WRITES=1`. |
+| `permission [seconds]` | One BolusPermission, held that long (default 120 s) and released, with no carb or BG entry and no InitiateBolus: whether the pump revokes it (notice bit 31) when it lapses or when its own bolus screen opens. Needs `PUMP_BENCH_WRITES=1`. |
 | `settime [--plus5]` | ChangeTimeDate with the pump's own time (a no-op), then with `--plus5` five minutes on and back; reads the clock back and the history. Needs `PUMP_BENCH_WRITES=1`. |
 | `clearcheck <kind> <id>` | One DismissNotification, then the notification's bit at 2, 30 and 120 s, and the history records since. |
-| `bolus <units\|carb\|correction\|cancel>` | One 0.05 U bolus through BolusPermission, the carb or BG entry, InitiateBolus (60 s deadline) and, for `cancel`, CancelBolus; then follows it and reads LastBolusStatus and the history. Saline only (`PUMP_SALINE_ATTESTED=1`: a saline cartridge, tubing into a container, on no one), or `--no-cartridge` for the pump's refusal (`PUMP_NO_CARTRIDGE_ATTESTED=1`, and the pump has to report an empty reservoir). At most three an hour; a bolus whose outcome isn't settled blocks the next until `bolus settle`. The log is `~/.tandemkit-bench/bench-boluses.json`. |
+| `bolus <units\|carb\|correction\|cancel>` | One bolus, 0.05 U; `--units` (0.05 to 1 U, in 0.05 U steps) only for one stopped as it starts, `cancel` or `--drop accepted`, with `--bg` 20 to 600, through BolusPermission, the carb or BG entry, InitiateBolus (60 s deadline) and, for `cancel`, CancelBolus; then follows it and reads LastBolusStatus and the history. Saline only (`PUMP_SALINE_ATTESTED=1`: a saline cartridge, tubing into a container, on no one), or `--no-cartridge` for the pump's refusal (`PUMP_NO_CARTRIDGE_ATTESTED=1`, and the pump has to report an empty reservoir). At most 12 an hour; a bolus whose outcome isn't settled blocks the next until `bolus settle`. The log is `~/.tandemkit-bench/bench-boluses.json`. |
+| `bolus <kind> --drop sent\|accepted` | The link-drop bolus: the bench ends the connection once the InitiateBolus write is out (`sent`, before any reply) or once the pump accepts it (`accepted`), then reconnects and follows the bolus. After `sent` the outcome is unknown and stays unsettled until `bolus settle`, from the pump's history. Saline only. |
 | `bolus cancel --overlap` | The same cancel, written while a CurrentBolusStatus read still waits for its reply, as Mobi writes a cancel: the bench transport holds the read's write back, the link gives up on it after 2 s, and the held write goes out just before the cancel's. `OVERLAP PASSED` when the pump answers both and the link holds. The cancel goes 2 s later than plain `bolus cancel`. |
+| `bolus cancel --once-delivering` | The cancel waits until the pump reports the bolus delivering (status 1). A plain cancel lands in the ~15 s of status 2, before anything moves; this one stops a bolus part way. Up to 40 s, then it cancels anyway. |
 
 UserInteraction and ChangeTimeDate are outside the seven allowed signed writes. The bench builds
 TandemKit with the `BenchWrites` trait, which adds exactly those two; an app's dependency names no

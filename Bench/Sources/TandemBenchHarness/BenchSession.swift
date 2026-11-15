@@ -38,6 +38,39 @@ enum MatrixFile {
     }
 }
 
+/// The derived secret of a JPAKE pairing, so a later run resumes from it: a pump out of pairing mode drops a
+/// fresh JPAKE. One file per pump, readable by the owner only. It keeps the code it came from, so a new code
+/// pairs afresh; delete it to pair again with the same code.
+enum PairingFile {
+    struct Saved: Codable {
+        var code: String
+        var secret: [UInt8]
+    }
+
+    static func url(_ id: UUID) -> URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".tandemkit-bench/pairing-\(id.uuidString).json")
+    }
+
+    static func resume(_ id: UUID, code: String) -> PairingCredentials? {
+        guard let data = try? Data(contentsOf: url(id)), let saved = try? JSONDecoder().decode(Saved.self, from: data),
+            saved.code == code
+        else { return nil }
+        return .jpakeResume(derivedSecret: saved.secret)
+    }
+
+    static func save(_ id: UUID, code: String, secret: [UInt8]) -> Bool {
+        let u = url(id)
+        guard
+            (try? FileManager.default.createDirectory(
+                at: u.deletingLastPathComponent(), withIntermediateDirectories: true)) != nil,
+            let data = try? JSONEncoder().encode(Saved(code: code, secret: secret))
+        else { return false }
+        try? FileManager.default.removeItem(at: u)
+        return FileManager.default.createFile(atPath: u.path, contents: data, attributes: [.posixPermissions: 0o600])
+    }
+}
+
 func credentials(_ code: String) throws -> PairingCredentials {
     switch PairingAuth.detectType(code) {
     case .long16Char: return .legacy(code: try PairingAuth.processPairingCode(code, type: .long16Char))
@@ -53,6 +86,8 @@ final class BenchSession {
     let link: PumpConnection
     var target: PumpTarget?
     var jobStarted = false
+    /// This run resumes a pairing saved by an earlier one.
+    var resuming = false
     /// Forget this pump's recorded result for each command before sending it, so it is probed again.
     var retest = false
     /// The commands already retested this run: each is forgotten once, before its first send, so a
@@ -77,7 +112,7 @@ final class BenchSession {
         requests = BenchRequestRate(since: 0)
         transport.onRequestWritten = { [weak self] in self?.requests.wrote() }
         if case .dismiss(_, _, let chunk) = job { transport.controlChunk = chunk }
-        if case .bolus(_, _, _, _, let chunk, _) = job { transport.controlChunk = chunk }
+        if case .bolus(_, let options) = job { transport.controlChunk = options.chunk }
         transport.recordPairing = env["PUMP_RECORD_PAIRING"] == "1"
     }
 
@@ -100,6 +135,12 @@ final class BenchSession {
             exit(2)
         }
         if let raw = env["PUMP_PERIPHERAL_ID"], let id = UUID(uuidString: raw) {
+            var creds = creds
+            if case .jpake = creds, let saved = PairingFile.resume(id, code: code) {
+                creds = saved
+                resuming = true
+                say("resuming the pairing saved in \(PairingFile.url(id).path)")
+            }
             connect(PumpTarget(peripheralID: id, model: .tslim, credentials: creds))
         } else {
             target = PumpTarget(peripheralID: UUID(), model: nil, credentials: creds)  // chosen on discovery
@@ -119,6 +160,11 @@ final class BenchSession {
         case .phase(let phase):
             say("link: \(phase)")
             if phase == .connecting { reconnects.connecting(at: now) }
+            if resuming, case .failed(.pairingDropped) = phase, let id = target?.peripheralID {
+                say(
+                    "the pump refused the saved pairing: delete \(PairingFile.url(id).path) and pair again in pairing mode"
+                )
+            }
             if phase == .ready {
                 if let line = reconnects.ready(at: now) { say(line) }
                 startJobOnce()
@@ -132,6 +178,13 @@ final class BenchSession {
         case .paired(let creds):
             target?.credentials = creds
             say("paired (JPAKE); later connections in this run resume from the derived secret")
+            if case .jpakeResume(let secret) = creds, let id = target?.peripheralID {
+                let saved = PairingFile.save(id, code: env["PUMP_PAIRING_CODE"] ?? "", secret: secret)
+                say(
+                    saved
+                        ? "saved for later runs in \(PairingFile.url(id).path)"
+                        : "couldn't save the pairing for later runs")
+            }
         case .ready(let identity):
             self.identity = identity
             say(

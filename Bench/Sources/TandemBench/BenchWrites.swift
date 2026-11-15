@@ -10,11 +10,34 @@ import TandemMessages
 /// 10), and the bench run is what confirms the pump takes it. Every mask comes from
 /// `InitiateBolusRequest.typeBitmask`, the one the app uses too. `cancel` is a units-only bolus
 /// cancelled as soon as the pump accepts it.
+/// A bench dose outside 0.05 to 1 U.
+public struct BenchDoseOutOfRange: Error, Equatable {
+    public let milliunits: UInt32
+}
+
 public enum BenchBolusKind: String, CaseIterable, Sendable {
     case units, carb, correction, cancel
 
-    /// 0.05 U, the pump's smallest bolus.
+    /// 0.05 U, the pump's smallest bolus, and the default.
     public static let milliunits: UInt32 = InitiateBolusRequest.minBolusMilliunits
+    /// The largest bench bolus, saline only: 1 U, and only for one stopped as it starts (see `allows`).
+    public static let maxMilliunits: UInt32 = 1000
+
+    /// `units` as milliunits, or nil unless it is 0.05 to 1 U in 0.05 U steps.
+    public static func milliunits(forUnits units: Double) -> UInt32? {
+        guard units.isFinite else { return nil }
+        let steps = (units * 20).rounded()
+        guard abs(units * 20 - steps) < 1e-6 else { return nil }
+        let mu = UInt32(clamping: Int(steps) * 50)
+        return (milliunits...maxMilliunits).contains(mu) ? mu : nil
+    }
+
+    /// Whether this bolus may be `milliunits`. The bench's saline is limited, so a bolus left to finish is
+    /// 0.05 U. Up to 1 U only for one stopped as it starts, so that it is still running when the stop lands:
+    /// `cancel`, or a link dropped once the pump accepts it (the owner cancels on the pump if it runs on).
+    public func allows(milliunits: UInt32, droppedOnAccept: Bool) -> Bool {
+        milliunits <= (self == .cancel || droppedOnAccept ? Self.maxMilliunits : Self.milliunits)
+    }
 
     public var mask: Int {
         InitiateBolusRequest.typeBitmask(hasCarbs: self == .carb, hasCorrection: self == .correction, isExtended: false)
@@ -30,8 +53,13 @@ public enum BenchBolusKind: String, CaseIterable, Sendable {
         }
     }
 
-    public func request(bolusId: Int, carbs: Int, bg: Int) throws -> InitiateBolusRequest {
-        let total = Self.milliunits
+    public func request(bolusId: Int, carbs: Int, bg: Int, milliunits: UInt32 = Self.milliunits) throws
+        -> InitiateBolusRequest
+    {
+        guard (Self.milliunits...Self.maxMilliunits).contains(milliunits) else {
+            throw BenchDoseOutOfRange(milliunits: milliunits)
+        }
+        let total = milliunits
         switch self {
         case .units, .cancel:
             return try InitiateBolusRequest(validating: total, bolusID: bolusId, bolusTypeBitmask: mask)
@@ -48,7 +76,7 @@ public enum BenchBolusKind: String, CaseIterable, Sendable {
 
 /// Every bench bolus sent, kept between runs so a restart can't repeat one: a bolus whose outcome
 /// wasn't settled blocks the next until the person at the bench has checked the pump, and at most
-/// three go out in any hour.
+/// `perHour` go out in any hour.
 public struct BenchBolusLog: Codable, Sendable, Equatable {
     public struct Entry: Codable, Sendable, Equatable {
         public var date: Date
@@ -58,8 +86,10 @@ public struct BenchBolusLog: Codable, Sendable, Equatable {
         /// nil until the outcome is known: from the pump's replies, or `bolus settle` after a check.
         public var outcome: String?
 
+        /// `date` is kept to the whole second, as the log file stores it, so the copy in memory and the
+        /// copy read back from disk are the same entry.
         public init(date: Date, serial: Int, kind: String, bolusId: Int, outcome: String? = nil) {
-            self.date = date
+            self.date = Date(timeIntervalSince1970: date.timeIntervalSince1970.rounded(.down))
             self.serial = serial
             self.kind = kind
             self.bolusId = bolusId
@@ -67,7 +97,7 @@ public struct BenchBolusLog: Codable, Sendable, Equatable {
         }
     }
 
-    public static let perHour = 3
+    public static let perHour = 12
 
     public var entries: [Entry] = []
 
@@ -88,7 +118,9 @@ public struct BenchBolusLog: Codable, Sendable, Equatable {
     /// meanwhile). An entry is one bolus (serial, bolus id, date); where both have it, a settled outcome
     /// wins over none, and this log's wins over `other`'s.
     public func merging(_ other: BenchBolusLog) -> BenchBolusLog {
-        func key(_ e: Entry) -> String { "\(e.serial)/\(e.bolusId)/\(e.date.timeIntervalSince1970)" }
+        func key(_ e: Entry) -> String {
+            "\(e.serial)/\(e.bolusId)/\(Int64(e.date.timeIntervalSince1970.rounded(.down)))"
+        }
         var byKey: [String: Entry] = [:]
         for e in other.entries { byKey[key(e)] = e }
         for e in entries {
@@ -96,6 +128,18 @@ public struct BenchBolusLog: Codable, Sendable, Equatable {
             byKey[key(e)] = e
         }
         return BenchBolusLog(entries: byKey.values.sorted { $0.date < $1.date })
+    }
+
+    /// How bolus `bolusId` ended by the pump's BolusCompleted record among `events`, or nil if none is there.
+    /// The pump's own record settles a bolus, as in the app, even one that never showed as active.
+    public static func outcomeFromHistory(bolusId: Int, events: [any HistoryLogEvent]) -> String? {
+        for case let e as BolusCompletedHistoryLog in events where e.bolusId == bolusId {
+            let how = e.completionStatus.map { "\($0)" } ?? "status \(e.completionStatusId)"
+            return String(
+                format: "history: BolusCompleted %@, %.2f U delivered of %.2f U", how, Double(e.insulinDelivered),
+                Double(e.insulinRequested))
+        }
+        return nil
     }
 
     public mutating func settleLast(_ outcome: String) -> Bool {
@@ -107,6 +151,16 @@ public struct BenchBolusLog: Codable, Sendable, Equatable {
 
 /// The checks before a bench write or bolus goes out. Each returns why it may not, or nil.
 public enum BenchSafetyGate {
+    /// The serial a write is checked against when `PUMP_BENCH_SERIAL` names it (a session script sets it
+    /// for its one bench pump), so nothing is typed; nil means it's asked for at the prompt. Either way it
+    /// has to match the pump the link reached.
+    public static func presetSerial(environment: [String: String]) -> String? {
+        guard let s = environment["PUMP_BENCH_SERIAL"]?.trimmingCharacters(in: .whitespaces), !s.isEmpty else {
+            return nil
+        }
+        return s
+    }
+
     /// The serial typed at the prompt has to be this pump's, so a write never reaches the wrong pump.
     public static func serialRefusal(typed: String, pumpSerial: Int?) -> String? {
         guard let pumpSerial else { return "this pump's serial number isn't known yet" }

@@ -32,6 +32,41 @@ import Testing
 }
 
 @Suite struct BenchBolusTests {
+    /// A dose is 0.05 to 1 U in 0.05 U steps; anything else is refused before a request is built.
+    @Test func aDoseIsAWholeStepUpToOneUnit() throws {
+        #expect(BenchBolusKind.milliunits(forUnits: 0.05) == 50)
+        #expect(BenchBolusKind.milliunits(forUnits: 0.35) == 350)
+        #expect(BenchBolusKind.milliunits(forUnits: 1) == 1000)
+        for bad in [0, 0.04, 0.07, 1.05, 2, -1, .nan, .infinity] {
+            #expect(BenchBolusKind.milliunits(forUnits: bad) == nil)
+        }
+        #expect(throws: BenchDoseOutOfRange(milliunits: 1050)) {
+            try BenchBolusKind.units.request(bolusId: 1, carbs: 0, bg: 0, milliunits: 1050)
+        }
+        #expect(throws: BenchDoseOutOfRange(milliunits: 0)) {
+            try BenchBolusKind.units.request(bolusId: 1, carbs: 0, bg: 0, milliunits: 0)
+        }
+    }
+
+    /// Only a bolus stopped as it starts may be more than 0.05 U: a cancel, or a link dropped on acceptance.
+    @Test func onlyAStoppedBolusIsLarger() {
+        for kind in BenchBolusKind.allCases {
+            #expect(kind.allows(milliunits: 50, droppedOnAccept: false))
+            #expect(kind.allows(milliunits: 1000, droppedOnAccept: false) == (kind == .cancel))
+            #expect(kind.allows(milliunits: 1000, droppedOnAccept: true))
+        }
+    }
+
+    /// A larger dose keeps each kind's layout, with the whole dose as food or correction.
+    @Test func aLargerDoseKeepsTheLayout() throws {
+        let units = try BenchBolusKind.units.request(bolusId: 3, carbs: 0, bg: 0, milliunits: 500)
+        #expect(units.cargo == InitiateBolusRequest(totalVolume: 500, bolusID: 3, bolusTypeBitmask: 8).cargo)
+        let carb = try BenchBolusKind.carb.request(bolusId: 3, carbs: 20, bg: 120, milliunits: 300)
+        #expect(carb.totalVolume == 300 && carb.foodVolume == 300 && carb.correctionVolume == 0)
+        let correction = try BenchBolusKind.correction.request(bolusId: 3, carbs: 0, bg: 450, milliunits: 500)
+        #expect(correction.totalVolume == 500 && correction.correctionVolume == 500 && correction.bolusBG == 450)
+    }
+
     /// Units-only is byte for byte the layout of pumpX2's 1 U override capture, at 0.05 U.
     @Test func unitsOnlyIsTheCapturedOverrideForm() throws {
         let r = try BenchBolusKind.units.request(bolusId: 10650, carbs: 9, bg: 140)
@@ -79,15 +114,15 @@ import Testing
         #expect(!again)
     }
 
-    @Test func atMostThreeAnHour() {
+    @Test func atMostTwelveAnHour() {
         let now = Date()
-        let settled = (0..<3).map {
+        let settled = (0..<12).map {
             BenchBolusLog.Entry(
-                date: now.addingTimeInterval(-Double($0) * 600), serial: 1, kind: "units", bolusId: $0, outcome: "ended"
+                date: now.addingTimeInterval(-Double($0) * 240), serial: 1, kind: "units", bolusId: $0, outcome: "ended"
             )
         }
-        #expect(BenchBolusLog(entries: settled).refusal(now: now)?.contains("3 bench boluses") == true)
-        #expect(BenchBolusLog(entries: Array(settled.prefix(2))).refusal(now: now) == nil)
+        #expect(BenchBolusLog(entries: settled).refusal(now: now)?.contains("12 bench boluses") == true)
+        #expect(BenchBolusLog(entries: Array(settled.prefix(11))).refusal(now: now) == nil)
         #expect(BenchBolusLog(entries: settled).refusal(now: now.addingTimeInterval(3600)) == nil)
     }
 
@@ -107,6 +142,34 @@ import Testing
         #expect(merged.refusal(now: t.addingTimeInterval(10))?.contains("20") == true)
     }
 
+    /// A bolus settled in the run that sent it: the entry in memory has a fraction of a second, the file keeps
+    /// whole seconds, and the two are still one entry, so no unsettled copy is left to block the next bolus.
+    @Test func aBolusSettledInItsOwnRunLeavesOneEntry() throws {
+        let sent = Date(timeIntervalSince1970: 1_800_000_000.734)
+        var mine = BenchBolusLog(entries: [.init(date: sent, serial: 1, kind: "units", bolusId: 3173)])
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let disk = try decoder.decode(BenchBolusLog.self, from: try encoder.encode(mine))
+        let settled = mine.settleLast("ended (status 0)")
+        #expect(settled)
+        let merged = mine.merging(disk)
+        #expect(merged.entries.count == 1)
+        #expect(merged.refusal(now: sent.addingTimeInterval(60)) == nil)
+    }
+
+    /// P3, 2026-11-14: bolus 3184 cancelled before it started. It never showed as active, but its
+    /// BolusCompleted record (SN 695541) settles it: nothing delivered of 0.05 U.
+    @Test func aBolusCompletedRecordSettlesItsBolus() throws {
+        let record = BolusCompletedHistoryLog(
+            cargo: try Hex.decode("1400ec3d7f23f59c0a000000700c319e394000000000cdcc4c3d"))
+        #expect(
+            BenchBolusLog.outcomeFromHistory(bolusId: 3184, events: [record])
+                == "history: BolusCompleted userAborted, 0.00 U delivered of 0.05 U")
+        #expect(BenchBolusLog.outcomeFromHistory(bolusId: 3183, events: [record]) == nil)
+    }
+
     @Test func theLogRoundTrips() throws {
         let log = BenchBolusLog(entries: [
             .init(date: Date(timeIntervalSince1970: 1_800_000_000), serial: 9, kind: "carb", bolusId: 4)
@@ -122,6 +185,16 @@ import Testing
         #expect(BenchSafetyGate.serialRefusal(typed: "123457", pumpSerial: 123456) != nil)
         #expect(BenchSafetyGate.serialRefusal(typed: "", pumpSerial: 123456) != nil)
         #expect(BenchSafetyGate.serialRefusal(typed: "123456", pumpSerial: nil) != nil)
+    }
+
+    @Test func aPresetSerialStandsInForTheTypedOne() {
+        #expect(BenchSafetyGate.presetSerial(environment: [:]) == nil)
+        #expect(BenchSafetyGate.presetSerial(environment: ["PUMP_BENCH_SERIAL": " "]) == nil)
+        let preset = BenchSafetyGate.presetSerial(environment: ["PUMP_BENCH_SERIAL": " 123456 "])
+        #expect(preset == "123456")
+        // It is still checked against the pump reached: a different pump refuses.
+        #expect(BenchSafetyGate.serialRefusal(typed: preset ?? "", pumpSerial: 123456) == nil)
+        #expect(BenchSafetyGate.serialRefusal(typed: preset ?? "", pumpSerial: 654321) != nil)
     }
 
     @Test func aWriteNeedsTheFlagAndTheSerial() {
