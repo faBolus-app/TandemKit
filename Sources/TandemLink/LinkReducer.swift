@@ -48,7 +48,7 @@ private final class Step {
     }
 
     func apply(_ input: LinkInput) {
-        catchUp()
+        let caughtUp = catchUp()
         switch input {
         case .connect(let target, let matrix): connect(target, matrix)
         case .scanForPairing: scanForPairing()
@@ -65,7 +65,7 @@ private final class Step {
         case .discovered(let id, let name, let rssi, let data): discovered(id, name, rssi, data)
         case .peripheralUnavailable(let id): peripheralUnavailable(id)
         case .connected(let id, let name): connected(id, name)
-        case .connectFailed(let id, _): connectFailed(id)
+        case .connectFailed(let id, let error): connectFailed(id, error)
         case .disconnected(let id, let error): disconnected(id, error)
         case .characteristicsDiscovered(let present): characteristicsDiscovered(present)
         case .subscription(let characteristic, let isNotifying, let failed):
@@ -79,21 +79,30 @@ private final class Step {
         case .authenticated(let key, let derivedSecret): authenticated(key: key, derivedSecret: derivedSecret)
         case .authenticationFailed(let rejected): authenticationFailed(rejected: rejected)
         case .timerFired(let timer): timerFired(timer)
-        case .backgroundTimeEnding:
-            if state.phase == .backingOff { startConnecting() }
+        case .backgroundTimeEnding: backgroundTimeEnding()
         }
+        // The wire a caught-up window freed is used only now, after the input. Sent before it, a queued
+        // request would go out ahead of a disconnect, stop or cancel that then tears it down: reported
+        // unknown, which for a signed write blocks boluses until it's settled.
+        if caughtUp, state.phase == .ready { dispatch() }
     }
 
     /// Timers don't fire while iOS has the app suspended. A settle window or hold window that ended
     /// while suspended is applied first, as of when it ended, so what happened after it (a drop an hour
-    /// later) isn't read as happening inside it.
-    func catchUp() {
-        if let until = state.connection?.settleUntil, until <= now { settleWindowPassed() }
+    /// later) isn't read as happening inside it. Nothing is sent here; returns whether a window ended.
+    func catchUp() -> Bool {
+        var ended = false
+        if let until = state.connection?.settleUntil, until <= now {
+            settleWindowPassed(dispatching: false)
+            ended = true
+        }
         if state.phase == .ready, let connection = state.connection, connection.heldAt == nil,
             let readyAt = connection.readyAt, now - readyAt >= config.holdWindow
         {
-            holdReached(at: readyAt + config.holdWindow)
+            holdReached(at: readyAt + config.holdWindow, dispatching: false)
+            ended = true
         }
+        return ended
     }
 
     // MARK: Effects
@@ -124,6 +133,7 @@ private final class Step {
             stopEverything(reason: .requested)
             state.target = target
             state.support = matrix
+            state.dropsRecordedOn = target.peripheralID
             setPhase(.failed(.unsupportedModel(model)))
             return
         }
@@ -140,11 +150,8 @@ private final class Step {
             }
         }
         stopEverything(reason: .requested)
-        if state.target?.peripheralID != target.peripheralID {
-            // What another pump did with a command says nothing about this one.
-            state.undefinedErrorDrops = [:]
-            state.sittingOutAfterDrops = []
-        }
+        // What another pump did with a command says nothing about this one: each keeps its own record.
+        state.dropsRecordedOn = target.peripheralID
         state.target = target
         state.support = matrix
         state.ladder = ReconnectLadder()
@@ -178,22 +185,40 @@ private final class Step {
             closeConnection(reason)
             transport(.cancelConnection(id))
         } else if state.phase == .connecting, let id = state.target?.peripheralID {
-            transport(.cancelConnection(id))  // the pending connect
+            transport(.cancelConnection(id))  // the pending connect, a delayed one included
+            state.cancelledPendingConnect = CancelledConnect(peripheralID: id, at: now)
         }
         if case .scanning = state.phase { transport(.stopScan) }
         cancelTimer(.scan)
         cancelTimer(.backoff)
+        state.backoffUntil = nil
+        state.pendingConnectDelayed = false
         state.pairingCandidates = [:]
         state.pairingTimerStopped = false
     }
 
     func appActive(_ active: Bool) {
         state.appActive = active
-        if active, state.phase == .connecting, let id = state.target?.peripheralID {
-            // A pending connect can be lost with no callback; reissuing it is harmless (the old client's
-            // watchdog existed for a link that otherwise stayed down until a force quit).
-            transport(.connect(id))
+        guard active, state.phase == .connecting, let id = state.target?.peripheralID else { return }
+        if state.pendingConnectDelayed, let until = state.backoffUntil, until > now {
+            // Back in the foreground, the cooldown is waited out by the link's own timer, as every
+            // foreground cooldown is: the delayed connect is cancelled and the timer runs for what is left.
+            // Reissuing a plain connect instead isn't known to cut the system's delay short. A delay already
+            // over leaves a pending connect like any other, reissued below.
+            cancelPendingConnect(id)
+            return waitCooldown(until: until)
         }
+        state.pendingConnectDelayed = false
+        // A pending connect can be lost with no callback; reissuing it is harmless (the old client's
+        // watchdog existed for a link that otherwise stayed down until a force quit).
+        transport(.connect(id))
+    }
+
+    /// Cancels the delayed pending connect out for `id`.
+    func cancelPendingConnect(_ id: UUID) {
+        transport(.cancelPendingConnect(id))
+        state.pendingConnectDelayed = false
+        state.cancelledPendingConnect = CancelledConnect(peripheralID: id, at: now)
     }
 
     func retest(_ key: MessageKey) {
@@ -376,7 +401,13 @@ private final class Step {
             // Any state but unknown (which only comes before the first update) ends the links iOS kept,
             // and resetting, unauthorized and unsupported invalidate the peripheral objects as well.
             if power != .unknown { state.restored = [] }
+            // A delayed connect the system still held could start once Bluetooth is back, at a time the
+            // link no longer expects; coming back on connects afresh.
+            if state.pendingConnectDelayed, state.phase == .connecting, let id = state.target?.peripheralID {
+                cancelPendingConnect(id)
+            }
             cancelTimer(.backoff)
+            state.backoffUntil = nil
             if case .scanning = state.phase { cancelTimer(.scan) }
             switch state.phase {
             case .idle, .failed: break
@@ -413,9 +444,41 @@ private final class Step {
             state.connection?.adoptedFromRestore = true
             return
         }
-        transport(.connect(target.peripheralID))
+        issueConnect(target.peripheralID)
         state.telemetry.connectAttempts += 1
         setPhase(.connecting)
+    }
+
+    /// Issues the pending connect: plain, or in the background with a cooldown still running, with the
+    /// rest of the cooldown as a start delay. Suspended, the link's own timer can't wait it out, and a
+    /// connect at once let a pump that drops every connection loop connect, authenticate and drop, draining
+    /// the phone and the pump. Unverified on a phone: that bluetoothd holds the delay while the app is
+    /// suspended. LoopKit's G7SensorKit and OmnipodKit report it from the field; Apple documents only the
+    /// key. If it doesn't, the connect goes out sooner, as it did before, never not at all.
+    func issueConnect(_ id: UUID) {
+        if let delay = backgroundStartDelay() {
+            transport(.delayedConnect(id, startDelay: delay))
+            state.pendingConnectDelayed = true
+        } else {
+            transport(.connect(id))
+            state.pendingConnectDelayed = false
+        }
+    }
+
+    /// The start delay for a connect issued now: what is left of the cooldown, rounded up to whole seconds
+    /// and at least one, in the background only. nil in the foreground, where the link's timer waits.
+    func backgroundStartDelay() -> Int? {
+        guard !state.appActive, !state.startDelayUnsupported, let until = state.backoffUntil else { return nil }
+        let remaining = until - now
+        guard remaining > 0 else { return nil }
+        return max(1, Int(remaining.rounded(.up)))
+    }
+
+    /// Background time ended, or none was given, during a cooldown: the connect goes out now, delayed by
+    /// the rest of the cooldown (`issueConnect`).
+    func backgroundTimeEnding() {
+        guard state.phase == .backingOff, !state.appActive else { return }
+        startConnecting()
     }
 
     func discovered(_ id: UUID, _ name: String?, _ rssi: Int, _ manufacturerData: [UInt8]?) {
@@ -452,6 +515,7 @@ private final class Step {
 
     func peripheralUnavailable(_ id: UUID) {
         guard state.phase == .connecting, id == state.target?.peripheralID else { return }
+        state.pendingConnectDelayed = false  // it never went out; the rescan's connect keeps the cooldown
         transport(.scan(repeats: false))
         startTimer(.scan, after: config.scanTimeout)
         setPhase(.scanning(forPairing: false))
@@ -479,6 +543,9 @@ private final class Step {
         if case .scanning = state.phase { transport(.stopScan) }
         cancelTimer(.scan)
         cancelTimer(.backoff)
+        state.backoffUntil = nil
+        state.pendingConnectDelayed = false
+        state.cancelledPendingConnect = nil
         let seen = pumpModel(advertisedName: name)
         state.connection = Connection(
             peripheralID: id, connectedAt: now,
@@ -502,9 +569,30 @@ private final class Step {
         setPhase(.failed(failure))
     }
 
-    func connectFailed(_ id: UUID) {
+    /// A delayed connect stays in `connecting`, so its failure lands here too.
+    func connectFailed(_ id: UUID, _ error: BluetoothError?) {
+        // A failure answering the link's own cancel, in whatever phase it lands; one that doesn't come in
+        // time is no longer expected.
+        var answersCancel = false
+        if let cancelled = state.cancelledPendingConnect, cancelled.peripheralID == id {
+            state.cancelledPendingConnect = nil
+            answersCancel = now - cancelled.at <= CancelledConnect.answerWindow
+        }
         guard id == state.target?.peripheralID, state.connection == nil, state.phase == .connecting else { return }
+        if state.pendingConnectDelayed, error == BluetoothError(domain: "CBErrorDomain", code: 1) {
+            // invalidParameters for a whole-second start delay: this system doesn't take the option. The
+            // pump didn't fail, so no flap and no cooldown; from now on background connects go out plain.
+            state.startDelayUnsupported = true
+            return issueConnect(id)
+        }
+        if answersCancel {
+            // Whether CoreBluetooth answers a cancel this way is unverified; if this was the new connect
+            // failing instead, the connect is issued again (harmless if it's still pending), so there's
+            // always one out.
+            return issueConnect(id)
+        }
         state.telemetry.failedConnects += 1
+        state.pendingConnectDelayed = false
         flap(base: config.cooldownAfterFailedConnect)
     }
 
@@ -582,8 +670,9 @@ private final class Step {
     }
 
     /// Waits `base` doubled for each failure before this one, up to the cap, then issues the pending
-    /// connect. In the background the driver keeps the timer running with background time, and issues
-    /// the connect early (`backgroundTimeEnding`) if iOS ends it first.
+    /// connect. In the background the driver keeps the timer running with background time; if iOS ends it
+    /// first, or gives none, the connect goes out then with the rest of the wait as its start delay
+    /// (`backgroundTimeEnding`).
     func coolDown(base: Double, failuresBefore: Int) {
         let flaps = state.ladder.flaps
         if flaps >= config.unstableAfterFlaps && !state.ladder.reportedUnstable {
@@ -591,7 +680,14 @@ private final class Step {
             emit(.connectionUnstable(flaps: flaps))
         }
         let doubled = base * pow(2, Double(min(max(failuresBefore, 0), 30)))
-        startTimer(.backoff, after: min(doubled, config.cooldownCap))
+        waitCooldown(until: now + min(doubled, config.cooldownCap))
+    }
+
+    /// Backs off until `until`, when the timer issues the pending connect. `backoffUntil` is kept with
+    /// the timer so a connect issued early, in the background, can carry the rest as a start delay.
+    func waitCooldown(until: LinkTime) {
+        state.backoffUntil = until
+        startTimer(.backoff, after: until - now)
         setPhase(.backingOff)
     }
 
@@ -718,6 +814,22 @@ private final class Step {
         state.connection?.readyAt = now
         state.lastIdentity = connection.identity
         cancelTimer(.establishment)
+        // An optional characteristic whose first subscription iOS never answered is neither subscribed nor
+        // unavailable, so a request on it would be taken and never sent: `dispatch` waits for the
+        // subscription, and a request's deadline starts only when it goes out. A stuck control request
+        // would hold up everything behind it, a cancel included. By now the writes issued after the
+        // subscriptions (authentication, the handshake) have been answered, so one still unanswered is
+        // taken as unavailable and requests on it are refused; a confirmation that comes later makes it
+        // available again.
+        let unanswered = connection.present.filter {
+            ServiceUUID.notificationCharacteristics.contains($0) && !connection.subscribed.contains($0)
+                && !connection.resubscribing.contains($0)
+        }
+        state.connection?.unavailable.formUnion(unanswered)
+        // Asked once more, so a subscription whose first request was lost can still come back.
+        for characteristic in ServiceUUID.notificationCharacteristics where unanswered.contains(characteristic) {
+            transport(.subscribe(characteristic))
+        }
         startTimer(.hold, after: config.holdWindow)
         state.telemetry.becameReady(at: now)
         setPhase(.ready)
@@ -910,11 +1022,15 @@ private final class Step {
         for pending in stopped { complete(pending.request.id, .notSent(.probeStopped)) }
     }
 
-    /// The settle window passed with the link up: classify the op-77.
-    func settleWindowPassed() {
+    /// The settle window passed with the link up: classify the op-77, then send what waits, unless the
+    /// caller sends it itself (`catchUp`).
+    func settleWindowPassed(dispatching: Bool = true) {
         state.connection?.settleUntil = nil
         cancelTimer(.settle)
-        guard let errorReply = state.connection?.lastError else { return dispatch() }
+        guard let errorReply = state.connection?.lastError else {
+            if dispatching { dispatch() }
+            return
+        }
         state.connection?.lastError = nil
         let code = errorReply.error.errorCodeId
         var retry: Pending?
@@ -935,7 +1051,7 @@ private final class Step {
         } else if let pending = errorReply.pending {
             complete(pending.request.id, .pumpError(errorReply.error))
         }
-        dispatch()
+        if dispatching { dispatch() }
     }
 
     /// The request again, if it may be retried: a supported read with attempts left. A probe isn't: the
@@ -1013,7 +1129,9 @@ private final class Step {
     func timerFired(_ timer: LinkTimer) {
         switch timer {
         case .backoff:
-            if state.phase == .backingOff { startConnecting() }
+            guard state.phase == .backingOff else { return }
+            state.backoffUntil = nil  // waited out
+            startConnecting()
         case .scan:
             guard case .scanning(let forPairing) = state.phase else { return }
             transport(.stopScan)
@@ -1045,7 +1163,7 @@ private final class Step {
 
     /// The link stayed ready for the hold window: it held. The ladder resets only here (an
     /// authenticated hold), and probes may run.
-    func holdReached(at time: LinkTime) {
+    func holdReached(at time: LinkTime, dispatching: Bool = true) {
         guard state.phase == .ready, state.connection?.heldAt == nil else { return }
         cancelTimer(.hold)
         state.connection?.heldAt = time
@@ -1054,7 +1172,7 @@ private final class Step {
             state.ladder.reportedUnstable = false
             emit(.connectionRestored)
         }
-        dispatch()
+        if dispatching { dispatch() }
     }
 
     func requestDeadline(_ id: RequestID) {

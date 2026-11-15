@@ -76,8 +76,9 @@ public final class PumpConnection {
     /// A link over CoreBluetooth. `restoreIdentifier` opts in to state preservation and restoration:
     /// iOS then relaunches the app for pump events after it was terminated (not after a force quit), and
     /// the link picks up the restored connection. Needs the `bluetooth-central` background mode.
-    /// `backgroundTime` keeps a reconnect cooldown timed in the background; without it, a cooldown that
-    /// starts or is under way in the background ends at once, since a suspended app's timer wouldn't fire.
+    /// `backgroundTime` keeps a reconnect cooldown timed in the background. Without it, or when it ends
+    /// first, the pending connect goes out at once with the rest of the cooldown as CoreBluetooth's start
+    /// delay, since a suspended app's timer wouldn't fire.
     public convenience init(
         restoreIdentifier: String?, config: LinkConfiguration = LinkConfiguration(),
         backgroundTime: (any LinkBackgroundTime)? = nil
@@ -105,7 +106,8 @@ public final class PumpConnection {
 
     // MARK: Caller
 
-    /// Keeps the link up with `target`, starting a fresh reconnect ladder. `support` is the matrix
+    /// Keeps the link up with `target`. A pump the link isn't already connected or reconnecting to starts a
+    /// fresh reconnect ladder; for the one it is, the link and its ladder stay. `support` is the matrix
     /// stored with the pairing; changes come back as `supportMatrixChanged`.
     public func connect(to target: PumpTarget, support: SupportMatrix) { feed(.connect(target, support)) }
 

@@ -323,4 +323,110 @@ import TandemMessages
         #expect(h.events == [.qualifyingEvents(.alert)])
         #expect(h.commands.isEmpty)
     }
+
+    // MARK: first subscriptions iOS never answers
+
+    /// Readies a link whose `control` subscription gets `answer`, or none at all.
+    func readyWithControl(answering answer: (isNotifying: Bool, failed: Bool)?) -> LinkHarness {
+        var h = LinkHarness()
+        h.apply(.power(.poweredOn))
+        h.apply(.connect(target, SupportMatrix()))
+        h.apply(.connected(peripheralID: Self.id, name: "tslim X2 ***693"))
+        h.apply(.characteristicsDiscovered(Set(Characteristic.allCases)))
+        if let answer { h.apply(.subscription(.control, isNotifying: answer.isNotifying, failed: answer.failed)) }
+        for c in ServiceUUID.notificationCharacteristics where c != .control {
+            h.apply(.subscription(c, isNotifying: true, failed: false))
+        }
+        h.apply(.authenticated(key: LinkHarness.key, derivedSecret: nil))
+        h.answerHandshake()
+        return h
+    }
+
+    @Test func anOptionalSubscriptionNeverAnsweredIsUnavailableOnceReady() {
+        // Taken and never sent, a control request would hold up everything behind it, a cancel included.
+        var h = readyWithControl(answering: nil)
+        #expect(h.phase == .ready)
+        #expect(h.state.connection?.unavailable == [.control])
+        h.advance(by: 10)
+        let cancel = h.submit(CancelBolusRequest(bolusId: 1), allowing: .delivery)
+        #expect(h.results[cancel] == .notSent(.characteristicUnavailable))
+        let read = h.submit(CurrentBatteryV1Request())
+        #expect(h.writes(of: CurrentBatteryV1Request.self) == 1, "nothing behind it is held up")
+        h.reply(CurrentBatteryV1Response(cargo: [80, 0]))
+        #expect(h.results[read] != nil)
+    }
+
+    @Test func anOptionalSubscriptionAnsweredNotNotifyingIsUnavailableOnceReady() {
+        let h = readyWithControl(answering: (isNotifying: false, failed: false))
+        #expect(h.state.connection?.unavailable == [.control])
+    }
+
+    @Test func aLateConfirmationMakesTheCharacteristicAvailableAgain() {
+        var h = readyWithControl(answering: nil)
+        h.advance(by: 10)
+        h.apply(.subscription(.control, isNotifying: true, failed: false))
+        #expect(h.state.connection?.unavailable.isEmpty == true)
+        _ = h.submit(BolusPermissionRequest(), allowing: .delivery)
+        #expect(h.writes(of: BolusPermissionRequest.self) == 1)
+    }
+
+    // MARK: catch-up sends nothing before the input
+
+    /// Ready in the background, with an untested read queued behind the hold.
+    func readyWithAProbeWaiting() -> (LinkHarness, RequestID) {
+        var h = LinkHarness()
+        h.apply(.appActive(false))
+        h.makeReady()
+        let probe = h.submit(LoadStatusRequest())
+        #expect(h.writes(of: LoadStatusRequest.self) == 0, "waits for the hold")
+        return (h, probe)
+    }
+
+    @Test func aDisconnectThatWakesTheLinkGoesBeforeTheRequestTheHoldFreed() {
+        var (h, probe) = readyWithAProbeWaiting()
+        h.sleep(for: 3_600)  // the hold passed while suspended
+        h.apply(.disconnected(peripheralID: Self.id, drop))
+        #expect(h.writes(of: LoadStatusRequest.self) == 0)
+        #expect(h.results[probe] == .notSent(.connectionLost), "never sent, so nothing to settle")
+        #expect(h.state.telemetry.spans.last?.held == true)
+    }
+
+    @Test func aCancelThatWakesTheLinkGoesBeforeTheRequestTheHoldFreed() {
+        var (h, probe) = readyWithAProbeWaiting()
+        h.sleep(for: 3_600)
+        h.apply(.cancel(probe))
+        #expect(h.writes(of: LoadStatusRequest.self) == 0)
+        #expect(h.results[probe] == .notSent(.cancelled))
+    }
+
+    @Test func aStopThatWakesTheLinkGoesBeforeTheRequestTheHoldFreed() {
+        var (h, probe) = readyWithAProbeWaiting()
+        h.sleep(for: 3_600)
+        h.apply(.stop)
+        #expect(h.writes(of: LoadStatusRequest.self) == 0)
+        #expect(h.results[probe] == .notSent(.connectionLost))
+    }
+
+    @Test func aDisconnectThatWakesTheLinkGoesBeforeTheRetryTheSettleWindowFreed() {
+        var h = LinkHarness()
+        h.apply(.appActive(false))
+        h.makeReady()
+        h.advance(by: 10)
+        let read = h.submit(CurrentBatteryV1Request())
+        h.replyError(code: 2)  // transient: a retry waits for the settle window
+        h.sleep(for: 1_200)
+        h.apply(.disconnected(peripheralID: Self.id, drop))
+        #expect(h.writes(of: CurrentBatteryV1Request.self) == 1)
+        guard case .pumpError = h.results[read] else {
+            Issue.record("expected the pump's answer to the attempt that went out")
+            return
+        }
+    }
+
+    @Test func anInputThatKeepsTheLinkUpStillSendsWhatTheHoldFreed() {
+        var (h, _) = readyWithAProbeWaiting()
+        h.sleep(for: 3_600)
+        h.apply(.appActive(true))
+        #expect(h.writes(of: LoadStatusRequest.self) == 1)
+    }
 }

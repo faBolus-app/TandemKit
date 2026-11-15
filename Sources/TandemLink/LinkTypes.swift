@@ -16,7 +16,7 @@ public typealias LinkTime = Double
 /// Timings and limits. Every default is either copied from the old client or marked a guess.
 public struct LinkConfiguration: Sendable, Equatable {
     /// How long an authenticated, handshaken link must stay up before it counts as held: the ladder
-    /// resets, probes may run, and a later drop reconnects at once. Guess: well past P1's drop 2.0 s
+    /// resets, so a later drop waits only its base cooldown, and probes may run. Guess: well past P1's drop 2.0 s
     /// after pairing, so that drop stays a flap. Mobi's renegotiation drop at about 15 s
     /// would need a longer window when Mobi is built.
     public var holdWindow: Double = 10
@@ -42,9 +42,9 @@ public struct LinkConfiguration: Sendable, Equatable {
     public var establishmentTimeout: Double = 30
     /// How long a scan for a known pump runs before it counts as a flap (the old client's bound).
     public var scanTimeout: Double = 30
-    /// A pairing scan fails as `pumpNotFound` after this long, unless the strongest pump found advertises
-    /// that it is accepting connections first (Mobi's pump timer). The scan itself runs until it is
-    /// stopped or a pump is picked.
+    /// A pairing scan stops and fails as `pumpNotFound` after this long, pumps listed or not, unless the
+    /// strongest pump found advertises that it is accepting connections first (Mobi's pump timer). Only
+    /// then does the scan run on until it is stopped or a pump is picked.
     public var pairingScanTimeout: Double = 120
     /// A pump this weak or weaker isn't listed for pairing (Mobi and t:connect: -75 dBm). CoreBluetooth's
     /// 127, signal unknown, passes, as Mobi's does.
@@ -191,7 +191,8 @@ public enum LinkPhase: Sendable, Equatable {
     /// Scanning, for pairing (`forPairing`) or because the target's handle couldn't be retrieved.
     case scanning(forPairing: Bool)
     /// A pending `connect()` is out. It has no timeout: CoreBluetooth completes it when the pump is in
-    /// range, also while the app is suspended.
+    /// range, also while the app is suspended. One issued in the background with a cooldown still running
+    /// carries the rest of it as a start delay (`TransportCommand.delayedConnect`).
     case connecting
     /// Connected: services, characteristics and subscriptions.
     case discovering
@@ -373,7 +374,9 @@ public enum LinkTimer: Hashable, Sendable {
 /// Everything that can happen to the link.
 public enum LinkInput: Sendable {
     // From the caller
-    /// Keep the link up with this pump. Starts a fresh ladder.
+    /// Keep the link up with this pump. A pump the link isn't already connected or reconnecting to starts
+    /// a fresh ladder; for the pump it is, the link and the ladder stay, with the new credentials and the
+    /// matrices merged.
     case connect(PumpTarget, SupportMatrix)
     /// Scan for pumps to pair with.
     case scanForPairing
@@ -414,8 +417,10 @@ public enum LinkInput: Sendable {
     case authenticationFailed(rejected: Bool)
 
     case timerFired(LinkTimer)
-    /// The background time that kept a cooldown's timer running in the background is ending
-    /// (`LinkBackgroundTime`). Suspended, the timer wouldn't fire, so the pending connect goes out now.
+    /// The background time that kept a cooldown's timer running in the background is ending, or none was
+    /// given (`LinkBackgroundTime`). Suspended, the timer wouldn't fire, so the pending connect goes out
+    /// now, with the rest of the cooldown as its start delay (`TransportCommand.delayedConnect`). Ignored
+    /// in the foreground, where the timer runs.
     case backgroundTimeEnding
 }
 
@@ -443,7 +448,15 @@ public enum TransportCommand: Sendable, Equatable {
     /// Resolve the peripheral by identifier and issue a pending connect. Reports
     /// `peripheralUnavailable` when it can't be resolved.
     case connect(UUID)
+    /// As `connect`, but the system waits `startDelay` whole seconds before it starts connecting
+    /// (`CBConnectPeripheralOptionStartDelayKey`). Whole seconds because CoreBluetooth rejects a fractional
+    /// value with `CBError.invalidParameters`. Used only in the background, for the rest of a reconnect
+    /// cooldown the app's own timer can't wait out while suspended.
+    case delayedConnect(UUID, startDelay: Int)
     case cancelConnection(UUID)
+    /// End a pending connect, and only that: a peripheral already connected is left alone, because its
+    /// `didConnect` may still be queued and that link is wanted.
+    case cancelPendingConnect(UUID)
     /// Set up this connected peripheral: it becomes the one the transport writes to and listens to.
     case discover(UUID)
     case subscribe(Characteristic)

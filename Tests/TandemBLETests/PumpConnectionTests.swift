@@ -85,7 +85,68 @@ import TandemMessages
         r.connection.connect(to: target, support: SupportMatrix())
         r.transport.drop()  // before the hold: a flap
         #expect(r.connection.state.ladder.flaps == 1)
-        #expect(r.connection.state.phase == .ready)  // the pending connect completed at once
+        // No background time: the connect went out with the 1 s cooldown as its start delay, which the
+        // system waits out while the app is suspended.
+        #expect(r.transport.commands.last == .delayedConnect(ScriptedPump.id, startDelay: 1))
+        #expect(r.connection.state.phase == .connecting)
+        r.clock.advance(by: 1)
+        #expect(r.connection.state.phase == .ready)
+    }
+
+    @Test func aPumpThatDropsEveryLinkInTheBackgroundIsRetriedAtTheCooldownNotAtOnce() {
+        // Without the start delay a suspended app's pending connect went out at once after every drop, and
+        // a pump that drops each link looped connect, authenticate, drop, draining both batteries.
+        let pump = ScriptedPump()
+        pump.dropAfterPairing = 2
+        let r = rig(pump: pump)
+        r.connection.setAppActive(false)
+        r.clock.suspended = true
+        r.connection.connect(to: target, support: SupportMatrix())
+        r.clock.advance(by: 600)
+        let connects = r.transport.commands.filter {
+            switch $0 {
+            case .connect, .delayedConnect: return true
+            default: return false
+            }
+        }.count
+        // Each cycle is 2 s up plus a cooldown of 1, 2, 4, 8, 16 s, then 30 s.
+        #expect(connects <= 1 + 5 + (600 - 41) / 32 + 1)
+        #expect(connects > 5)
+    }
+
+    @Test func aSystemThatRefusesTheStartDelayConnectsPlainWithNoFlap() {
+        let pump = ScriptedPump()
+        let r = rig(pump: pump)
+        r.transport.rejectsStartDelay = true
+        r.connection.setAppActive(false)
+        r.clock.suspended = true
+        r.connection.connect(to: target, support: SupportMatrix())
+        r.transport.drop()
+        #expect(r.connection.state.ladder.flaps == 1)
+        #expect(r.connection.state.phase == .ready, "the plain connect completed at once")
+        #expect(r.connection.state.telemetry.failedConnects == 0)
+    }
+
+    @Test func comingToTheForegroundDuringAStartDelayWaitsTheRestOnTheTimer() {
+        let pump = ScriptedPump()
+        let r = rig(pump: pump)
+        r.connection.connect(to: target, support: SupportMatrix())
+        r.clock.advance(by: 30)  // held
+        r.connection.setAppActive(false)
+        for drop in 0..<3 {  // a held drop, then two before the hold: 1, 2 then 4 s
+            r.transport.drop()
+            guard drop < 2 else { break }
+            r.clock.suspended = true
+            r.clock.advance(by: 5)  // the system waits out the delay and the link comes back
+            r.clock.suspended = false
+        }
+        #expect(r.transport.commands.last == .delayedConnect(ScriptedPump.id, startDelay: 4))
+        r.connection.setAppActive(true)
+        #expect(r.transport.commands.last == .cancelPendingConnect(ScriptedPump.id))
+        #expect(r.connection.state.phase == .backingOff)
+        r.clock.advance(by: 4)
+        #expect(r.connection.state.phase == .ready)
+        #expect(r.transport.commands.last(where: { if case .connect = $0 { true } else { false } }) != nil)
     }
 
     @Test func killAndRelaunchPicksUpTheRestoredLink() async {
@@ -213,6 +274,7 @@ import TandemMessages
         transport.pumpWalksAway()
         time.held.first?()
         #expect(connection.state.phase == .connecting)
+        #expect(transport.commands.last == .delayedConnect(ScriptedPump.id, startDelay: 3))
         #expect(time.ended == 0, "the provider ends it itself; the link doesn't end it again")
     }
 
@@ -228,6 +290,7 @@ import TandemMessages
         clock.advance(by: 30)
         transport.pumpWalksAway()
         #expect(connection.state.phase == .connecting)
+        #expect(transport.commands.last == .delayedConnect(ScriptedPump.id, startDelay: 3))
     }
 
     @Test func aForegroundCooldownTakesNoBackgroundTime() {
