@@ -114,15 +114,15 @@ import Testing
         #expect(!again)
     }
 
-    @Test func atMostThreeAnHour() {
+    @Test func atMostTwelveAnHour() {
         let now = Date()
-        let settled = (0..<3).map {
+        let settled = (0..<12).map {
             BenchBolusLog.Entry(
-                date: now.addingTimeInterval(-Double($0) * 600), serial: 1, kind: "units", bolusId: $0, outcome: "ended"
+                date: now.addingTimeInterval(-Double($0) * 240), serial: 1, kind: "units", bolusId: $0, outcome: "ended"
             )
         }
-        #expect(BenchBolusLog(entries: settled).refusal(now: now)?.contains("3 bench boluses") == true)
-        #expect(BenchBolusLog(entries: Array(settled.prefix(2))).refusal(now: now) == nil)
+        #expect(BenchBolusLog(entries: settled).refusal(now: now)?.contains("12 bench boluses") == true)
+        #expect(BenchBolusLog(entries: Array(settled.prefix(11))).refusal(now: now) == nil)
         #expect(BenchBolusLog(entries: settled).refusal(now: now.addingTimeInterval(3600)) == nil)
     }
 

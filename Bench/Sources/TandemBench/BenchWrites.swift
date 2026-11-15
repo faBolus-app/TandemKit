@@ -95,7 +95,7 @@ public struct BenchBolusLog: Codable, Sendable, Equatable {
         }
     }
 
-    public static let perHour = 3
+    public static let perHour = 12
 
     public var entries: [Entry] = []
 

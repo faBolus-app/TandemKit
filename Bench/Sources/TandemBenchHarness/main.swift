@@ -58,7 +58,7 @@ let usage = """
       bolus <units|carb|correction|cancel> [--units U] [--carbs G] [--bg MGDL] [--no-cartridge] [--chunk 18]
                                 one bolus, 0.05 U; --units up to 1 U for cancel or --drop accepted; --bg 20-600:
                                 saline only (PUMP_SALINE_ATTESTED=1, on no one), or
-                                --no-cartridge (PUMP_NO_CARTRIDGE_ATTESTED=1) for the pump's refusal; at most 3 an hour, logged in
+                                --no-cartridge (PUMP_NO_CARTRIDGE_ATTESTED=1) for the pump's refusal; at most 12 an hour, logged in
                                 ~/.tandemkit-bench/bench-boluses.json (PUMP_BOLUS_LOG)
                                 --overlap (cancel only): write the cancel while a CurrentBolusStatus read
                                 still waits for its reply, as Mobi does (bench step 15)
